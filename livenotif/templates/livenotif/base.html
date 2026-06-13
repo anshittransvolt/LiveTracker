@@ -1,0 +1,694 @@
+<!-- Live Toast Notification System -->
+<!-- Stacked Alerts at Top Right (Below Navbar) -->
+<div class="fixed top-20 right-4 z-[9999]">
+    <!-- Stack Counter Badge -->
+    <div id="livetracker-stack-counter" 
+         class="hidden absolute -top-2 -left-2 z-[10] bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-white pointer-events-none">
+        0
+    </div>
+    
+    <!-- Stacked Alerts Container -->
+    <div id="livetracker-toast-stack" class="relative max-h-[calc(100vh-5rem-170px)] overflow-y-auto overflow-x-visible pr-1">
+        <!-- Stacked/archived toasts appear here in a pile -->
+    </div>
+</div>
+
+<!-- Active Alert Popup (Bottom Right) - Higher z-index to cover stacked alerts -->
+<div 
+    id="livetracker-toast-active" 
+    class="fixed bottom-4 right-4 z-[10100]"
+>
+    <!-- Active toast appears here temporarily -->
+</div>
+
+<!-- Action Notes Modal -->
+<div id="actionNotesModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full transform transition-all">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <div class="flex items-center gap-2">
+                <div class="p-1.5 bg-blue-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800">Action Notes</h3>
+                    <p class="text-[10px] text-slate-500">Describe the action taken</p>
+                </div>
+            </div>
+            <button id="closeActionModal" class="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="p-4">
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">What action did you take?</label>
+            <textarea 
+                id="actionNotesInput" 
+                rows="3" 
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                placeholder="Enter details about the action taken..."
+            ></textarea>
+           
+        </div>
+        <div class="flex gap-2 px-4 py-3 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+            <button id="cancelActionModal" class="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium">
+                Cancel
+            </button>
+            <button id="submitActionModal" class="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow">
+                Submit
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+class LiveToastManager {
+    constructor() {
+        this.stackContainer = document.getElementById('livetracker-toast-stack');
+        this.stackCounter = document.getElementById('livetracker-stack-counter');
+        this.activeContainer = document.getElementById('livetracker-toast-active');
+        this.toasts = new Map(); // all toasts (stacked + active)
+        this.stackedToasts = []; // IDs of stacked toasts (newest first)
+        this.activeToast = null; // currently active (popup) toast
+        this.toastQueue = [];    // queue for new toasts
+        this.shownToastIds = new Set(); // Track IDs of toasts we've already shown
+        this.shownContentHashes = new Set(); // Track content hashes to prevent duplicate alerts
+        this.pollInterval = 10000; // 10 seconds
+        this.activeDisplayTime = 45000; // 45 seconds display time for auto-shown toasts
+        this.userExpandedDisplayTime = 120000; // 2 minutes for user-expanded toasts
+        this.pinnedToasts = new Set(); // Track pinned toasts
+        this.activeTimer = null; // Track active toast timer
+        this.init();
+    }
+
+    init() {
+        this.loadToasts();
+        setInterval(() => this.loadToasts(), this.pollInterval);
+    }
+
+    // Generate a unique content hash for deduplication
+    getContentHash(toast) {
+        // Create hash from title + message + vehicle number (if in message)
+        const content = `${toast.title}|${toast.message}`;
+        return this.simpleHash(content);
+    }
+
+    // Simple hash function
+    simpleHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return hash.toString();
+    }
+
+    async loadToasts() {
+        try {
+            const response = await fetch('/livenotif/api/toasts/');
+            const data = await response.json();
+
+            // Filter out toasts we've already shown (by ID or content)
+            data.toasts.forEach(toast => {
+                const contentHash = this.getContentHash(toast);
+                
+                // Skip if we've already shown this ID or this exact content
+                if (this.toasts.has(toast.id) || 
+                    this.shownToastIds.has(toast.id) || 
+                    this.shownContentHashes.has(contentHash) ||
+                    this.toastQueue.find(t => t.id === toast.id)) {
+                    return;
+                }
+
+                // Add to queue and mark as shown
+                this.toastQueue.push(toast);
+                this.shownToastIds.add(toast.id);
+                this.shownContentHashes.add(contentHash);
+                
+                // Clean up old content hashes (keep last 200)
+                if (this.shownContentHashes.size > 200) {
+                    const hashArray = Array.from(this.shownContentHashes);
+                    const toRemove = hashArray.slice(0, hashArray.length - 200);
+                    toRemove.forEach(h => this.shownContentHashes.delete(h));
+                }
+            });
+
+            // Process queue
+            this.processQueue();
+        } catch (error) {
+            console.error('Error loading toasts:', error);
+        }
+    }
+
+    processQueue() {
+        // If no active toast and queue has items, show next one
+        if (!this.activeToast && this.toastQueue.length > 0) {
+            const nextToast = this.toastQueue.shift();
+            this.showActiveToast(nextToast);
+        }
+    }
+
+    showActiveToast(toast, isUserExpanded = false) {
+        // Clear any existing active timer
+        if (this.activeTimer) {
+            clearTimeout(this.activeTimer);
+            this.activeTimer = null;
+        }
+
+        // Create active toast element (full size with actions)
+        const toastEl = this.createActiveToastElement(toast);
+        this.activeContainer.innerHTML = ''; // Clear any existing
+        this.activeContainer.appendChild(toastEl);
+        this.refreshLucideIcons();
+        
+        this.activeToast = toast.id;
+        this.toasts.set(toast.id, { element: toastEl, data: toast, isActive: true, isUserExpanded });
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toastEl.classList.remove('opacity-0', 'translate-y-6');
+            toastEl.classList.add('opacity-100', 'translate-y-0');
+        });
+
+        // Set timer based on how toast was opened (unless pinned)
+        if (!this.pinnedToasts.has(toast.id)) {
+            const displayTime = isUserExpanded ? this.userExpandedDisplayTime : this.activeDisplayTime;
+            this.activeTimer = setTimeout(() => {
+                this.moveToStack(toast.id);
+            }, displayTime);
+        }
+    }
+
+    moveToStack(toastId) {
+        const toastData = this.toasts.get(toastId);
+        if (!toastData || !toastData.isActive) return;
+
+        // Don't move to stack if pinned
+        if (this.pinnedToasts.has(toastId)) return;
+
+        const activeEl = toastData.element;
+        
+        // Animate out from active area
+        activeEl.classList.add('opacity-0', '-translate-y-8', 'scale-95');
+
+        setTimeout(() => {
+            // Remove from active container
+            activeEl.remove();
+            
+            // Create stacked version (compact)
+            const stackedEl = this.createStackedToastElement(toastData.data);
+            
+            // Add to top of stack (prepend so newest is at top)
+            this.stackContainer.prepend(stackedEl);
+            this.refreshLucideIcons();
+
+            // Update tracking
+            this.stackedToasts.unshift(toastId);
+            this.toasts.set(toastId, { element: stackedEl, data: toastData.data, isActive: false });
+            this.activeToast = null;
+
+            // Update counter badge
+            this.updateStackCounter();
+
+            // Animate stack in
+            requestAnimationFrame(() => {
+                stackedEl.classList.remove('opacity-0', 'scale-95');
+                stackedEl.classList.add('opacity-100', 'scale-100');
+            });
+
+            // Auto-scroll to top to show newest alert
+            this.stackContainer.scrollTop = 0;
+
+            // Process next in queue
+            this.processQueue();
+        }, 300);
+    }
+
+    updateStackCounter() {
+        const count = this.stackedToasts.length;
+        if (count > 0) {
+            this.stackCounter.textContent = count;
+            this.stackCounter.classList.remove('hidden');
+            this.stackCounter.classList.add('flex');
+        } else {
+            this.stackCounter.classList.add('hidden');
+            this.stackCounter.classList.remove('flex');
+        }
+    }
+
+    createActiveToastElement(toast) {
+        const div = document.createElement('div');
+        div.setAttribute('data-toast-id', toast.id);
+
+        const styles = this.getToastStyles(toast.severity);
+        const createdAt = this.formatToastTime(toast.created_at);
+        const displayMessage = this.stripLocationFromMessage(toast.message);
+        const displayParts = this.getToastDisplayParts(toast);
+        const primaryMessage = displayParts.titleMessage || displayMessage || 'Alert received';
+        const driverLine = this.getDriverLine(toast);
+
+        div.className = `
+            w-[300px] relative z-[10100]
+            p-2.5 rounded-md border ${styles.borderColor} ${styles.bgColor} ${styles.textColor}
+            shadow-md hover:shadow-lg
+            transition-all duration-300 ease-out opacity-0 translate-y-6
+        `;
+
+        div.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-base leading-none inline-flex items-center justify-center font-semibold">${styles.icon}</span>
+                    <span class="text-[13px] font-bold ${styles.textColor}">${this.escapeHtml(displayParts.vehicleNo || 'Vehicle')}</span>
+                    <span class="text-[10px] font-bold ${styles.textColor.replace('900', '700')} whitespace-nowrap">${createdAt}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button class="lt-pin p-0.5 hover:bg-black/10 rounded-full transition-all flex-shrink-0" 
+                        onclick="liveToastManager.togglePin(${toast.id})"
+                        data-toast-id="${toast.id}"
+                        title="Pin to keep open">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pin-icon">
+                            <path d="M12 17v5"></path>
+                            <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path>
+                        </svg>
+                    </button>
+                    <button class="lt-dismiss p-0.5 hover:bg-black/10 rounded-full transition-all flex-shrink-0"
+                        onclick="liveToastManager.handleIgnore(${toast.id})"
+                        title="Dismiss">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <p class="text-[12px] leading-snug mb-2 font-semibold font-semibold ${styles.textColor.replace('900', '800')}">${this.escapeHtml(primaryMessage)}</p>
+            ${driverLine ? `<p class="text-[11px] leading-snug mb-2 font-semibold ${styles.textColor.replace('900', '700')}">${this.escapeHtml(driverLine)}</p>` : ''}
+            <div class="flex justify-end items-center gap-1.5">
+                ${toast.latitude && toast.longitude ? `
+                <button class="w-7 h-7 inline-flex items-center justify-center rounded bg-green-600 text-white hover:bg-green-700 transition-all"
+                    onclick="window.open('https://www.google.com/maps?q=${toast.latitude},${toast.longitude}', '_blank')"
+                    title="View location on Google Maps">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+                </button>
+                ` : ''}
+                <button class="w-7 h-7 inline-flex items-center justify-center rounded ${styles.buttonBg} ${styles.textColor} transition-all"
+                        onclick="liveToastManager.handleIgnore(${toast.id})">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+                <button class="w-7 h-7 inline-flex items-center justify-center rounded ${styles.actionButtonBg} ${styles.actionButtonText} transition-all"
+                        onclick="liveToastManager.handleAction(${toast.id})">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        `;
+        return div;
+    }
+
+    createStackedToastElement(toast) {
+        const div = document.createElement('div');
+        div.setAttribute('data-toast-id', toast.id);
+        
+        const styles = this.getToastStyles(toast.severity);
+
+        const createdAt = this.formatToastTime(toast.created_at);
+
+        div.className = `
+            w-[280px] relative mb-1.5 last:mb-0 cursor-pointer
+            p-2 rounded-md border ${styles.borderColor} ${styles.bgColor} ${styles.textColor}
+            shadow-sm hover:shadow-md hover:-translate-x-1
+            transition-all duration-300 ease-out opacity-0 scale-95
+        `;
+        div.setAttribute('role', 'button');
+        div.setAttribute('tabindex', '0');
+        div.setAttribute('title', 'View details');
+        div.addEventListener('click', () => this.expandStackedToast(toast.id));
+        div.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.expandStackedToast(toast.id);
+            }
+        });
+
+        // Prefer explicit vehicle_no from API, fallback to regex from title/message
+        const vehicleMatch = `${toast.title || ''} ${toast.message || ''}`.match(/\b[A-Z]{2}\d{2}[A-Z]{2}\d{4}\b/);
+        const vehicle = toast.vehicle_no || (vehicleMatch ? vehicleMatch[0] : '');
+
+        div.innerHTML = `
+            <div class="flex items-center gap-1.5">
+                <span class="text-sm flex-shrink-0 inline-flex items-center justify-center">${styles.icon}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 justify-between">
+                        <h3 class="font-semibold text-[11px] truncate">${this.escapeHtml(toast.title)}</h3>
+                        <span class="text-[9px] ${styles.textColor.replace('900', '700')} whitespace-nowrap">${createdAt}</span>
+                        ${vehicle ? `<span class="text-[9px] font-mono bg-black/10 px-1 py-0.5 rounded">${vehicle}</span>` : ''}
+                    </div>
+                    
+                </div>
+            </div>
+        `;
+        return div;
+    }
+
+    getToastStyles(severity) {
+        let styles = {
+            bgColor: 'bg-blue-50',
+            borderColor: 'border-blue-300',
+            textColor: 'text-blue-900',
+            buttonBg: 'bg-blue-200 hover:bg-blue-300',
+            actionButtonBg: 'bg-blue-600 hover:bg-blue-700',
+            actionButtonText: 'text-white',
+            icon: '<i data-lucide="info" class="w-4 h-4"></i>'
+        };
+
+        if (severity === 'high') {
+            styles = {
+                bgColor: 'bg-red-50',
+                borderColor: 'border-red-400',
+                textColor: 'text-red-900',
+                buttonBg: 'bg-red-200 hover:bg-red-300',
+                actionButtonBg: 'bg-red-600 hover:bg-red-700',
+                actionButtonText: 'text-white',
+                icon: '<i data-lucide="alert-octagon" class="w-4 h-4"></i>'
+            };
+        } else if (severity === 'medium') {
+            styles = {
+                bgColor: 'bg-amber-50',
+                borderColor: 'border-amber-400',
+                textColor: 'text-amber-900',
+                buttonBg: 'bg-amber-200 hover:bg-amber-300',
+                actionButtonBg: 'bg-amber-600 hover:bg-amber-700',
+                actionButtonText: 'text-white',
+                icon: '<i data-lucide="alert-triangle" class="w-4 h-4"></i>'
+            };
+        }
+
+        return styles;
+    }
+
+    expandStackedToast(toastId) {
+        const toastData = this.toasts.get(toastId);
+        if (!toastData || toastData.isActive) return;
+
+        // Remove from stack
+        const stackIndex = this.stackedToasts.indexOf(toastId);
+        if (stackIndex > -1) {
+            this.stackedToasts.splice(stackIndex, 1);
+        }
+        toastData.element.remove();
+        
+        // Update counter
+        this.updateStackCounter();
+
+        // Show as active toast with extended time (user-expanded)
+        this.showActiveToast(toastData.data, true);
+    }
+
+    async handleIgnore(toastId) {
+        // When dismissed/ignored, save as 'acknowledged' without notes
+        await this.logAction(toastId, 'acknowledged', '');
+        this.removeToast(toastId);
+    }
+
+    async handleAction(toastId) {
+        // Show modal to get action notes
+        this.showActionModal(toastId);
+    }
+
+    togglePin(toastId) {
+        const isPinned = this.pinnedToasts.has(toastId);
+        const toastData = this.toasts.get(toastId);
+        
+        if (!toastData || !toastData.isActive) return;
+
+        if (isPinned) {
+            // Unpin
+            this.pinnedToasts.delete(toastId);
+            this.updatePinButtonState(toastId, false);
+            
+            // Restart timer for remaining time
+            const displayTime = toastData.isUserExpanded ? this.userExpandedDisplayTime : this.activeDisplayTime;
+            this.activeTimer = setTimeout(() => {
+                this.moveToStack(toastId);
+            }, displayTime);
+        } else {
+            // Pin
+            this.pinnedToasts.add(toastId);
+            this.updatePinButtonState(toastId, true);
+            
+            // Clear any active timer
+            if (this.activeTimer) {
+                clearTimeout(this.activeTimer);
+                this.activeTimer = null;
+            }
+        }
+    }
+
+    updatePinButtonState(toastId, isPinned) {
+        const toastData = this.toasts.get(toastId);
+        if (!toastData) return;
+
+        const pinButton = toastData.element.querySelector('.lt-pin');
+        if (!pinButton) return;
+
+        const pinIcon = pinButton.querySelector('.pin-icon');
+        if (isPinned) {
+            pinButton.style.background = 'rgba(0, 0, 0, 0.15)';
+            pinButton.title = 'Unpin (currently pinned)';
+            if (pinIcon) pinIcon.style.fill = 'currentColor';
+        } else {
+            pinButton.style.background = '';
+            pinButton.title = 'Pin to keep open';
+            if (pinIcon) pinIcon.style.fill = 'none';
+        }
+    }
+
+    removeToast(toastId) {
+        const toastData = this.toasts.get(toastId);
+        if (!toastData) return;
+
+        // Remove from pinned set if pinned
+        this.pinnedToasts.delete(toastId);
+
+        // Clear active timer if this is the active toast
+        if (toastData.isActive && this.activeTimer) {
+            clearTimeout(this.activeTimer);
+            this.activeTimer = null;
+        }
+
+        // Remove element with animation
+        toastData.element.style.transition = 'all 0.3s ease';
+        toastData.element.style.transform = 'scale(0.8)';
+        toastData.element.style.opacity = '0';
+
+        setTimeout(() => {
+            toastData.element.remove();
+            
+            // Update tracking
+            if (toastData.isActive) {
+                this.activeToast = null;
+                this.processQueue(); // Show next toast
+            } else {
+                const stackIndex = this.stackedToasts.indexOf(toastId);
+                if (stackIndex > -1) {
+                    this.stackedToasts.splice(stackIndex, 1);
+                }
+                this.updateStackCounter(); // Update counter
+            }
+            
+            this.toasts.delete(toastId);
+        }, 300);
+    }
+
+    showActionModal(toastId) {
+        const modal = document.getElementById('actionNotesModal');
+        const input = document.getElementById('actionNotesInput');
+        const submitBtn = document.getElementById('submitActionModal');
+        const cancelBtn = document.getElementById('cancelActionModal');
+        const closeBtn = document.getElementById('closeActionModal');
+
+        // Clear previous input
+        input.value = '';
+
+        // Show modal
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        input.focus();
+
+        // Handle submit
+        const handleSubmit = async () => {
+            const notes = input.value.trim();
+            if (!notes) {
+                alert('Please enter action notes before submitting');
+                return;
+            }
+
+            // Log action with notes
+            await this.logAction(toastId, 'action_taken', notes);
+            
+            // Close modal and remove toast
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            this.removeToast(toastId);
+
+            // Clean up event listeners
+            submitBtn.removeEventListener('click', handleSubmit);
+            cancelBtn.removeEventListener('click', handleCancel);
+            closeBtn.removeEventListener('click', handleCancel);
+        };
+
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            
+            // Clean up event listeners
+            submitBtn.removeEventListener('click', handleSubmit);
+            cancelBtn.removeEventListener('click', handleCancel);
+            closeBtn.removeEventListener('click', handleCancel);
+        };
+
+        // Attach event listeners
+        submitBtn.addEventListener('click', handleSubmit);
+        cancelBtn.addEventListener('click', handleCancel);
+        closeBtn.addEventListener('click', handleCancel);
+
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                handleCancel();
+            }
+        });
+
+        // Close on Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    }
+
+    async logAction(toastId, action, notes = '') {
+        try {
+            const response = await fetch('/livenotif/api/log/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCookie('csrftoken')
+                },
+                body: JSON.stringify({ 
+                    toast_id: toastId, 
+                    action: action,
+                    notes: notes 
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // console.log(`✅ Alert ${action} successfully`);
+            } else {
+                console.error('❌ Failed to log action:', data.error);
+            }
+        } catch (error) {
+            console.error('❌ Error logging action:', error);
+        }
+    }
+
+    getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    stripLocationFromMessage(message) {
+        const text = String(message || '').trim();
+        if (!text) return '';
+
+        // Remove trailing location block like:
+        // "Location: ... | Time: ..."
+        return text
+            .replace(/\s*\|\s*Driver:\s*[^|]+(?:\s*\|\s*Number:\s*[^|]+)?/i, '')
+            .replace(/\s*\|\s*Driver\s*Number:\s*[^|]+/i, '')
+            .replace(/\s*\|\s*Time:\s*.*$/i, '')
+            .replace(/\s*Location:\s*.*$/i, '')
+            .trim();
+    }
+
+    getDriverLine(toast) {
+        const name = String(toast?.driver_name || '').trim();
+        const phone = String(toast?.driver_phone || '').trim();
+
+        if (name && phone) return `Driver: ${name} (${phone})`;
+        if (name) return `Driver: ${name}`;
+        if (phone) return `Driver Number: ${phone}`;
+        return '';
+    }
+
+    getToastDisplayParts(toast) {
+        const rawTitle = String(toast?.title || '').trim();
+        const vehicleMatch = rawTitle.match(/\b[A-Z]{2}\d{2}[A-Z]{2}\d{4}\b/);
+        const vehicleNo = toast?.vehicle_no || (vehicleMatch ? vehicleMatch[0] : '');
+
+        let titleMessage = rawTitle;
+        if (vehicleNo) {
+            titleMessage = rawTitle
+                .replace(vehicleNo, '')
+                .replace(/^[\s—\-:|]+/, '')
+                .trim();
+        }
+
+        return {
+            vehicleNo,
+            titleMessage,
+        };
+    }
+
+    formatToastTime(isoString) {
+        if (!isoString) return '';
+        const d = new Date(isoString);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString([], {
+            day: '2-digit',
+            month: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    }
+
+    refreshLucideIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+    }
+
+}
+
+// Initialize
+let liveToastManager;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { liveToastManager = new LiveToastManager(); });
+} else {
+    liveToastManager = new LiveToastManager();
+}
+</script>

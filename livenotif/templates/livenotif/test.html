@@ -1,0 +1,88 @@
+{% extends 'dashboard/base/base.html' %}
+
+{% block title %}Toast Notifications Test{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Live Toast Notifications Test</h1>
+        <p class="text-gray-600 mb-6">Test all severity levels of toast notifications</p>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Manual Toast Triggers</h2>
+            
+            <div class="space-y-4">
+                <!-- High Severity -->
+                <div class="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div>
+                        <h3 class="font-semibold text-red-900">🚨 High Severity</h3>
+                        <p class="text-sm text-red-700">Critical alerts that require immediate attention</p>
+                    </div>
+                    <button 
+                        onclick="liveToastManager.triggerTestToast('high')"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
+                    >
+                        Trigger
+                    </button>
+                </div>
+
+                <!-- Medium Severity -->
+                <div class="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div>
+                        <h3 class="font-semibold text-amber-900">⚠️ Medium Severity</h3>
+                        <p class="text-sm text-amber-700">Warnings that need user attention</p>
+                    </div>
+                    <button 
+                        onclick="liveToastManager.triggerTestToast('medium')"
+                        class="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition"
+                    >
+                        Trigger
+                    </button>
+                </div>
+
+                <!-- Normal Severity -->
+                <div class="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div>
+                        <h3 class="font-semibold text-blue-900">ℹ️ Normal Severity</h3>
+                        <p class="text-sm text-blue-700">Informational messages (auto-dismiss in 15s)</p>
+                    </div>
+                    <button 
+                        onclick="liveToastManager.triggerTestToast('normal')"
+                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+                    >
+                        Trigger
+                    </button>
+                </div>
+
+                <!-- Trigger All -->
+                <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div>
+                        <h3 class="font-semibold text-gray-900">🎯 All Severities</h3>
+                        <p class="text-sm text-gray-700">Show all three toast types at once</p>
+                    </div>
+                    <button 
+                        onclick="
+                            liveToastManager.triggerTestToast('high');
+                            setTimeout(() => liveToastManager.triggerTestToast('medium'), 500);
+                            setTimeout(() => liveToastManager.triggerTestToast('normal'), 1000);
+                        "
+                        class="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition"
+                    >
+                        Trigger All
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6 p-4 bg-gray-100 rounded-lg">
+                <h3 class="font-semibold mb-2">Console Testing</h3>
+                <p class="text-sm text-gray-700 mb-2">You can also trigger toasts from the browser console:</p>
+                <code class="block bg-gray-800 text-green-400 p-3 rounded text-sm">
+                    liveToastManager.triggerTestToast('high')<br>
+                    liveToastManager.triggerTestToast('medium')<br>
+                    liveToastManager.triggerTestToast('normal')
+                </code>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

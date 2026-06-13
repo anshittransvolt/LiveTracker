@@ -1,0 +1,519 @@
+/* Custom Django Admin (Jazzmin) Styles */
+
+/* ========================================
+   IMPORT/EXPORT FIX - PREVIEW VISIBILITY
+   ======================================== */
+
+/* Fix black background in import preview tables */
+.import-preview table,
+.import-preview table tbody,
+.import-preview table tbody tr,
+.import-preview table tbody tr td,
+.import-preview table thead,
+.import-preview table thead tr,
+.import-preview table thead th {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+/* Alternating row colors for better readability */
+.import-preview table tbody tr:nth-child(even) {
+    background-color: #f9fafb !important;
+}
+
+.import-preview table tbody tr:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Table headers */
+.import-preview table thead th {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #e5e7eb !important;
+    padding: 12px 8px !important;
+}
+
+/* Table cells */
+.import-preview table tbody td {
+    border: 1px solid #e5e7eb !important;
+    padding: 8px !important;
+    color: #374151 !important;
+}
+
+/* Error/warning cells */
+.import-preview table tbody td.error,
+.import-preview table tbody tr.error {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+}
+
+.import-preview table tbody td.warning,
+.import-preview table tbody tr.warning {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+}
+
+.import-preview table tbody td.success,
+.import-preview table tbody tr.success {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+}
+
+/* Import field list */
+.import-preview ul,
+.import-preview ol {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    padding: 12px 24px !important;
+}
+
+.import-preview li {
+    color: #374151 !important;
+    margin: 4px 0 !important;
+}
+
+/* Form elements in import */
+.import-preview input,
+.import-preview select,
+.import-preview textarea {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #d1d5db !important;
+}
+
+/* ========================================
+   COMPACT BUTTONS WITH ICONS
+   ======================================== */
+
+/* Base compact button styles */
+.compact-save-btn,
+.compact-save-add-btn,
+.compact-save-continue-btn,
+.compact-delete-btn,
+.compact-cancel-btn,
+.compact-add-btn,
+.compact-inline-add-btn,
+.compact-inline-delete-btn,
+.compact-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    border: none !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+}
+
+/* Compact save button */
+.compact-save-btn {
+    background-color: #417690 !important;
+    color: white !important;
+}
+
+.compact-save-btn:hover {
+    background-color: #2f5a6f !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+}
+
+/* Compact save and add another */
+.compact-save-add-btn {
+    background-color: #10b981 !important;
+    color: white !important;
+}
+
+.compact-save-add-btn:hover {
+    background-color: #059669 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+}
+
+/* Compact save and continue */
+.compact-save-continue-btn {
+    background-color: #8b5cf6 !important;
+    color: white !important;
+}
+
+.compact-save-continue-btn:hover {
+    background-color: #7c3aed !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+}
+
+/* Compact delete button */
+.compact-delete-btn {
+    background-color: #ef4444 !important;
+    color: white !important;
+}
+
+.compact-delete-btn:hover {
+    background-color: #dc2626 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+}
+
+/* Compact cancel button */
+.compact-cancel-btn {
+    background-color: #6b7280 !important;
+    color: white !important;
+}
+
+.compact-cancel-btn:hover {
+    background-color: #4b5563 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+}
+
+/* Compact add button */
+.compact-add-btn,
+.compact-inline-add-btn {
+    background-color: #417690 !important;
+    color: white !important;
+    padding: 6px 12px !important;
+}
+
+.compact-add-btn:hover,
+.compact-inline-add-btn:hover {
+    background-color: #2f5a6f !important;
+    transform: translateY(-1px);
+}
+
+/* Compact inline delete button */
+.compact-inline-delete-btn {
+    background-color: #ef4444 !important;
+    color: white !important;
+    padding: 6px !important;
+    min-width: 32px;
+    justify-content: center;
+}
+
+.compact-inline-delete-btn:hover {
+    background-color: #dc2626 !important;
+}
+
+/* Compact action button */
+.compact-action-btn {
+    background-color: #417690 !important;
+    color: white !important;
+    padding: 6px 14px !important;
+}
+
+.compact-action-btn:hover {
+    background-color: #2f5a6f !important;
+}
+
+/* Icon sizing within buttons */
+.compact-save-btn i,
+.compact-save-add-btn i,
+.compact-save-continue-btn i,
+.compact-delete-btn i,
+.compact-cancel-btn i,
+.compact-add-btn i,
+.compact-inline-add-btn i,
+.compact-inline-delete-btn i,
+.compact-action-btn i {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+}
+
+
+/* ========================================
+   PRIMARY ACTION BUTTONS (Save, Add, etc.)
+   ======================================== */
+
+/* Save buttons */
+.submit-row input[type="submit"],
+.submit-row input[type="submit"].default,
+.btn-success,
+input[type="submit"].btn-success {
+    background-color: #417690 !important;
+    border-color: #417690 !important;
+    color: white !important;
+}
+
+.submit-row input[type="submit"]:hover,
+.btn-success:hover {
+    background-color: #2f5a6f !important;
+    border-color: #2f5a6f !important;
+}
+
+/* Add another / Continue editing buttons */
+.submit-row input[name="_addanother"],
+.submit-row input[name="_continue"] {
+    background-color: #10b981 !important;
+    border-color: #10b981 !important;
+}
+
+.submit-row input[name="_addanother"]:hover,
+.submit-row input[name="_continue"]:hover {
+    background-color: #059669 !important;
+    border-color: #059669 !important;
+}
+
+
+/* ========================================
+   DELETE BUTTONS
+   ======================================== */
+
+/* Delete buttons */
+.deletelink,
+.deletelink-box a,
+input[type="submit"].deletelink,
+.delete-confirmation input[type="submit"],
+a.deletelink,
+.btn-danger {
+    background-color: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+}
+
+.deletelink:hover,
+.btn-danger:hover,
+.delete-confirmation input[type="submit"]:hover {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+}
+
+/* Inline delete buttons */
+.inline-deletelink {
+    background-color: #ef4444 !important;
+    color: white !important;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.inline-deletelink:hover {
+    background-color: #dc2626 !important;
+}
+
+
+/* ========================================
+   CANCEL / SECONDARY BUTTONS
+   ======================================== */
+
+/* Cancel and back buttons */
+.cancel-link,
+a.button.cancel-link,
+.btn-secondary {
+    background-color: #6b7280 !important;
+    border-color: #6b7280 !important;
+    color: white !important;
+}
+
+.cancel-link:hover,
+.btn-secondary:hover {
+    background-color: #4b5563 !important;
+    border-color: #4b5563 !important;
+}
+
+
+/* ========================================
+   ADD LINK BUTTONS
+   ======================================== */
+
+/* Add another buttons in list view */
+.addlink {
+    background-color: #417690 !important;
+    border-color: #417690 !important;
+    color: white !important;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.addlink:hover {
+    background-color: #2f5a6f !important;
+    text-decoration: none;
+}
+
+
+/* ========================================
+   FILTER SIDEBAR
+   ======================================== */
+
+/* Filter sidebar links */
+#changelist-filter li.selected a {
+    background-color: #417690 !important;
+    color: white !important;
+}
+
+#changelist-filter a:hover {
+    background-color: #e5e7eb;
+}
+
+
+/* ========================================
+   ACTION BUTTONS (Bulk Actions)
+   ======================================== */
+
+/* Go button for actions */
+.actions button,
+.actions input[type="submit"] {
+    background-color: #417690 !important;
+    border-color: #417690 !important;
+}
+
+.actions button:hover,
+.actions input[type="submit"]:hover {
+    background-color: #2f5a6f !important;
+}
+
+
+/* ========================================
+   INLINE FORMS
+   ======================================== */
+
+/* Inline add row button */
+.add-row a {
+    background-color: #10b981 !important;
+    color: white !important;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.add-row a:hover {
+    background-color: #059669 !important;
+}
+
+
+/* ========================================
+   CUSTOM COLORS & ACCENTS
+   ======================================== */
+
+/* Primary color accent */
+.brand-link {
+    background-color: #417690 !important;
+}
+
+/* Sidebar active item */
+.nav-sidebar .nav-link.active {
+    background-color: #417690 !important;
+}
+
+/* Table header sorting */
+th.sortable a:hover {
+    color: #417690 !important;
+}
+
+
+/* ========================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================== */
+
+@media (max-width: 768px) {
+    .submit-row input[type="submit"] {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+}
+
+
+/* ========================================
+   CUSTOM WIDGET STYLES (Key-Value Widget)
+   ======================================== */
+
+/* Make key-value widget fields consistent with admin theme */
+.key-value-widget .key-input,
+.key-value-widget .value-input {
+    border-color: #d1d5db !important;
+}
+
+.key-value-widget .key-input:focus,
+.key-value-widget .value-input:focus {
+    border-color: #417690 !important;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(65, 118, 144, 0.1);
+}
+
+
+/* ========================================
+   IMPORT/EXPORT ADDITIONAL FIXES
+   ======================================== */
+
+/* Import confirmation page */
+.import-preview .form-row,
+.import-preview .fieldBox {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+/* Import result messages */
+.import-preview .success,
+.import-preview .messagelist .success {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+    border-left-color: #10b981 !important;
+}
+
+.import-preview .error,
+.import-preview .messagelist .error {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border-left-color: #ef4444 !important;
+}
+
+.import-preview .warning,
+.import-preview .messagelist .warning {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    border-left-color: #f59e0b !important;
+}
+
+/* Import/Export buttons */
+.import-export-buttons a,
+.import-export-buttons button {
+    background-color: #417690 !important;
+    color: white !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+    margin: 4px !important;
+    border: none !important;
+}
+
+.import-export-buttons a:hover,
+.import-export-buttons button:hover {
+    background-color: #2f5a6f !important;
+    transform: translateY(-1px);
+}
+
+/* Field list styling */
+.import-fields-list {
+    background-color: #f9fafb !important;
+    padding: 16px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e5e7eb !important;
+    margin: 16px 0 !important;
+}
+
+.import-fields-list ul {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin: 0 !important;
+}
+
+.import-fields-list li {
+    padding: 6px 0 !important;
+    color: #374151 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+.import-fields-list li:last-child {
+    border-bottom: none !important;
+}
+
+.import-fields-list li:before {
+    content: "✓ " !important;
+    color: #10b981 !important;
+    font-weight: bold !important;
+    margin-right: 8px !important;
+}

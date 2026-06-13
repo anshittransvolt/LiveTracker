@@ -1,0 +1,20 @@
+<span class="inline-flex items-center ml-1 justify-center px-1 py-0.1 bg-red-600 text-white text-[8px] font-extrabold tracking-wide shadow-sm rounded-sm animate-pulse-slow">
+  NEW
+</span>
+
+<style>
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+</style>

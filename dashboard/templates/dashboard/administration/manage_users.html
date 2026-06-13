@@ -1,0 +1,549 @@
+{% extends 'dashboard/base/base.html' %}
+{% load static %}
+
+{% block title %}Manage Users - Voltrack{% endblock %}
+
+{% block breadcrumb_block %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-700 md:ml-2">
+                    <i data-lucide="shield" class="w-4 h-4 inline mr-1"></i>
+                    Administration
+                </span>
+            </div>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+                    <i data-lucide="users" class="w-4 h-4 inline mr-1"></i>
+                    Manage Users
+                </span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<div class="space-y-4">
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <div class="flex items-center justify-between">
+                <i data-lucide="users" class="w-5 h-5 text-blue-600"></i>
+                <div class="text-right">
+                    <p class="text-[12px] font-semibold text-slate-600 mb-1">Total Users</p>
+                    <p class="text-2xl font-bold text-blue-600">{{ total_users }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <div class="flex items-center justify-between">
+                <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
+                <div class="text-right">
+                    <p class="text-[12px] font-semibold text-slate-600 mb-1">Active</p>
+                    <p class="text-2xl font-bold text-green-600">{{ active_users_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <div class="flex items-center justify-between">
+                <i data-lucide="x-circle" class="w-5 h-5 text-red-600"></i>
+                <div class="text-right">
+                    <p class="text-[12px] font-semibold text-slate-600 mb-1">Inactive</p>
+                    <p class="text-2xl font-bold text-red-600">{{ inactive_users_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <div class="flex items-center justify-between">
+                <i data-lucide="crown" class="w-5 h-5 text-purple-600"></i>
+                <div class="text-right">
+                    <p class="text-[12px] font-semibold text-slate-600 mb-1">Superusers</p>
+                    <p class="text-2xl font-bold text-purple-600">{{ superusers_count }}</p>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+
+    <!-- Filters Section -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+        <div class="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="filter" class="w-4 h-4 text-blue-600"></i>
+                    <h2 class="text-sm font-semibold text-slate-800">Users List</h2>
+                    <span class="text-xs text-slate-500">·</span>
+                    <span class="text-xs text-slate-600"><span class="font-semibold text-slate-900">{{ filtered_count }}</span> Shown</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-4">
+            <form method="get" class="flex flex-wrap items-end gap-3">
+                
+                <!-- Search Box -->
+                <div class="flex-1 min-w-[250px]">
+                    <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                        <i data-lucide="search" class="w-3 h-3 inline mr-1"></i>Search
+                    </label>
+                    <input type="text" name="search" value="{{ search_query }}"
+                           placeholder="Username, email, name..."
+                           class="w-[40%] px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                        Status
+                    </label>
+                    <select name="status"
+                            class="px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Users</option>
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active Only</option>
+                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive Only</option>
+                    </select>
+                </div>
+
+                <!-- Group Filter -->
+                <div>
+                    <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                        Group
+                    </label>
+                    <select name="group"
+                            class="px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                        <option value="all" {% if group_filter == 'all' %}selected{% endif %}>All Groups</option>
+                        <option value="none" {% if group_filter == 'none' %}selected{% endif %}>No Group</option>
+                        {% for group in groups %}
+                            <option value="{{ group.id }}" {% if group_filter == group.id|stringformat:'s' %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Apply Button -->
+                <button type="submit"
+                        class="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition">
+                    Apply
+                </button>
+
+                <!-- Reset Button -->
+                {% if search_query or status_filter != 'all' or group_filter != 'all' %}
+                <a href="{% url 'dashboard:manage_users' %}"
+                   class="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-200 transition">
+                    Reset
+                </a>
+                {% endif %}
+
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="flex items-center justify-between px-1">
+        <div class="text-xs text-slate-600">
+            Showing <span class="font-semibold text-slate-900">{{ filtered_count }}</span> of 
+            <span class="font-semibold text-slate-900">{{ total_users }}</span> users
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700 w-12">#</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Username</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Email</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Full Name</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Group</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Role</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-700">Joined</th>
+                        <th class="px-3 py-2 text-center font-semibold text-slate-700">Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-200">
+                    {% for user in users %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-3 py-2 text-slate-600 font-medium">{{ forloop.counter }}</td>
+                        
+                        <!-- Username -->
+                        <td class="px-3 py-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+                                    {{ user.username|first|upper }}
+                                </div>
+                                <span class="text-xs font-medium text-blue-700">{{ user.username }}</span>
+                            </div>
+                        </td>
+
+                        <!-- Email -->
+                        <td class="px-3 py-2">
+                            {% if user.email %}
+                                <a href="mailto:{{ user.email }}" class="text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                                    {{ user.email }}
+                                </a>
+                            {% else %}
+                                <span class="text-slate-400 text-xs">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Full Name -->
+                        <td class="px-3 py-2 text-slate-700 text-xs">
+                            {% if user.get_full_name %}
+                                {{ user.get_full_name }}
+                            {% else %}
+                                <span class="text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Group -->
+                        <td class="px-3 py-2">
+                            {% if user.profile.group_id %}
+                                {% for group in groups %}
+                                    {% if group.id == user.profile.group_id %}
+                                        <span class="text-xs text-slate-700">{{ group.name }}</span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-slate-400 text-xs">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Role -->
+                        <td class="px-3 py-2">
+                            <div class="flex flex-wrap gap-1">
+                                {% if user.is_superuser %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                        <i data-lucide="crown" class="w-2.5 h-2.5 mr-1"></i>
+                                        Superuser
+                                    </span>
+                                {% elif user.is_staff %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                        <i data-lucide="shield" class="w-2.5 h-2.5 mr-1"></i>
+                                        Staff
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                        User
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Status -->
+                        <td class="px-3 py-2">
+                            {% if user.is_active %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                                    <i data-lucide="circle" class="w-2 h-2 fill-current mr-1"></i>
+                                    Active
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                                    <i data-lucide="circle" class="w-2 h-2 fill-current mr-1"></i>
+                                    Inactive
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Joined Date -->
+                        <td class="px-3 py-2 text-slate-600 text-xs whitespace-nowrap">
+                            {{ user.date_joined|date:"d M Y" }}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="px-3 py-2">
+                            <div class="flex items-center justify-center gap-2">
+                                
+                                <!-- Edit Profile Modal Trigger -->
+                                <button type="button"
+                                        class="p-1.5 text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 border border-indigo-200 transition"
+                                        title="Edit Profile"
+                                        onclick="openEditModal({
+                                            id: {{ user.id }},
+                                            username: '{{ user.username|escapejs }}',
+                                            email: '{{ user.email|escapejs }}',
+                                            first_name: '{{ user.first_name|escapejs }}',
+                                            last_name: '{{ user.last_name|escapejs }}',
+                                            group_id: {{ user.profile.group_id|default:'null' }},
+                                            is_active: {{ user.is_active|lower }},
+                                            is_staff: {{ user.is_staff|lower }},
+                                            is_superuser: {{ user.is_superuser|lower }},
+                                            date_joined: '{{ user.date_joined|date:"d M Y"|escapejs }}'
+                                        })">
+                                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                </button>
+                                
+                                <!-- View Action Log -->
+                                <a href="{% url 'dashboard:user_action_log' user.id %}"
+                                   class="p-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 border border-blue-200 transition" 
+                                   title="View Action Log">
+                                    <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                                </a>
+
+                                <!-- Toggle Active Status -->
+                                <a href="{% url 'dashboard:toggle_user_active' user.id %}"
+                                   onclick="return confirm('{% if user.is_active %}Deactivate{% else %}Activate{% endif %} {{ user.username }}?')"
+                                   class="p-1.5 rounded border transition
+                                   {% if user.is_active %}
+                                        bg-red-50 border-red-200 text-red-700 hover:bg-red-100
+                                   {% else %}
+                                        bg-green-50 border-green-200 text-green-700 hover:bg-green-100
+                                   {% endif %}"
+                                   title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                    <i data-lucide="{% if user.is_active %}x-circle{% else %}check-circle{% endif %}" 
+                                       class="w-3.5 h-3.5"></i>
+                                </a>
+                            </div>
+                        </td>
+
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-3 py-8 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <i data-lucide="inbox" class="w-12 h-12 mb-2"></i>
+                                <p class="text-sm font-medium">No users found</p>
+                                <p class="text-xs mt-1">Try adjusting your filters</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Edit Profile Modal -->
+<div id="editProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">Edit User Profile</h3>
+            <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form id="editProfileForm" method="post" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" id="modalUserId" name="user_id">
+
+            <!-- Username (Read-only) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Username</label>
+                <input type="text" id="modalUsername" readonly
+                       class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-slate-100 text-slate-600 cursor-not-allowed">
+            </div>
+
+            <!-- Email (Read-only) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
+                <input type="email" id="modalEmail" readonly
+                       class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-slate-100 text-slate-600 cursor-not-allowed">
+            </div>
+
+            <!-- First Name (Editable) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">First Name</label>
+                <input type="text" id="modalFirstName" name="first_name"
+                       class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+
+            <!-- Last Name (Editable) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Last Name</label>
+                <input type="text" id="modalLastName" name="last_name"
+                       class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+
+            <!-- Group (Editable) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Group</label>
+                <select id="modalGroupId" name="group_id"
+                        class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <option value="">— No Group —</option>
+                    {% for group in groups %}
+                        <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            
+
+            
+
+            <!-- Joined Date (Read-only Info) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Joined</label>
+                <input type="text" id="modalJoinedDate" readonly
+                       class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-slate-100 text-slate-600 cursor-not-allowed">
+            </div>
+        </form>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+            <button type="button" onclick="closeEditModal()"
+                    class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition">
+                Cancel
+            </button>
+            <button id="saveProfileBtn" type="button" onclick="saveEditProfile()"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition inline-flex items-center gap-2">
+                <span id="saveProfileBtnText">Save Changes</span>
+                <span id="saveProfileBtnLoading" class="hidden inline-flex items-center gap-2">
+                    <span class="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Saving...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openEditModal(user) {
+    document.getElementById('modalUserId').value = user.id;
+    document.getElementById('modalUsername').value = user.username;
+    document.getElementById('modalEmail').value = user.email;
+    document.getElementById('modalFirstName').value = user.first_name;
+    document.getElementById('modalLastName').value = user.last_name;
+    document.getElementById('modalGroupId').value = user.group_id || '';
+    document.getElementById('modalJoinedDate').value = user.date_joined;
+    
+    // Set status badge
+    const statusSpan = document.getElementById('modalStatus');
+    if (statusSpan) {
+        if (user.is_active) {
+            statusSpan.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200"><i data-lucide="circle" class="w-2 h-2 fill-current mr-1"></i>Active</span>';
+        } else {
+            statusSpan.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200"><i data-lucide="circle" class="w-2 h-2 fill-current mr-1"></i>Inactive</span>';
+        }
+    }
+    
+    // Set role badge
+    const roleSpan = document.getElementById('modalRole');
+    if (roleSpan) {
+        if (user.is_superuser) {
+            roleSpan.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200"><i data-lucide="crown" class="w-2.5 h-2.5 mr-1"></i>Superuser</span>';
+        } else if (user.is_staff) {
+            roleSpan.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"><i data-lucide="shield" class="w-2.5 h-2.5 mr-1"></i>Staff</span>';
+        } else {
+            roleSpan.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">User</span>';
+        }
+    }
+    
+    // Re-render lucide icons in modal
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    document.getElementById('editProfileModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('editProfileModal').classList.add('hidden');
+    document.getElementById('editProfileForm').reset();
+    setSaveProfileLoading(false);
+}
+
+let isSavingProfile = false;
+
+function setSaveProfileLoading(isLoading) {
+    const btn = document.getElementById('saveProfileBtn');
+    const text = document.getElementById('saveProfileBtnText');
+    const loading = document.getElementById('saveProfileBtnLoading');
+
+    if (!btn || !text || !loading) return;
+
+    if (isLoading) {
+        btn.disabled = true;
+        btn.classList.add('opacity-70', 'cursor-not-allowed');
+        text.classList.add('hidden');
+        loading.classList.remove('hidden');
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-70', 'cursor-not-allowed');
+        loading.classList.add('hidden');
+        text.classList.remove('hidden');
+    }
+}
+
+function saveEditProfile() {
+    if (isSavingProfile) return;
+
+    const userId = document.getElementById('modalUserId').value;
+    const firstName = document.getElementById('modalFirstName').value;
+    const lastName = document.getElementById('modalLastName').value;
+    const groupId = document.getElementById('modalGroupId').value;
+    const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+    const manageUsersBasePath = window.location.pathname.replace(/\/+$/, '');
+    const updateProfileUrl = `${manageUsersBasePath}/${userId}/update-profile/`;
+    
+    isSavingProfile = true;
+    setSaveProfileLoading(true);
+
+    fetch(updateProfileUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({
+            first_name: firstName,
+            last_name: lastName,
+            group_id: groupId || null,
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        }
+        throw new Error('Failed to update profile');
+    })
+    .then(data => {
+        isSavingProfile = false;
+        closeEditModal();
+        window.location.reload();
+    })
+    .catch(error => {
+        isSavingProfile = false;
+        alert('Error saving changes: ' + error.message);
+        setSaveProfileLoading(false);
+    });
+}
+
+// Close modal on backdrop click
+document.getElementById('editProfileModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeEditModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeEditModal();
+    }
+});
+</script>
+
+{% endblock %}

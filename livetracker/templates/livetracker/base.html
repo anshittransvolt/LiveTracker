@@ -1,0 +1,1272 @@
+<!-- livetracker/templates/livetracker/base.html -->
+{% load static %}
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>{% block title %}LiveTracker{% endblock %}</title>
+    <!-- Favicons -->
+     <link rel="icon" type="image/x-icon" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Toastr Notifications -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+  <!-- jQuery (required for Toastr) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Lottie Animation for Loading -->
+  <script src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.8.5/dist/dotlottie-wc.js" type="module"></script>
+
+  <style>
+    /* ============================================
+       ESSENTIAL CSS (No Tailwind equivalent)
+       ============================================ */
+
+    /* Full height layout */
+    html,
+    body,
+    #app {
+      height: 100%;
+      margin: 0;
+    }
+
+    /* CSS Variables for responsive sidebar widths */
+    :root {
+      --sidebar-width: 280px;
+      --sidebar-gap: 0.75rem;
+      --analytics-width: 280px;
+    }
+
+    @media (min-width: 768px) {
+      :root {
+        --sidebar-width: 300px;
+        --analytics-width: 300px;
+        --sidebar-gap: 1rem;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      :root {
+        --sidebar-width: 320px;
+        --analytics-width: 320px;
+        --sidebar-gap: 1.25rem;
+      }
+    }
+
+    @media (min-width: 1280px) {
+      :root {
+        --sidebar-width: 340px;
+        --analytics-width: 340px;
+        --sidebar-gap: 1.5rem;
+      }
+    }
+
+    /* Quick Analytics Panel - Responsive positioning */
+    #quickAnalytics {
+      left: calc(var(--sidebar-width) + var(--sidebar-gap));
+      width: var(--analytics-width);
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+
+    @media (max-width: 768px) {
+      #quickAnalytics {
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: calc(100vw - 2rem) !important;
+        max-width: 380px !important;
+      }
+    }
+
+    /* Playback Controls - Responsive positioning */
+    #playbackControls {
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 2rem);
+      max-width: 80rem;
+    }
+
+    @media (min-width: 1280px) {
+      #playbackControls {
+        width: calc(100% - var(--sidebar-width) - var(--sidebar-width) - 4rem);
+      }
+    }
+
+    /* Custom scrollbar (WebKit only) */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #9ca3af;
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6b7280;
+    }
+
+    /* Simple Vehicle Popup Styles */
+    .simple-vehicle-popup .leaflet-popup-content-wrapper {
+      padding: 14px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      background: white;
+    }
+
+    .simple-vehicle-popup .leaflet-popup-content {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .simple-vehicle-popup .leaflet-popup-tip {
+      background: white;
+    }
+
+    .simple-vehicle-popup .leaflet-popup-close-button {
+      color: #9ca3af !important;
+      font-size: 18px !important;
+      padding: 6px 10px !important;
+      font-weight: 400 !important;
+      transition: color 0.2s;
+    }
+
+    .simple-vehicle-popup .leaflet-popup-close-button:hover {
+      color: #1f2937 !important;
+    }
+
+    /* Custom bus icon - ensure no background */
+    .custom-bus-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+
+    /* Geofence icon styling - ensure proper alignment */
+    .geofence-charging-icon,
+    .geofence-unloading-icon,
+    .geofence-border-icon,
+    .geofence-general-icon {
+      background: transparent !important;
+      border: none !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+
+    .geofence-charging-icon img,
+    .geofence-unloading-icon img,
+    .geofence-border-icon img,
+    .geofence-general-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    }
+
+    /* Ensure map controls don't overlap with custom buttons */
+    .leaflet-control-zoom,
+    .leaflet-control-attribution {
+      z-index: 400 !important;
+    }
+
+    .leaflet-top.leaflet-left {
+      top: 80px !important; /* Move below our custom buttons */
+    }
+
+    /* Ensure custom control buttons are always visible */
+    button[id*="Toggle"],
+    button[id*="Btn"]:not(#globalDriverAssignBtn) {
+      z-index: 1000 !important;
+      position: relative !important;
+    }
+    
+    /* Global Driver Assignment Button - Always on Top */
+    #globalDriverAssignBtn {
+      z-index: 99999 !important;
+      position: fixed !important;
+    }
+    
+    /* Smooth pulse animation for button indicator */
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+      }
+    }
+
+    /* Animated trail effect */
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+
+    .leaflet-interactive[stroke="#3b82f6"] {
+      animation: dash 1s linear infinite;
+    }
+  </style>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <!-- Environment Configuration -->
+  <script>
+    window.ENV = {
+      // All API calls go through Django backend proxies
+    };
+  </script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- Sleek Navigation Bar -->
+  <nav class="fixed top-0 left-0 right-0 z-[1000] bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <div class="flex items-center justify-between px-4 lg:px-6 py-3">
+      <!-- Logo & Title -->
+      <a href="{% url 'dashboard:dashboard' %}" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+        <img src="https://transvolt.in/Images/Logo/black.svg" 
+             alt="Transvolt Logo" 
+             class="h-3 sm:h-4 w-auto object-contain">
+        <div class="flex items-center space-x-2">
+          <span class="text-[14px] sm:text-2xl font-bold text-slate-900">LiveTracker</span>
+        </div>
+      </a>
+
+      <!-- Reports Dropdown & Alert Toggle -->
+      <div class="flex items-center gap-3">
+        <!-- Reports Dropdown -->
+        <div class="relative">
+          <button 
+            id="reportsDropdownBtn"
+            class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors border border-blue-200"
+            onclick="toggleReportsDropdown()">
+            <i data-lucide="file-chart-column-increasing" class="w-4 h-4"></i>
+            <span class="text-xs font-semibold hidden sm:inline">Reports</span>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+          </button>
+          
+          <!-- Dropdown Menu -->
+          <div id="reportsDropdownMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-2 z-[100003]">
+            <!-- Active Reports -->
+            <div class="px-3 py-1.5">
+              <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Active Reports</span>
+            </div>
+            <a href="{% url 'roster:active_drivers_report' %}" 
+               class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 transition-colors">
+              <i data-lucide="users" class="w-4 h-4 text-blue-600"></i>
+              <span>Active Drivers</span>
+            </a>
+            
+            <!-- Disabled Reports -->
+            <div class="border-t border-slate-200 mt-2 pt-2">
+              <div class="px-3 py-1.5">
+                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Coming Soon</span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 cursor-not-allowed opacity-50">
+                <i data-lucide="truck" class="w-4 h-4"></i>
+                <span>Active Vehicles</span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 cursor-not-allowed opacity-50">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+                <span>Average Trip Times</span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 cursor-not-allowed opacity-50">
+                <i data-lucide="timer" class="w-4 h-4"></i>
+                <span>Average Delay</span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 cursor-not-allowed opacity-50">
+                <i data-lucide="award" class="w-4 h-4"></i>
+                <span>Driver Performance</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Alert Toggle Switch -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-slate-700 hidden sm:inline">Live Alerts</span>
+          <button 
+            id="alertToggleBtn"
+            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none bg-blue-600"
+            onclick="toggleLiveAlerts()"
+            title="Toggle Live Alerts"
+            role="switch"
+            aria-checked="true">
+            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform translate-x-6"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content with top padding for fixed navbar -->
+  <div id="app" class="h-full pt-16">
+    {% block content %}{% endblock %}
+  </div>
+
+ 
+  {% include 'livetracker/loadingOverlay.html' %}
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/boldtrn-leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
+  
+  <!-- Leaflet MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- Environment Variables (must load before modules) -->
+  <script>
+ 
+    window.showLoading = function (message = 'Please wait') {
+      // console.log('📢 showLoading called with message:', message);
+      const overlay = document.getElementById('loadingOverlay');
+      const messageEl = document.getElementById('loadingMessage');
+      if (overlay) {
+        overlay.classList.remove('hidden');
+        if (messageEl && message) {
+          messageEl.textContent = message;
+        }
+        // console.log('✅ Loading overlay shown');
+      } else {
+        console.error('❌ Loading overlay element not found!');
+      }
+    };
+
+    window.hideLoading = function () {
+      // console.log('📢 hideLoading called');
+      const overlay = document.getElementById('loadingOverlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+        // console.log('✅ Loading overlay hidden');
+      } else {
+        console.error('❌ Loading overlay element not found!');
+      }
+    };
+  </script>
+
+  <!-- Leaflet Heatmap Plugin (must be loaded before vehicle_playback.js) -->
+  <script src="{% static 'livetracker/js/leaflet.heat.js' %}"></script>
+
+  <!-- Application Scripts -->
+  <script type="module" src="{% static 'livetracker/js/api_handler.js' %}"></script>
+  <script type="module" src="{% static 'livetracker/js/map.js' %}"></script>
+  <script type="module" src="{% static 'livetracker/js/playback.js' %}"></script>
+  <script type="module" src="{% static 'livetracker/js/vehicle_analytics.js' %}"></script>
+  <script type="module" src="{% static 'livetracker/js/vehicle_playback.js' %}"></script>
+
+  <!-- Initialize Lucide Icons -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      lucide.createIcons();
+      
+      // Load saved alert state from localStorage
+      loadAlertState();
+    });
+
+    // Toggle Live Alerts visibility with localStorage persistence
+    let alertsVisible = true;
+    
+    // Load alert state from localStorage
+    function loadAlertState() {
+      const savedState = localStorage.getItem('liveAlertsVisible');
+      if (savedState !== null) {
+        alertsVisible = savedState === 'true';
+      } else {
+        alertsVisible = true; // Default to visible if no saved state
+      }
+      
+      // Apply the saved state to UI
+      applyAlertState(false);
+    }
+    
+    // Apply alert state to UI
+    function applyAlertState(animate = true) {
+      const stackContainer = document.querySelector('#livetracker-toast-stack')?.parentElement;
+      const activeContainer = document.getElementById('livetracker-toast-active');
+      const toggleBtn = document.getElementById('alertToggleBtn');
+      const toggleCircle = toggleBtn?.querySelector('span');
+      
+      if (!toggleBtn) return; // Exit if elements not found
+
+      if (alertsVisible) {
+        // Show alerts - ON state
+        if (stackContainer) stackContainer.classList.remove('hidden');
+        if (activeContainer) activeContainer.classList.remove('hidden');
+        toggleBtn.classList.remove('bg-gray-300');
+        toggleBtn.classList.add('bg-blue-600');
+        if (toggleCircle) {
+          toggleCircle.classList.remove('translate-x-1');
+          toggleCircle.classList.add('translate-x-6');
+        }
+        toggleBtn.setAttribute('aria-checked', 'true');
+        toggleBtn.title = 'Hide Live Alerts';
+      } else {
+        // Hide alerts - OFF state
+        if (stackContainer) stackContainer.classList.add('hidden');
+        if (activeContainer) activeContainer.classList.add('hidden');
+        toggleBtn.classList.remove('bg-blue-600');
+        toggleBtn.classList.add('bg-gray-300');
+        if (toggleCircle) {
+          toggleCircle.classList.remove('translate-x-6');
+          toggleCircle.classList.add('translate-x-1');
+        }
+        toggleBtn.setAttribute('aria-checked', 'false');
+        toggleBtn.title = 'Show Live Alerts';
+      }
+    }
+    
+    function toggleLiveAlerts() {
+      alertsVisible = !alertsVisible;
+      
+      // Save to localStorage
+      localStorage.setItem('liveAlertsVisible', alertsVisible.toString());
+      
+      // Apply state to UI with animation
+      applyAlertState(true);
+    }
+    
+    // Toggle Reports Dropdown
+    function toggleReportsDropdown() {
+      const menu = document.getElementById('reportsDropdownMenu');
+      const btn = document.getElementById('reportsDropdownBtn');
+      
+      if (menu.classList.contains('hidden')) {
+        menu.classList.remove('hidden');
+        btn.classList.add('bg-blue-100');
+      } else {
+        menu.classList.add('hidden');
+        btn.classList.remove('bg-blue-100');
+      }
+      
+      // Reinitialize icons
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('reportsDropdownMenu');
+      const btn = document.getElementById('reportsDropdownBtn');
+      
+      if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+        btn.classList.remove('bg-blue-100');
+      }
+    });
+  </script>
+
+  <!-- Alert Monitoring System -->
+  <script src="{% static 'livetracker/js/base.js' %}"></script>
+
+  <!-- No Data Alert Modal -->
+  <div id="noDataModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
+      <!-- Header -->
+      <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-100 rounded-t-2xl">
+        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <i data-lucide="alert-circle" class="w-6 h-6 text-red-600"></i>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-lg font-bold text-slate-800">No Data Available</h3>
+        </div>
+        <button onclick="closeNoDataModal()" class="p-1 hover:bg-red-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+        </button>
+      </div>
+      
+      <!-- Content -->
+      <div class="px-6 py-6">
+        <p id="noDataMessage" class="text-slate-700 text-base leading-relaxed">
+          No data found for this vehicle.
+        </p>
+        <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex gap-2">
+            <i data-lucide="info" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"></i>
+            <div class="text-sm text-blue-800">
+              <p class="font-semibold mb-1">Possible reasons:</p>
+              <ul class="list-disc list-inside space-y-1 text-blue-700">
+                <li>Vehicle has no GPS data for today</li>
+                <li>Device is offline or not transmitting</li>
+                <li>Data sync is delayed</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex gap-3">
+        <button onclick="closeNoDataModal()" 
+                class="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors">
+          Close
+        </button>
+        <button onclick="location.href='/livetracker/'" 
+                class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+          <i data-lucide="map" class="w-4 h-4"></i>
+          View All Vehicles
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global function to show no data modal
+    window.showNoDataModal = function(message, vehicleName) {
+      const modal = document.getElementById('noDataModal');
+      const messageEl = document.getElementById('noDataMessage');
+      
+      if (modal && messageEl) {
+        messageEl.textContent = message || `No data available for vehicle ${vehicleName || 'this vehicle'}.`;
+        modal.classList.remove('hidden');
+        
+        // Reinitialize lucide icons in modal
+        if (typeof lucide !== 'undefined') {
+          lucide.createIcons();
+        }
+      }
+    };
+
+    // Global function to close modal
+    window.closeNoDataModal = function() {
+      const modal = document.getElementById('noDataModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    };
+
+    // Close on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeNoDataModal();
+      }
+    });
+
+    // Close on backdrop click
+    document.getElementById('noDataModal')?.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeNoDataModal();
+      }
+    });
+  </script>
+
+  <!-- Django Messages as Toastr Notifications -->
+  {% if messages %}
+  <script>
+    {% for message in messages %}
+    {% if message.tags == 'success' %}
+    toastr.success('{{ message }}');
+    {% elif message.tags == 'info' %}
+    toastr.info('{{ message }}');
+    {% elif message.tags == 'warning' %}
+    toastr.warning('{{ message }}');
+    {% elif message.tags == 'error' %}
+    toastr.error('{{ message }}');
+    {% endif %}
+    {% endfor %}
+  </script>
+  {% endif %}
+
+  <!-- LiveNotif Toast Notifications System -->
+  {% include "livenotif/base.html" %}
+
+<!-- Global Driver Assignment Button - Sleek & Compact -->
+<button
+  id="globalDriverAssignBtn"
+  class="fixed top-1/2 right-0 -translate-y-[calc(50%+120px)]
+         bg-gradient-to-br from-blue-600 to-blue-700
+         text-white
+         w-10 h-24
+         px-2 py-3
+         rounded-l-xl
+         shadow-lg
+         hover:from-blue-700 hover:to-blue-800
+         hover:w-11
+         hover:shadow-xl hover:shadow-blue-500/30
+         active:scale-95
+         transition-all duration-200 ease-out
+         z-[99999]
+         group
+         border-l-2 border-blue-400/50"
+  onclick="openGlobalDriverAssignment()"
+  title="Assign Driver to Truck"
+  style="position: fixed !important; z-index: 99999 !important;"
+>
+  <div class="flex flex-col items-center justify-center gap-1 h-full">
+    <i data-lucide="user-plus" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
+    <span
+      class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
+      style="writing-mode: vertical-rl; text-orientation: mixed;">
+      Assign
+    </span>
+  </div>
+</button>
+
+<!-- Global Feedback Button - Below Driver Assignment -->
+<button
+  id="globalFeedbackBtn"
+  class="fixed top-1/2 right-0 -translate-y-1/2
+         bg-gradient-to-br from-purple-600 to-purple-700
+         text-white
+         w-10 h-24
+         px-2 py-3
+         rounded-l-xl
+         shadow-lg
+         hover:from-purple-700 hover:to-purple-800
+         hover:w-11
+         hover:shadow-xl hover:shadow-purple-500/30
+         active:scale-95
+         transition-all duration-200 ease-out
+         z-[99999]
+         group
+         border-l-2 border-purple-400/50"
+  onclick="openFeedbackSidebar()"
+  title="Report Bug or Request Feature"
+  style="position: fixed !important; z-index: 99999 !important;"
+>
+  <div class="flex flex-col items-center justify-center gap-1 h-full">
+    <i data-lucide="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
+    <span
+      class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
+      style="writing-mode: vertical-rl; text-orientation: mixed;">
+      Feedback
+    </span>
+  </div>
+</button>
+
+  <!-- Global Driver Assignment Sidebar -->
+  <div id="globalDriverAssignmentSidebar" class="fixed top-0 right-0 h-full w-full md:w-[420px] bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-out z-[100001] overflow-y-auto" style="z-index: 100001 !important;">
+    <!-- Header -->
+    <div class="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 px-6 py-4 z-10">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-800">Assign Driver</h3>
+            <p class="text-xs text-slate-600">Link driver to vehicle</p>
+          </div>
+        </div>
+        <button onclick="closeGlobalDriverAssignment()" class="p-2 hover:bg-blue-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Content -->
+    <div class="p-5">
+      <form id="globalDriverAssignmentForm" class="space-y-4">
+        <!-- Required Fields Section -->
+        <div class="space-y-4 pb-4 border-b border-slate-200">
+          <!-- Vehicle Number Input with Autocomplete -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              Vehicle Number *
+            </label>
+            <div class="relative">
+              <input type="text" id="globalVehicleInput" required
+                placeholder="Search vehicle (e.g., MH12AB1234)"
+                autocomplete="off"
+                class="w-full px-3 py-2.5 pl-10 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 text-sm"
+              />
+              <i data-lucide="truck" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+              
+              <!-- Vehicle Autocomplete Results -->
+              <div id="globalVehicleResults" class="hidden absolute z-50 w-full mt-1 bg-white border-2 border-blue-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                <!-- Results populated by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Driver Input with Autocomplete -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              Driver Name / Code *
+            </label>
+            <div class="relative">
+              <input type="text" id="globalDriverInput" required
+                placeholder="Search driver"
+                autocomplete="off"
+                class="w-full px-3 py-2.5 pl-10 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 text-sm"
+              />
+              <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+              
+              <!-- Driver Autocomplete Results -->
+              <div id="globalDriverResults" class="hidden absolute z-50 w-full mt-1 bg-white border-2 border-blue-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                <!-- Results populated by JS -->
+              </div>
+            </div>
+            
+            <!-- Selected Driver Preview -->
+            <div id="globalDriverPreview" class="hidden mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div class="flex items-center gap-2 text-blue-700 mb-1.5">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                <span class="text-xs font-semibold">Selected Driver</span>
+              </div>
+              <div class="space-y-1 text-xs">
+                <div class="flex justify-between">
+                  <span class="text-blue-600">Name:</span>
+                  <span id="globalPreviewDriverName" class="font-semibold text-blue-900"></span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-blue-600">Code:</span>
+                  <span id="globalPreviewDriverCode" class="font-semibold text-blue-900"></span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-blue-600">Phone:</span>
+                  <span id="globalPreviewDriverPhone" class="font-semibold text-blue-900"></span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-blue-600">Status:</span>
+                  <span id="globalPreviewDriverStatus" class="font-semibold"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional Fields Section -->
+        <div class="space-y-2 pt-2">
+
+
+          <!-- Route Select -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              Route
+            </label>
+            <div class="relative">
+              <select id="globalRouteSelect"
+                class="w-full px-3 py-2.5 pl-10 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 text-sm appearance-none bg-white">
+                <option value="">Select route</option>
+                <option value="DHAR_TO_DHULE">Dhar to Dhule</option>
+                <option value="DHULE_TO_DHAR">Dhule to Dhar</option>
+              </select>
+              <i data-lucide="route" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+              <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- Place Select -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              Place
+            </label>
+            <div class="relative">
+              <select id="globalPlaceSelect"
+                class="w-full px-3 py-2.5 pl-10 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 text-sm appearance-none bg-white">
+                <option value="">Select place</option>
+                <option value="DHAR">Dhar</option>
+                <option value="DHULE">Dhule</option>
+                <option value="JULWANIYA">Julwaniya</option>
+              </select>
+              <i data-lucide="map-pin" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+              <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- Tonnage Input -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              Tonnage
+            </label>
+            <div class="relative">
+              <input type="text" id="globalTonnageInput"
+                placeholder="e.g., 25, 30"
+                class="w-full px-3 py-2.5 pl-10 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 text-sm"
+              />
+              <i data-lucide="weight" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Error Message -->
+        <div id="globalAssignmentError" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div class="flex items-center gap-2 text-red-700">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span class="text-xs font-medium" id="globalAssignmentErrorText"></span>
+          </div>
+        </div>
+        
+        <!-- Success Message -->
+        <div id="globalAssignmentSuccess" class="hidden p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div class="flex items-center gap-2 text-green-700">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span class="text-xs font-medium" id="globalAssignmentSuccessText"></span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="closeGlobalDriverAssignment()"
+            class="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors text-sm">
+            Cancel
+          </button>
+          <button type="button" onclick="submitGlobalDriverAssignment()"
+            id="globalSubmitBtn"
+            class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>Assign Driver</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Backdrop overlay for sidebar -->
+  <div id="driverAssignmentBackdrop" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100000]" style="z-index: 100000 !important;" onclick="closeGlobalDriverAssignment()"></div>
+
+  <script>
+    // Global Driver Assignment functionality
+    let globalSelectedVehicle = null;
+    let globalSelectedDriver = null;
+    let globalVehicleAutocompleteTimeout = null;
+    let globalDriverAutocompleteTimeout = null;
+
+    function openGlobalDriverAssignment() {
+      const sidebar = document.getElementById('globalDriverAssignmentSidebar');
+      const backdrop = document.getElementById('driverAssignmentBackdrop');
+      if (sidebar && backdrop) {
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+          sidebar.classList.remove('translate-x-full');
+        }, 10);
+        document.getElementById('globalVehicleInput').focus();
+        lucide.createIcons();
+      }
+    }
+
+    function closeGlobalDriverAssignment() {
+      const sidebar = document.getElementById('globalDriverAssignmentSidebar');
+      const backdrop = document.getElementById('driverAssignmentBackdrop');
+      if (sidebar && backdrop) {
+        sidebar.classList.add('translate-x-full');
+        setTimeout(() => {
+          backdrop.classList.add('hidden');
+        }, 300);
+        
+        // Reset form
+        document.getElementById('globalVehicleInput').value = '';
+        document.getElementById('globalDriverInput').value = '';
+        document.getElementById('globalRouteSelect').value = '';
+        document.getElementById('globalPlaceSelect').value = '';
+        document.getElementById('globalTonnageInput').value = '';
+        document.getElementById('globalVehicleResults').classList.add('hidden');
+        document.getElementById('globalDriverResults').classList.add('hidden');
+        document.getElementById('globalDriverPreview').classList.add('hidden');
+        document.getElementById('globalAssignmentError').classList.add('hidden');
+        document.getElementById('globalAssignmentSuccess').classList.add('hidden');
+        
+        globalSelectedVehicle = null;
+        globalSelectedDriver = null;
+      }
+    }
+
+    // Vehicle autocomplete
+    document.getElementById('globalVehicleInput')?.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      const resultsDiv = document.getElementById('globalVehicleResults');
+      
+      clearTimeout(globalVehicleAutocompleteTimeout);
+      
+      if (query.length < 2) {
+        resultsDiv.classList.add('hidden');
+        globalSelectedVehicle = null;
+        return;
+      }
+      
+      globalVehicleAutocompleteTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/roster/autocomplete/horse/?q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+          
+          if (data.length > 0) {
+            resultsDiv.innerHTML = data.map(vehicle => `
+              <div class="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0"
+                   onclick="selectGlobalVehicle('${vehicle.horse_number}')">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i>
+                  <span class="font-semibold text-slate-800">${vehicle.horse_number}</span>
+                </div>
+              </div>
+            `).join('');
+            resultsDiv.classList.remove('hidden');
+            lucide.createIcons();
+          } else {
+            resultsDiv.innerHTML = '<div class="px-4 py-3 text-sm text-slate-500">No vehicles found</div>';
+            resultsDiv.classList.remove('hidden');
+          }
+        } catch (error) {
+          console.error('Error fetching vehicles:', error);
+        }
+      }, 300);
+    });
+
+    function selectGlobalVehicle(vehicleNumber) {
+      globalSelectedVehicle = vehicleNumber;
+      document.getElementById('globalVehicleInput').value = vehicleNumber;
+      document.getElementById('globalVehicleResults').classList.add('hidden');
+    }
+
+    // Driver autocomplete
+    document.getElementById('globalDriverInput')?.addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      const resultsDiv = document.getElementById('globalDriverResults');
+      
+      clearTimeout(globalDriverAutocompleteTimeout);
+      
+      if (query.length < 2) {
+        resultsDiv.classList.add('hidden');
+        document.getElementById('globalDriverPreview').classList.add('hidden');
+        globalSelectedDriver = null;
+        return;
+      }
+      
+      globalDriverAutocompleteTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/roster/autocomplete/driver/?q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+          
+          if (data.length > 0) {
+            resultsDiv.innerHTML = data.map(driver => `
+              <div class="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0"
+                   onclick='selectGlobalDriver(${JSON.stringify(driver)})'>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="user" class="w-4 h-4 text-blue-600"></i>
+                    <div>
+                      <div class="font-semibold text-slate-800">${driver.employee_name}</div>
+                      <div class="text-xs text-slate-500">${driver.employee_code}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join('');
+            resultsDiv.classList.remove('hidden');
+            lucide.createIcons();
+          } else {
+            resultsDiv.innerHTML = '<div class="px-4 py-3 text-sm text-slate-500">No drivers found</div>';
+            resultsDiv.classList.remove('hidden');
+          }
+        } catch (error) {
+          console.error('Error fetching drivers:', error);
+        }
+      }, 300);
+    });
+
+    async function selectGlobalDriver(driver) {
+      globalSelectedDriver = driver;
+      document.getElementById('globalDriverInput').value = `${driver.employee_name} (${driver.employee_code})`;
+      document.getElementById('globalDriverResults').classList.add('hidden');
+      
+      // Fetch full driver details
+      try {
+        const response = await fetch(`/roster/api/drivers/`);
+        const data = await response.json();
+        
+        if (data.success) {
+          const fullDriver = data.drivers.find(d => d.employee_code === driver.employee_code);
+          
+          if (fullDriver) {
+            // Show preview
+            document.getElementById('globalPreviewDriverName').textContent = fullDriver.employee_name;
+            document.getElementById('globalPreviewDriverCode').textContent = fullDriver.employee_code;
+            document.getElementById('globalPreviewDriverPhone').textContent = fullDriver.phone || 'N/A';
+            
+            const statusEl = document.getElementById('globalPreviewDriverStatus');
+            statusEl.textContent = fullDriver.is_active ? 'Active' : 'Inactive';
+            statusEl.className = fullDriver.is_active ? 'font-semibold text-green-700' : 'font-semibold text-red-700';
+            
+            document.getElementById('globalDriverPreview').classList.remove('hidden');
+            lucide.createIcons();
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching driver details:', error);
+      }
+    }
+
+    async function submitGlobalDriverAssignment() {
+      const vehicleNumber = globalSelectedVehicle || document.getElementById('globalVehicleInput').value.trim();
+      const tonnage = document.getElementById('globalTonnageInput').value.trim();
+      const driverCode = globalSelectedDriver?.employee_code;
+      const driverName = globalSelectedDriver?.employee_name;
+      const route = document.getElementById('globalRouteSelect').value.trim();
+      const place = document.getElementById('globalPlaceSelect').value.trim();
+      
+      const errorDiv = document.getElementById('globalAssignmentError');
+      const errorText = document.getElementById('globalAssignmentErrorText');
+      const successDiv = document.getElementById('globalAssignmentSuccess');
+      const successText = document.getElementById('globalAssignmentSuccessText');
+      const submitBtn = document.getElementById('globalSubmitBtn');
+      
+      // Hide messages
+      errorDiv.classList.add('hidden');
+      successDiv.classList.add('hidden');
+      
+      // Validation
+      if (!vehicleNumber) {
+        errorText.textContent = 'Please enter a vehicle number';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+      
+      if (!driverCode) {
+        errorText.textContent = 'Please select a driver from the list';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+      
+      // Check for existing assignments before proceeding
+      try {
+        const checkResponse = await fetch(`/roster/api/assignments/?vehicle=${encodeURIComponent(vehicleNumber)}&driver=${encodeURIComponent(driverCode)}`);
+        const checkData = await checkResponse.json();
+        
+        let confirmMessage = '';
+        if (checkData.vehicle_assignment && checkData.driver_assignment) {
+          // Both truck and driver already assigned
+          if (checkData.vehicle_assignment.driver_code === driverCode) {
+            // Same assignment, updating details
+            confirmMessage = `Truck ${vehicleNumber} is already assigned to driver ${driverName}. Do you want to update the assignment details?`;
+          } else {
+            // Different driver on truck
+            confirmMessage = `Truck ${vehicleNumber} is currently assigned to ${checkData.vehicle_assignment.driver_name}. Do you want to reassign it to ${driverName}?`;
+          }
+        } else if (checkData.vehicle_assignment) {
+          // Only truck has assignment
+          confirmMessage = `Truck ${vehicleNumber} is currently assigned to ${checkData.vehicle_assignment.driver_name}. Do you want to reassign it to ${driverName}?`;
+        } else if (checkData.driver_assignment) {
+          // Only driver has assignment
+          confirmMessage = `Driver ${driverName} is currently assigned to truck ${checkData.driver_assignment.horse_number}. Do you want to reassign them to ${vehicleNumber}?`;
+        }
+        
+        // Show confirmation modal if assignment exists
+        if (confirmMessage) {
+          const confirmed = await showGlobalConfirmationModal(confirmMessage);
+          if (!confirmed) {
+            return; // User cancelled
+          }
+        }
+      } catch (error) {
+        console.error('Error checking existing assignments:', error);
+        // Continue with assignment even if check fails
+      }
+      
+      // Disable button and show loading
+      const originalHTML = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Assigning...</span>';
+      lucide.createIcons();
+      
+      try {
+        const response = await fetch('/roster/api/assign-driver/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({
+            horse_number: vehicleNumber,
+            driver_code: driverCode,
+            route: route || null,
+            place: place || null,
+            tonnage: tonnage || null
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          successText.textContent = data.message;
+          successDiv.classList.remove('hidden');
+          lucide.createIcons();
+          
+          // Clear driver info cache if it exists
+          if (window.LiveMap && window.LiveMap.clearDriverCache) {
+            window.LiveMap.clearDriverCache(vehicleNumber);
+          }
+          
+          // Close modal after 2 seconds
+          setTimeout(() => {
+            closeGlobalDriverAssignment();
+          }, 2000);
+        } else {
+          errorText.textContent = data.message || 'Failed to assign driver';
+          errorDiv.classList.remove('hidden');
+          lucide.createIcons();
+        }
+      } catch (error) {
+        console.error('Error assigning driver:', error);
+        errorText.textContent = 'An error occurred. Please try again.';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHTML;
+        lucide.createIcons();
+      }
+    }
+    
+    // Confirmation modal for global driver assignment
+    function showGlobalConfirmationModal(message) {
+      return new Promise((resolve) => {
+        // Highlight truck numbers and driver names in message
+        const highlightedMessage = message
+          .replace(/(Truck \S+|truck \S+)/g, '<span class="font-bold text-blue-700">$1</span>')
+          .replace(/(driver [A-Za-z\s]+(?=\.|\?))/g, '<span class="font-bold text-green-700">$1</span>')
+          .replace(/(Driver [A-Za-z\s]+(?=\.|\?|is))/g, '<span class="font-bold text-green-700">$1</span>');
+        
+        const modal = document.createElement('div');
+        modal.id = 'globalAssignmentConfirmModal';
+        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[100002] flex items-center justify-center p-4';
+        modal.innerHTML = `
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full transform transition-all">
+            <div class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 rounded-t-xl">
+              <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600"></i>
+              </div>
+              <h3 class="text-sm font-bold text-slate-800">Confirm Reassignment</h3>
+            </div>
+            <div class="px-4 py-4">
+              <p class="text-slate-700 text-sm leading-relaxed">${highlightedMessage}</p>
+            </div>
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 rounded-b-xl flex gap-2">
+              <button id="globalConfirmCancel" class="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-md transition-colors">
+                Cancel
+              </button>
+              <button id="globalConfirmYes" class="flex-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1.5">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                Continue
+              </button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Initialize lucide icons
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        
+        // Handle button clicks
+        document.getElementById('globalConfirmCancel').addEventListener('click', () => {
+          modal.remove();
+          resolve(false);
+        });
+        
+        document.getElementById('globalConfirmYes').addEventListener('click', () => {
+          modal.remove();
+          resolve(true);
+        });
+        
+        // Close on escape
+        const escHandler = (e) => {
+          if (e.key === 'Escape') {
+            modal.remove();
+            document.removeEventListener('keydown', escHandler);
+            resolve(false);
+          }
+        };
+        document.addEventListener('keydown', escHandler);
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.remove();
+            resolve(false);
+          }
+        });
+      });
+    }
+
+    // Helper function to get CSRF token
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    // Close on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeGlobalDriverAssignment();
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#globalVehicleInput') && !e.target.closest('#globalVehicleResults')) {
+        document.getElementById('globalVehicleResults')?.classList.add('hidden');
+      }
+      if (!e.target.closest('#globalDriverInput') && !e.target.closest('#globalDriverResults')) {
+        document.getElementById('globalDriverResults')?.classList.add('hidden');
+      }
+    });
+  </script>
+
+  <!-- Feedback Sidebar - Slides from Right -->
+  {% include "livetracker/feedback.html" %}
+
+  {% block extra_scripts %}{% endblock %}
+
+  <script>
+    // Global shortcut: Alt+B → navigate to TIME BOX page
+    (function(){
+      const TIMEBOX_URL = "{% url 'livetracker:timebox' %}";
+      document.addEventListener('keydown', function(e){
+        if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        const isEditable = e.target.isContentEditable || ['input','textarea','select'].includes(tag);
+        if (isEditable) return;
+        if ((e.key || '').toLowerCase() === 'b') {
+          // Do not navigate on analytics page; page-specific handler manages Alt+B
+          const p = window.location.pathname || '';
+          if (p.startsWith('/livetracker/') && !p.includes('/livetracker/timebox')) {
+            return;
+          }
+          e.preventDefault();
+          try { window.location.href = TIMEBOX_URL; } catch(_) {}
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,1992 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>LiveTracker - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Leaflet.draw -->
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <!-- Lottie Animation -->
+    <script src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.3/dist/dotlottie-wc.js" type="module"></script>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <style>
+        .leaflet-container {
+            height: calc(100vh - 4rem); /* Adjust for navbar */
+            width: 100%;
+        }
+        .vehicle-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.7);
+        }
+        .moving { background-color: #22c55e; }
+        .stopped { background-color: #ef4444; }
+        .idle { background-color: #f59e0b; }
+        .offline { background-color: #6b7280; }
+        
+        /* Custom bus icon - ensure no background */
+        .custom-bus-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+        #mapCoordTooltip {
+            pointer-events: auto;
+            user-select: none;
+        }
+        #mapCoordTooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Navigation Bar -->
+<nav class="fixed top-0 left-0 right-0 z-[1000] bg-white border-b border-slate-200 shadow-sm">
+    <div class="flex items-center justify-between px-4 lg:px-6 py-3">
+        <!-- Logo & Title -->
+        <a href="#" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+            <img src="https://transvolt.in/Images/Logo/black.svg" 
+                 alt="Transvolt Logo" 
+                 class="h-3 sm:h-4 w-auto object-contain">
+            <div class="flex items-center space-x-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-[14px] sm:text-2xl font-bold text-slate-900">LiveTracker</span>
+                    <span class="text-[14px] sm:text-2xl font-bold text-slate-400">|</span>
+                    <span id="project-subtitle" class="text-[14px] sm:text-xl font-bold text-slate-700">{{ selected_project|default:'UMT' }}</span>
+                </div>
+            </div>
+        </a>
+
+        <!-- Right Side Controls -->
+        <div class="flex items-center gap-3">
+            <!-- Project Switcher Dropdown -->
+            <div class="relative" id="project-switcher">
+                <button
+                    id="projectDropdownBtn"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg transition-colors border border-slate-200">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                    <span id="projectDropdownLabel" class="text-xs font-semibold hidden sm:inline">{{ selected_project|default:'UMT' }}</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <div id="projectDropdownMenu"
+                     class="absolute right-0 mt-1 w-52 bg-white border border-slate-200 rounded-lg shadow-lg z-50 hidden">
+                    <div class="py-1">
+                        <div class="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Select Project</div>
+                        <button data-vendor="intangles" data-spv="UMT" data-label="UMT"
+                            class="project-option w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> UMT
+                        </button>
+                        <button data-vendor="intangles" data-spv="MBMT" data-label="MBMT"
+                            class="project-option w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-purple-500 inline-block"></span> MBMT
+                        </button>
+                        <button data-vendor="eka" data-spv="nagpur" data-label="Nagpur"
+                            class="project-option w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-orange-500 inline-block"></span> Nagpur
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Dropdown -->
+            <div class="relative">
+                <button 
+                    id="reportsDropdownBtn"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors border border-blue-200">
+                    <i data-lucide="file-chart-column-increasing" class="w-4 h-4"></i>
+                    <span class="text-xs font-semibold hidden sm:inline">Reports</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <!-- Geofences Button -->
+            <button
+                id="geofenceToggleBtn"
+                class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors border border-emerald-200"
+                title="Manage Geofences">
+                <i data-lucide="map-pin-check" class="w-4 h-4"></i>
+                <span class="text-xs font-semibold hidden sm:inline">Add Geofences</span>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- Geofence Panel -->
+<div id="geofencePanel"
+     class="fixed top-[64px] right-0 w-80 h-[calc(100vh-64px)] bg-white shadow-2xl border-l border-slate-200 z-[999] flex flex-col hidden">
+    <!-- Panel Header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
+        <div class="flex items-center gap-2">
+            <i data-lucide="map-pin-check" class="w-4 h-4 text-emerald-600"></i>
+            <span class="font-semibold text-slate-800 text-sm">Geofences</span>
+        </div>
+        <button id="geofencePanelClose" class="text-slate-400 hover:text-slate-600">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
+    <!-- Draw controls -->
+    <div class="p-3 border-b border-slate-100 bg-slate-50">
+        <p class="text-xs text-slate-500 mb-2">Draw a geofence on the map:</p>
+        <div class="flex gap-2">
+            <button id="drawPolygonBtn"
+                class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all">
+                <i data-lucide="pentagon" class="w-3.5 h-3.5"></i> Polygon
+            </button>
+            <button id="drawRectangleBtn"
+                class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all">
+                <i data-lucide="square" class="w-3.5 h-3.5"></i> Rectangle
+            </button>
+            <button id="drawCircleBtn"
+                class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all">
+                <i data-lucide="circle" class="w-3.5 h-3.5"></i> Circle
+            </button>
+        </div>
+        <div class="mt-2">
+            <button id="drawByCoordsBtn"
+                class="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> By Coordinates
+            </button>
+        </div>
+    </div>
+
+    <!-- Coordinate Input Form -->
+    <div id="geofenceCoordForm" class="p-3 border-b border-slate-100 hidden">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Define by coordinates:</p>
+        <div class="mb-2">
+            <label class="text-xs text-slate-500 mb-1 block">Shape type</label>
+            <div class="flex gap-3">
+                <label class="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="radio" name="coordShapeType" value="circle" checked class="accent-emerald-600"> Circle
+                </label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="radio" name="coordShapeType" value="polygon" class="accent-emerald-600"> Polygon
+                </label>
+            </div>
+        </div>
+        <!-- Circle fields -->
+        <div id="coordCircleInputs">
+            <div class="grid grid-cols-2 gap-1.5 mb-1.5">
+                <div>
+                    <label class="text-[10px] text-slate-400">Latitude</label>
+                    <input type="number" id="coordCenterLat" step="any" placeholder="28.6139"
+                        class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400">Longitude</label>
+                    <input type="number" id="coordCenterLng" step="any" placeholder="77.2090"
+                        class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] text-slate-400">Radius (meters)</label>
+                <input type="number" id="coordRadius" step="any" min="1" placeholder="500"
+                    class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-400">
+            </div>
+        </div>
+        <!-- Polygon fields -->
+        <div id="coordPolygonInputs" class="hidden">
+            <label class="text-[10px] text-slate-400 block mb-1">One lat,lng per line (min 3 points)</label>
+            <textarea id="coordPolygonPoints" rows="5"
+                placeholder="28.6139, 77.2090&#10;28.6150, 77.2100&#10;28.6130, 77.2110"
+                class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-400 font-mono resize-none"></textarea>
+        </div>
+        <div class="flex gap-2 mt-2">
+            <button id="coordPlotBtn"
+                class="flex-1 px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                Plot on Map
+            </button>
+            <button id="coordFormCancelBtn"
+                class="flex-1 px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-colors">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- Save form (shown after draw) -->
+    <div id="geofenceSaveForm" class="p-3 border-b border-slate-100 hidden">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Name this geofence:</p>
+        <input type="text" id="geofenceNameInput"
+               placeholder="e.g. Depot Area"
+               class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2">
+        <div class="flex gap-2">
+            <button id="geofenceSaveBtn"
+                class="flex-1 px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors">
+                Save
+            </button>
+            <button id="geofenceCancelBtn"
+                class="flex-1 px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-colors">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- Geofence list -->
+    <div class="flex-1 overflow-y-auto">
+        <div id="geofenceList" class="p-3 space-y-2">
+            <p class="text-xs text-slate-400 text-center py-4">No geofences yet.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Map Coordinate Tooltip -->
+<div id="mapCoordTooltip"
+     class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1001] bg-slate-900/90 text-white rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3 text-sm backdrop-blur-sm transition-all duration-200 opacity-0 translate-y-2 pointer-events-none">
+    <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+    <span id="mapCoordText" class="font-mono text-xs tracking-wide"></span>
+    <button id="mapCoordCopyBtn"
+        class="ml-1 p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0" title="Copy coordinates">
+        <i data-lucide="copy" class="w-3.5 h-3.5 text-slate-300"></i>
+    </button>
+    <button id="mapCoordCloseBtn"
+        class="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0" title="Dismiss">
+        <i data-lucide="x" class="w-3.5 h-3.5 text-slate-400"></i>
+    </button>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-[900] hidden">
+    <div class="flex flex-col items-center justify-center">
+        <dotlottie-wc
+            src="https://lottie.host/1e2905e6-ff23-4ff9-ae98-785f049a219c/EQGNfqCSgN.lottie"
+            style="width: 500px; height: 280px;"
+            autoplay
+            loop>
+        </dotlottie-wc>
+        <div class="text-center mt-2">
+            <p id="loading-message" class="text-slate-800 font-bold text-xl drop-shadow-lg">Fetching live Bus data...</p>
+            <p class="text-slate-600 text-sm mt-2 drop-shadow-lg">Please wait while we load vehicles information</p>
+        </div>
+    </div>
+</div>
+
+<div class="flex h-screen pt-[50px]">
+    <!-- Sidebar -->
+    <div class="w-80 bg-white shadow-lg flex flex-col relative z-10">
+        <!-- Back to Dashboard Button -->
+        <div class="p-2.5 border-b border-slate-200 bg-gradient-to-r from-gray-50 to-white">
+            <div class="flex items-stretch justify-center gap-2">
+                <!-- Back to Dashboard -->
+                <a href="/dashboard/" target="_blank"
+                   class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-300 transition-all duration-200 group flex-1"
+                   title="Back to Dashboard">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[9px] font-medium leading-tight text-center">Dashboard</span>
+                </a>
+                
+                <!-- Refresh -->
+                <button 
+                    id="refresh-btn" 
+                    class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg border border-blue-500 hover:border-blue-600 transition-all duration-200 group flex-1"
+                    title="Refresh Vehicles">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[9px] font-medium leading-tight text-center">Refresh</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Buttons -->
+        <div class="p-4 border-b">
+            <!-- Filter Buttons Grid -->
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              <!-- All -->
+              <button id="filterAll"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-slate-100 text-slate-700 
+                       border border-slate-300 hover:bg-slate-200 transition-all duration-200"
+                data-filter="all" title="All Vehicles">
+                  <i data-lucide="receipt-text" class="w-5 h-5"></i>
+                  <span id="countAll" class="text-[14px] font-semibold text-slate-700">(0)</span>
+              </button>
+
+               <!-- Moving -->
+              <button id="filterMoving"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-blue-600 
+                       border border-blue-200 hover:bg-blue-50 transition-all duration-200"
+                data-filter="moving" title="Moving">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#2563eb"><path d="M273.33-160q-50 0-83-35.67-33-35.66-29.66-85h-100l14.66-66.66h112.34q15.66-18.34 37.66-28.84 22-10.5 48-10.5t48 10.5q22 10.5 37.67 28.84h187.67l89.33-386H184.67l3.33-14.34q5.33-23.33 23.17-37.83Q229-800 252.67-800h466.66L681-633.33h122.33l116 154.66-39.33 198h-80q3.33 49.34-30 85Q736.67-160 686.67-160t-83-35.67q-33-35.66-29.67-85H386.67q3.33 49.34-30 85Q323.33-160 273.33-160ZM635-433.33h207.67l5.33-29-78-104.34H665.67L635-433.33Zm-5.67-273 6.67-27-89.33 386 6-26.34 34-146 42.66-186.66Zm-608 272.66L38-500.33h220l-16.67 66.66h-220Zm80-146L118-646.33h260l-16.67 66.66h-260Zm172 353q19.67 0 33.17-13.83t13.5-32.83q0-19.67-13.5-33.17T273.33-320q-19 0-32.83 13.5-13.83 13.5-13.83 33.17 0 19 13.83 32.83 13.83 13.83 32.83 13.83Zm413.34 0q19.66 0 33.16-13.83 13.5-13.83 13.5-32.83 0-19.67-13.5-33.17T686.67-320q-19 0-32.84 13.5Q640-293 640-273.33q0 19 13.83 32.83 13.84 13.83 32.84 13.83Z"/></svg>
+                  <span id="countMoving" class="text-[14px] font-semibold text-blue-700">(0)</span>
+              </button>
+
+               <!-- Stopped -->
+              <button id="filterStopped"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-red-600 
+                       border border-red-200 hover:bg-red-50 transition-all duration-200"
+                data-filter="stopped" title="Stopped">
+                  <i data-lucide="octagon-minus" class="w-5 h-5"></i>
+                  <span id="countStopped" class="text-[14px] font-semibold text-red-700">(0)</span>
+              </button>
+
+              <!-- Charging -->
+              <button id="filterCharging"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-green-600 
+                       border border-green-200 hover:bg-green-50 transition-all duration-200"
+                data-filter="charging" title="Charging">
+                 <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#16a34a"><path d="M338-209.33 430-356h-55.33v-110l-91.34 146.67H338v110ZM226.67-554.67H486v-218.66H226.67v218.66Zm0 368H486V-488H226.67v301.33ZM160-120v-653.33q0-27 19.83-46.84Q199.67-840 226.67-840H486q27 0 46.83 19.83 19.84 19.84 19.84 46.84V-488h60q23.47 0 40.07 16.59 16.59 16.6 16.59 40.08v207.66q0 20.34 16.34 34.67Q702-174.67 723-174.67q21.33 0 39.17-14.33Q780-203.33 780-223.67v-383h-13.33q-14.17 0-23.75-9.58-9.59-9.58-9.59-23.75v-86.67h20V-780h33.34v53.33h40V-780H860v53.33h20V-640q0 14.17-9.58 23.75-9.59 9.58-23.75 9.58h-13.34v382.8q0 42.87-32.83 73.37-32.83 30.5-77.62 30.5-43.77 0-75.33-30.5Q616-181 616-223.67v-207.66q0-1.67-.83-2.5-.84-.84-2.5-.84h-60V-120H160Zm326-66.67H226.67 486Z"/></svg>
+                  <span id="countCharging" class="text-[14px] font-semibold text-green-700">(0)</span>
+              </button>
+
+              <!-- Low SOC -->
+              <button id="filterLowSoc"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-orange-600 
+                       border border-orange-200 hover:bg-orange-50 transition-all duration-200"
+                data-filter="lowsoc" title="Low SOC (<30%)">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#ea580c"><path d="M839.88-306.67q-14.21 0-23.71-9.61-9.5-9.62-9.5-23.84 0-14.21 9.61-23.71 9.62-9.5 23.84-9.5 14.21 0 23.71 9.61 9.5 9.62 9.5 23.84 0 14.21-9.61 23.71-9.62 9.5-23.84 9.5Zm-33.21-126.66v-240h66.66v240h-66.66ZM810.34-240H140q-41.67 0-70.83-29.17Q40-298.33 40-340v-280q0-41.67 29.17-70.83Q98.33-720 140-720h600v66.67H140q-14.17 0-23.75 9.58T106.67-620v280q0 14.17 9.58 23.75t23.75 9.58h603.33q6 25 24.5 43.17t42.51 23.5Zm-703.67-66.67V-653.33v346.66Z"/></svg>
+                  <span id="countLowSoc" class="text-[14px] font-semibold text-orange-700">(0)</span>
+              </button>
+
+              <!-- Refresh -->
+              <button id="refreshBtn"
+                class="flex items-center justify-center gap-1.5 p-2 rounded-lg text-slate-700 
+                      transition-all duration-200"
+                title="Refresh" onclick="loadVehicles()">
+                  <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+              </button>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="p-4 border-b">
+            <input 
+                type="text" 
+                id="vehicle-search" 
+                placeholder="Search vehicles..." 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+        </div>
+
+        <!-- Vehicle List -->
+        <div class="flex-1 overflow-y-auto">
+            <div id="vehicle-list" class="p-4 space-y-2">
+                <!-- Vehicles will be loaded here -->
+            </div>
+        </div>
+
+
+    </div>
+
+    <!-- Map Container -->
+    <div class="flex-1">
+        <div id="map" class="h-full"></div>
+    </div>
+</div>
+
+<script type="module">
+// Global variables
+let map;
+let vehicleMarkers = {};
+let vehiclePolylines = {};
+let vehiclePolylineIntervals = {};
+let allVehicles = {};
+let isLoading = false;
+let markerClusterGroup;
+let geocodeCache = new Map();
+
+// Global filter state
+let currentStatusFilter = 'all';
+
+// Map view state preservation
+const MAP_STATE_KEY = 'mapViewState_' + ('{{ selected_project|default:"UMT" }}');
+let isInitialLoad = !sessionStorage.getItem(MAP_STATE_KEY + '_loaded');
+
+// Active project (vendor + spv) - Get from Django context
+const djangoSelectedProject = '{{ selected_project|default:"UMT" }}';
+const PROJECT_VENDOR_MAP = { 'NAGPUR': 'eka', 'nagpur': 'eka' };
+const djangoVendor = PROJECT_VENDOR_MAP[djangoSelectedProject] || 'intangles';
+let activeProject = { vendor: djangoVendor, spv: djangoSelectedProject, label: djangoSelectedProject };
+window.activeProject = activeProject;
+
+// API endpoints
+const API = {
+  ALL: () => `/globaltracker/api/twins/latest-points/?vendor=${activeProject.vendor}&spv=${activeProject.spv}&limit=3`,
+  ONE_DAY: reg => `/globaltracker/api/twins/24hr-route/?registration_number=${encodeURIComponent(reg)}&vendor=${activeProject.vendor}&spv=${activeProject.spv}`,
+};
+
+// Initialize map with clustering
+function initMap() {
+    map = L.map('map').setView([22.3511148, 78.6677428], 7); // India center
+    window._gMap = map;  // expose for geofence module
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Save map zoom and center whenever user interacts with map
+    map.on('zoomend moveend', saveMapState);
+    
+    // Initialize marker cluster group
+    markerClusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 80, // Cluster markers within 80 pixels
+        spiderfyOnMaxZoom: true, // Show individual markers on max zoom
+        showCoverageOnHover: false, // Don't show cluster area on hover
+        zoomToBoundsOnClick: true, // Zoom to cluster bounds on click
+        disableClusteringAtZoom: 16, // Disable clustering at zoom level 16+
+        iconCreateFunction: function(cluster) {
+            const count = cluster.getChildCount();
+            let sizeClass = 'small';
+            let size = 40;
+            
+            if (count >= 10) {
+                sizeClass = 'large';
+                size = 50;
+            } else if (count >= 5) {
+                sizeClass = 'medium';
+                size = 45;
+            }
+            
+            return L.divIcon({
+                html: `<div style="
+                    width: ${size}px; 
+                    height: ${size}px; 
+                    background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: ${count >= 10 ? '16px' : '14px'};
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                ">${count}</div>`,
+                className: 'marker-cluster marker-cluster-' + sizeClass,
+                iconSize: L.point(size, size)
+            });
+        }
+    });
+    map.addLayer(markerClusterGroup);
+    window._geofenceMapReady = true;  // signal geofence module
+    
+    // ── Map click → show coordinates ────────────────────────────────────────
+    (function() {
+        const tooltip  = document.getElementById('mapCoordTooltip');
+        const coordText = document.getElementById('mapCoordText');
+        const copyBtn  = document.getElementById('mapCoordCopyBtn');
+        const closeBtn = document.getElementById('mapCoordCloseBtn');
+        let hideTimer  = null;
+
+        function showCoords(lat, lng) {
+            const text = `${lat.toFixed(6)},  ${lng.toFixed(6)}`;
+            coordText.textContent = text;
+            tooltip.classList.add('visible');
+            tooltip.style.opacity = '1';
+            tooltip.style.transform = 'translateX(-50%) translateY(0)';
+            tooltip.style.pointerEvents = 'auto';
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(hide, 8000);
+        }
+        function hide() {
+            tooltip.style.opacity = '0';
+            tooltip.style.transform = 'translateX(-50%) translateY(8px)';
+            tooltip.style.pointerEvents = 'none';
+        }
+
+        map.on('click', function(e) {
+            // Don't show if a draw handler is active (user is drawing a geofence)
+            if (window._activeDrawHandler) return;
+            showCoords(e.latlng.lat, e.latlng.lng);
+        });
+
+        copyBtn.addEventListener('click', function() {
+            const raw = coordText.textContent.replace(/\s+/g, '');
+            navigator.clipboard.writeText(raw).then(() => {
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>';
+                lucide.createIcons();
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5 text-slate-300"></i>';
+                    lucide.createIcons();
+                }, 1500);
+            });
+        });
+        closeBtn.addEventListener('click', hide);
+    })();
+
+    // Update icons when zoom changes
+    map.on('zoomend', function() {
+        Object.values(vehicleMarkers).forEach(marker => {
+            if (marker.heading !== undefined && marker.vehicleStatus !== undefined) {
+                marker.setIcon(createVehicleIcon(map.getZoom(), marker.heading, marker.getLatLng().lat, marker.vehicleStatus));
+            }
+        });
+    });
+}
+
+// Create vehicle icon with rotation based on heading
+function createVehicleIcon(zoom, heading = 0, lat = 0, vehicleStatus = '') {
+    const minSize = 35;
+    const maxSize = 55;
+    const scaleFactor = zoom / 14;
+    const size = Math.max(minSize, Math.min(maxSize, minSize * scaleFactor));
+    
+    const normalizedHeading = ((heading || 0) % 360 + 360) % 360;
+    
+    // Check charging status
+    const vehicleStatusLower = (vehicleStatus || '').toLowerCase();
+    const isCharging = vehicleStatusLower.includes('charging') || 
+                      vehicleStatusLower.includes('charge') ||
+                      vehicleStatusLower === 'charging';
+    
+    // Use green for charging, blue for all other vehicles
+    const iconColor = isCharging ? '#10b981' : '#3b82f6';
+    
+    return L.divIcon({
+        className: "custom-bus-icon",
+        html: `
+            <div style="
+                width: ${size}px;
+                height: ${size}px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transform: rotate(${heading}deg);
+                transition: transform 0.3s ease;
+                opacity: 0.85;
+                z-index: 400;
+                position: relative;
+            ">
+                <svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Arrow -->
+                    <path 
+                        d="M12 2 
+                           L20 10 
+                           H15 
+                           V22 
+                           H9 
+                           V10 
+                           H4 
+                           Z"
+                        fill="${iconColor}"
+                        stroke="black"
+                        stroke-width="1.6"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+            </div>
+        `,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size * 0.75],
+        popupAnchor: [0, -size * 0.75]
+    });
+}
+
+// Calculate vehicle heading from GPS movement vectors
+function calculateVectorHeading(points) {
+    if (!points || points.length < 2) return null;
+    
+    // Use up to 6 points to calculate average heading
+    const pointsToUse = points.slice(0, Math.min(6, points.length));
+    
+    let totalDeltaX = 0;
+    let totalDeltaY = 0;
+    let validVectors = 0;
+    
+    // Calculate vectors between consecutive points
+    for (let i = 0; i < pointsToUse.length - 1; i++) {
+        const p1 = pointsToUse[i];     // newer point
+        const p2 = pointsToUse[i + 1]; // older point
+        
+        const lat1 = parseFloat(p1.latitude);
+        const lon1 = parseFloat(p1.longitude);
+        const lat2 = parseFloat(p2.latitude);
+        const lon2 = parseFloat(p2.longitude);
+        
+        if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) continue;
+        
+        // Calculate delta (movement from p2 to p1, i.e., direction of travel)
+        const deltaLat = lat1 - lat2;
+        const deltaLon = lon1 - lon2;
+        
+        // Skip if no movement (stationary)
+        if (Math.abs(deltaLat) < 0.00001 && Math.abs(deltaLon) < 0.00001) continue;
+        
+        // Convert to Cartesian coordinates for averaging
+        // Adjust for longitude distortion at different latitudes
+        const avgLat = (lat1 + lat2) / 2;
+        const deltaX = deltaLon * Math.cos(avgLat * Math.PI / 180);
+        const deltaY = deltaLat;
+        
+        totalDeltaX += deltaX;
+        totalDeltaY += deltaY;
+        validVectors++;
+    }
+    
+    // If no valid movement vectors found
+    if (validVectors === 0) return null;
+    
+    // Calculate average direction
+    const avgDeltaX = totalDeltaX / validVectors;
+    const avgDeltaY = totalDeltaY / validVectors;
+    
+    // Calculate heading using atan2 (returns angle in radians from -π to π)
+    // atan2(deltaY, deltaX) gives angle from East (0°)
+    // We need to convert to compass heading where North = 0°
+    let headingRadians = Math.atan2(avgDeltaX, avgDeltaY);
+    
+    // Convert to degrees
+    let headingDegrees = headingRadians * (180 / Math.PI);
+    
+    // Normalize to 0-360 range (0 = North, 90 = East, 180 = South, 270 = West)
+    if (headingDegrees < 0) {
+        headingDegrees += 360;
+    }
+    
+    return headingDegrees;
+}
+
+// Reverse geocoding with caching
+async function fetchReverseGeocode(lat, lng) {
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    
+    if (geocodeCache.has(key)) {
+        return geocodeCache.get(key);
+    }
+    
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+        const data = await response.json();
+        
+        let address = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        if (data?.display_name) {
+            const parts = data.display_name.split(',');
+            address = parts.slice(0, 3).join(', ');
+        }
+        
+        geocodeCache.set(key, address);
+        return address;
+    } catch {
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
+}
+
+// Create rich popup content
+function buildPopupHTML(displayNumber, latest, displayStatus, locationText, lastUpdateTime = null) {
+    // Determine battery color based on SOC
+    const soc = latest.soc ?? 0;
+    let batteryColor = '#059669'; // Green
+    if (soc < 30) {
+        batteryColor = '#dc2626'; // Red
+    } else if (soc < 60) {
+        batteryColor = '#d97706'; // Orange
+    }
+    
+    // Status badge color
+    let statusColor = '#64748b';
+    if (displayStatus.toLowerCase().includes('charging')) {
+        statusColor = '#059669';
+    } else if (displayStatus.toLowerCase().includes('moving')) {
+        statusColor = '#2563eb';
+    } else if (displayStatus.toLowerCase().includes('stopped')) {
+        statusColor = '#dc2626';
+    }
+    
+    return `
+<div style="min-width: 185px; max-width: 200px; font-family: system-ui, sans-serif; color: #111827; padding: 8px 9px; background: #ffffff; border-radius: 5px; border: 1px solid #e5e7eb;">
+  
+  <!-- Header -->
+  <div style="font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e5e7eb;">
+    ${displayNumber}
+  </div>
+
+  <!-- Metrics Row -->
+  <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+    <div style="flex: 1; text-align: center;">
+      <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px;">
+        Battery
+      </div>
+      <div style="font-size: 16px; font-weight: 700; color: ${batteryColor}; line-height: 1;">
+        ${latest.soc ?? 'N/A'}<span style="font-size: 10px; font-weight: 500; color: #6b7280;">%</span>
+      </div>
+    </div>
+    <div style="width: 1px; background: #e5e7eb; margin: 2px 0;"></div>
+    <div style="flex: 1; text-align: center;">
+      <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px;">
+        Speed
+      </div>
+      <div style="font-size: 16px; font-weight: 700; color: #111827; line-height: 1;">
+        ${latest.speed ?? 'N/A'}<span style="font-size: 10px; font-weight: 500; color: #6b7280;">km/h</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Badge -->
+  <div style="display: inline-block; font-size: 8.5px; font-weight: 700; color: ${statusColor}; padding: 3px 7px; border-radius: 3px; background: #f8fafc; border-left: 2.5px solid ${statusColor}; margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase;">
+    ${displayStatus}
+  </div>
+
+  <!-- Location -->
+  <div style="margin-bottom: 5px;">
+    <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 1px; letter-spacing: 0.2px;">
+      Location
+    </div>
+    <div style="font-size: 10px; color: #374151; font-weight: 500; line-height: 1.25;">
+      ${locationText}
+    </div>
+  </div>
+
+  <!-- Last Updated -->
+  <div style="font-size: 8.5px; color: #6b7280; padding-top: 5px; border-top: 1px solid #f1f5f9;">
+    <span style="font-weight: 600; text-transform: uppercase; letter-spacing: 0.2px;">Updated:</span>
+    <span style="color: #111827; font-weight: 500; margin-left: 3px;">${formatTimeAgo(lastUpdateTime || latest.last_connected || latest.gps_time)}</span>
+  </div>
+
+</div>
+`;
+}
+
+// Create marker popup with reverse geocoding
+function createMarkerPopup(marker, displayNumber, latest, lat, lng) {
+    let displayStatus = latest.vehicle_status ?? 'N/A';
+    if (typeof displayStatus === 'string' && ['stop', 'stopped'].includes(displayStatus.trim().toLowerCase())) {
+        displayStatus = 'Stopped';
+    }
+
+    const lastUpdateTime = latest.last_connected || latest.gps_time;
+    
+    // Initial popup with coordinates
+    const initialContent = buildPopupHTML(displayNumber, latest, displayStatus, `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lastUpdateTime);
+    marker.bindPopup(initialContent);
+    
+    // Fetch address when popup is opened
+    marker.on('popupopen', () => {
+        fetchReverseGeocode(lat, lng).then(address => {
+            const updatedContent = buildPopupHTML(displayNumber, latest, displayStatus, address, lastUpdateTime);
+            marker.getPopup().setContent(updatedContent);
+        });
+    });
+}
+
+// Show/hide loading overlay
+function toggleLoading(show, message = 'Loading...') {
+    const overlay = document.getElementById('loading-overlay');
+    const messageEl = document.getElementById('loading-message');
+    
+    if (show) {
+        messageEl.textContent = message;
+        overlay.classList.remove('hidden');
+    } else {
+        overlay.classList.add('hidden');
+    }
+    
+    isLoading = show;
+}
+
+// Health check to verify backend is running
+async function checkBackendHealth(showNotifications = true) {
+    try {
+        const response = await fetch('/globaltracker/api/health/', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (!response.ok) {
+            if (showNotifications) {
+                showNotification(`Backend error: ${response.status}`, 'error');
+            }
+            return false;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.twins_configured && showNotifications) {
+            showNotification('TWINS API credentials not configured on backend', 'warning');
+        }
+        
+        return true;
+    } catch {
+        if (showNotifications) {
+            showNotification('Cannot reach backend - is the server running?', 'error');
+        }
+        return false;
+    }
+}
+
+// Fetch vehicles from TWINS API
+async function fetchAllVehicles(showLoading = true) {
+    if (isLoading) return {};
+    
+    if (showLoading) {
+        toggleLoading(true, 'Fetching vehicle data...');
+    }
+    
+    try {
+        const apiUrl = API.ALL();
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Transform TWINS API response format to vehicle objects  
+        const vehicles = {};
+        
+        if (data.vehicles) {
+            for (const [reg, points] of Object.entries(data.vehicles)) {
+                if (Array.isArray(points) && points.length > 0) {
+                    // Sort points by timestamp (newest first)
+                    // Prefer gps_time (accurate GPS clock) over event_datetime
+                    points.sort((a, b) => {
+                        const ta = a.gps_time || a.event_datetime || 0;
+                        const tb = b.gps_time || b.event_datetime || 0;
+                        return new Date(tb).getTime() - new Date(ta).getTime();
+                    });
+                    
+                    // Calculate vector-based heading for latest point if needed
+                    if (points.length >= 2) {
+                        const latest = points[0];
+                        
+                        // If no heading data or heading is 0, calculate from movement
+                        if ((!latest.heading && !latest.gps_heading && !latest.head) || 
+                            (parseFloat(latest.heading || latest.gps_heading || latest.head || 0) === 0)) {
+                            try {
+                                const calculated = calculateVectorHeading(points);
+                                if (calculated !== null) {
+                                    latest.heading = calculated;
+                                    latest.gps_heading = calculated;
+                                    latest.head = calculated;
+                                }
+                            } catch {
+                                // heading calculation failed, use default
+                            }
+                        }
+                    }
+                    
+                    vehicles[reg] = {
+                        registration_number: reg,
+                        points: points.map(p => ({
+                            ...p,
+                            registration_number: reg,
+                            vehicle_no: reg,
+                            // Normalise lat/lon: EKA uses 'lat'/'lon', Intangles uses 'latitude'/'longitude'
+                            latitude: parseFloat(p.latitude ?? p.lat),
+                            longitude: parseFloat(p.longitude ?? p.lon),
+                            speed: parseFloat(p.speed || 0),
+                            gps_speed: parseFloat(p.speed || 0),
+                            heading: parseFloat(p.head || p.heading || 0),
+                            gps_heading: parseFloat(p.head || p.heading || 0),
+                            gps_time: p.gps_time || p.event_datetime,
+                            last_connected: p.gps_time || p.event_datetime,
+                            charging_status: p.charging_status ?? 0,
+                            soc: p.soc ?? null,
+                            vehicle_status: p.vehicle_status || (p.charging_status ? 'charging' : (parseFloat(p.speed || 0) > 0 ? 'moving' : 'stopped'))
+                        }))
+                    };
+                }
+            }
+        }
+
+        return vehicles;
+
+    } catch (error) {
+        showNotification('Error loading vehicles: ' + error.message, 'error');
+        return {};
+    } finally {
+        if (showLoading) {
+            toggleLoading(false);
+        }
+    }
+}
+
+// Keep map focused on majority cluster (ignore far-out outliers)
+function getMajorityVehicleBounds(bounds) {
+    if (!Array.isArray(bounds) || bounds.length <= 3) return bounds;
+
+    const lats = bounds.map(([lat]) => lat).sort((a, b) => a - b);
+    const lngs = bounds.map(([, lng]) => lng).sort((a, b) => a - b);
+    const mid = Math.floor(bounds.length / 2);
+
+    const medianLat = bounds.length % 2 ? lats[mid] : (lats[mid - 1] + lats[mid]) / 2;
+    const medianLng = bounds.length % 2 ? lngs[mid] : (lngs[mid - 1] + lngs[mid]) / 2;
+
+    const pointsWithDistance = bounds.map(([lat, lng]) => {
+        const dx = (lng - medianLng) * Math.cos((medianLat * Math.PI) / 180);
+        const dy = lat - medianLat;
+        return { point: [lat, lng], distance: (dx * dx) + (dy * dy) };
+    });
+
+    pointsWithDistance.sort((a, b) => a.distance - b.distance);
+    const keepCount = Math.max(3, Math.ceil(bounds.length * 0.8));
+    return pointsWithDistance.slice(0, keepCount).map((x) => x.point);
+}
+
+// Get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Determine vehicle status for styling
+function getVehicleStatus(vehicle) {
+    if (!vehicle || !vehicle.points || vehicle.points.length === 0) {
+        return 'offline';
+    }
+
+    // charging_status is normalised from 'charging status 2' in the mapping above (truthy = charging)
+    for (const point of vehicle.points.slice(0, 3)) {
+        if (point.charging_status || 
+            (point.vehicle_status && point.vehicle_status.toLowerCase() === 'charging')) {
+            return 'charging';
+        }
+    }
+    
+    // Check first 3 points for movement
+    for (const point of vehicle.points.slice(0, 3)) {
+        const speed = parseFloat(point.speed || 0);
+        if (speed > 5) {
+            return 'moving';
+        } else if (speed > 0) {
+            return 'idle';
+        }
+    }
+    
+    return 'stopped';
+}
+
+// Helper: Generate metrics HTML based on state
+function getStateMetrics(state, speed, soc) {
+    // Handle SOC with fallback to N/A
+    const socValue = soc && soc > 0 ? `${Math.round(soc)}%` : 'N/A';
+    const speedValue = speed !== undefined && speed !== null ? `${speed} km/h` : 'N/A';
+    
+    const metrics = {
+        charging: {
+            primary: { icon: 'zap', color: 'text-green-700', text: 'Charging' },
+            secondary: { icon: 'battery-charging', color: 'text-green-600', text: socValue }
+        },
+        moving: {
+            primary: { icon: 'gauge', color: 'text-blue-700', text: speedValue },
+            secondary: { icon: 'battery', color: 'text-yellow-600', text: socValue }
+        },
+        idle: {
+            primary: { icon: 'pause', color: 'text-yellow-700', text: 'Idle' },
+            secondary: { icon: 'battery', color: 'text-slate-500', text: socValue }
+        },
+        stopped: {
+            primary: { icon: 'octagon', color: 'text-red-700', text: 'Stopped' },
+            secondary: { icon: 'battery', color: 'text-slate-500', text: socValue }
+        },
+        offline: {
+            primary: { icon: 'wifi-off', color: 'text-gray-700', text: 'Offline' },
+            secondary: { icon: 'battery', color: 'text-slate-500', text: socValue }
+        }
+    };
+
+    const { primary, secondary } = metrics[state] || metrics.offline;
+    return {
+        primary: `
+            <div class="flex items-center gap-1.5 ${primary.color}">
+                <i data-lucide="${primary.icon}" class="w-3.5 h-3.5"></i>
+                <span class="font-semibold">${primary.text}</span>
+            </div>`,
+        secondary: `
+            <div class="flex items-center gap-1.5 text-slate-600">
+                <i data-lucide="${secondary.icon}" class="w-3.5 h-3.5 ${secondary.color}"></i>
+                <span class="font-medium">${secondary.text}</span>
+            </div>`
+    };
+}
+
+// Helper: Get vehicle state with class and icon
+function getVehicleState(latest) {
+    const speed = latest.speed ?? latest.gps_speed ?? 0;
+    // charging_status is normalised from 'charging status 2' in the mapping above (truthy = charging)
+    const isCharging = !!latest.charging_status || 
+                       (latest.vehicle_status && latest.vehicle_status.toLowerCase() === 'charging');
+
+    if (isCharging) {
+        return {
+            state: 'Charging', 
+            class: 'bg-green-100 text-green-700 border-green-300',
+            icon: 'plug-zap'
+        };
+    }
+
+    if (speed > 1) {
+        return {
+            state: 'Moving', 
+            class: 'bg-blue-100 text-blue-700 border-blue-300',
+            icon: 'truck'
+        };
+    }
+
+    return {
+        state: 'Stopped',
+        class: 'bg-red-100 text-red-700 border-red-300', 
+        icon: 'octagon'
+    };
+}
+
+// Load and display all vehicles with trails
+async function loadVehicles(options = {}) {
+    const {
+        showLoading = true,
+        showSuccessNotification = true,
+        silentHealthCheck = false,
+    } = options;
+
+    // First, check if backend is reachable
+    const isHealthy = await checkBackendHealth(!silentHealthCheck);
+    if (!isHealthy) return;
+    
+    const vehicles = await fetchAllVehicles(showLoading);
+    allVehicles = vehicles;
+    
+    const activeRegs = new Set();
+    const bounds = [];
+    
+    // Process each vehicle
+    for (const [regNo, vehicle] of Object.entries(vehicles)) {
+      try {
+        const { registration_number, points } = vehicle;
+        if (!points?.length) continue;
+
+        activeRegs.add(registration_number);
+        
+        // Get trail points (first 5 points for trajectory)
+        const trail = points.slice(0, 5);
+        const latest = trail[0];
+        const lat = parseFloat(latest.latitude);
+        const lng = parseFloat(latest.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) continue;
+        
+        // Get heading and status from GPS data
+        let heading = parseFloat(latest.gps_heading || latest.heading || latest.head || 0);
+        const vehicleStatus = latest.vehicle_status || '';
+        
+        // Fallback: Calculate heading from movement if still zero and we have multiple points
+        if (heading === 0 && points.length >= 2) {
+            const calculated = calculateVectorHeading(points.slice(0, 5));
+            if (calculated !== null) {
+                heading = calculated;
+            }
+        }
+        
+        bounds.push([lat, lng]);
+        
+        // Update or create marker
+        if (vehicleMarkers[registration_number]) {
+            const marker = vehicleMarkers[registration_number];
+            marker.setLatLng([lat, lng]);
+            marker.heading = heading;
+            marker.vehicleStatus = vehicleStatus;
+            marker.setIcon(createVehicleIcon(map.getZoom(), heading, lat, vehicleStatus));
+            
+            // Update popup content
+            const displayStatus = latest.vehicle_status ?? 'N/A';
+            const lastUpdateTime = latest.last_connected || latest.gps_time;
+            const currentCoords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            
+            if (marker.isPopupOpen()) {
+                fetchReverseGeocode(lat, lng).then(address => {
+                    const updatedContent = buildPopupHTML(registration_number, latest, displayStatus, address || currentCoords, lastUpdateTime);
+                    marker.getPopup().setContent(updatedContent);
+                });
+            } else {
+                const updatedContent = buildPopupHTML(registration_number, latest, displayStatus, currentCoords, lastUpdateTime);
+                marker.getPopup().setContent(updatedContent);
+            }
+        } else {
+            // Create new marker
+            const marker = L.marker([lat, lng], { 
+                icon: createVehicleIcon(map.getZoom(), heading, lat, vehicleStatus) 
+            });
+            marker.heading = heading;
+            marker.vehicleStatus = vehicleStatus;
+            
+            // Create popup with reverse geocoding
+            createMarkerPopup(marker, registration_number, latest, lat, lng);
+            
+            vehicleMarkers[registration_number] = marker;
+            markerClusterGroup.addLayer(marker);
+        }
+        
+        // Create or update vehicle trail polyline
+        const latlngs = trail
+            .map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)])
+            .filter(([la, lo]) => !isNaN(la) && !isNaN(lo) && la !== 0 && lo !== 0);
+        if (latlngs.length >= 2) {
+            if (vehiclePolylines[registration_number]) {
+                vehiclePolylines[registration_number].setLatLngs(latlngs);
+            } else {
+                const polyline = L.polyline(latlngs, {
+                color: '#3b82f6',
+                weight: 6,
+                opacity: 0.8,
+                dashArray: '10, 10',
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(map);
+            
+            vehiclePolylines[registration_number] = polyline;
+            
+            // Animate trail
+            let animationOffset = 0;
+            const animateTrail = () => {
+                animationOffset += 1;
+                if (polyline._map) {
+                    polyline.setStyle({ dashOffset: animationOffset });
+                }
+            };
+            vehiclePolylineIntervals[registration_number] = setInterval(animateTrail, 100);
+            }
+        }
+      } catch (vehicleErr) {
+            console.warn(`[GlobalTracker] Skipping vehicle ${regNo} due to render error:`, vehicleErr.message);
+      }
+    }
+    
+    // Clean up stale markers and polylines
+    Object.keys(vehicleMarkers).forEach(reg => {
+        if (!activeRegs.has(reg)) {
+            markerClusterGroup.removeLayer(vehicleMarkers[reg]);
+            delete vehicleMarkers[reg];
+        }
+    });
+    
+    Object.keys(vehiclePolylines).forEach(reg => {
+        if (!activeRegs.has(reg)) {
+            map.removeLayer(vehiclePolylines[reg]);
+            clearInterval(vehiclePolylineIntervals[reg]);
+            delete vehiclePolylineIntervals[reg];
+            delete vehiclePolylines[reg];
+        }
+    });
+    
+    // Keep map focused on majority vehicles area
+    if (bounds.length > 0) {
+        const majorityBounds = getMajorityVehicleBounds(bounds);
+        map.fitBounds(majorityBounds, {
+            padding: [50, 50],
+            maxZoom: 13,
+            animate: false
+        });
+        isInitialLoad = false;
+        sessionStorage.setItem(MAP_STATE_KEY + '_loaded', 'true');
+        saveMapState();
+    }
+    
+    updateVehicleList(vehicles);
+    
+    if (showSuccessNotification) {
+        const count = Object.keys(vehicles).length;
+        showNotification(`Loaded ${count} vehicles with trails from TWINS API`, 'success');
+    }
+}
+
+// Update vehicle list in sidebar
+function updateVehicleList(vehicles) {
+    const listContainer = document.getElementById('vehicle-list');
+    if (!listContainer) return;
+    
+    const searchInput = document.getElementById('vehicle-search');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    // Count by status
+    let movingCount = 0;
+    let chargingCount = 0;
+    let stoppedCount = 0;
+    let lowSocCount = 0;
+    let idleCount = 0;
+    let offlineCount = 0;
+    
+    const vehicleEntries = Object.entries(vehicles);
+    const filteredVehicles = vehicleEntries.filter(([regNo, vehicle]) => {
+        return regNo.toLowerCase().includes(searchTerm);
+    });
+
+    listContainer.innerHTML = '';
+
+    for (const [regNo, vehicle] of filteredVehicles) {
+        if (!vehicle.points || vehicle.points.length === 0) continue;
+        
+        const latestPoint = vehicle.points[0];
+        
+        const speed = latestPoint?.speed || latestPoint?.gps_speed || 0;
+        let soc = latestPoint?.soc;
+        if (!soc || soc === 0) {
+            // Check all 3 points for SOC data
+            for (const point of vehicle.points.slice(0, 3)) {
+                const pointSoc = point.a_battery_pack_soc || point.b_battery_pack_soc || point.c_battery_pack_soc;
+                if (pointSoc && pointSoc > 0) {
+                    soc = pointSoc;
+                    break;
+                }
+            }
+        }
+        const status = getVehicleStatus(vehicle);
+        const { state, class: stateClass, icon: stateIcon } = getVehicleState(latestPoint);
+        const { primary, secondary } = getStateMetrics(status, speed, soc);
+        
+        if (status === 'charging') {
+            chargingCount++;
+        } else if (status === 'moving') {
+            movingCount++;
+        } else if (status === 'idle') {
+            idleCount++;
+        } else if (status === 'stopped') {
+            stoppedCount++;
+        } else if (status === 'offline') {
+            offlineCount++;
+        }
+        
+        // Count low SOC vehicles (< 30%)
+        if (soc > 0 && soc < 30) {
+            lowSocCount++;
+        }
+        
+        const lastUpdate = latestPoint && (latestPoint.gps_time || latestPoint.last_connected) ? 
+            formatTimeAgo(latestPoint.gps_time || latestPoint.last_connected) : 
+            'No data';
+        
+        const vehicleHtml = `
+            <div class="vehicle-card vehicle-item bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all duration-200" 
+                 data-reg="${regNo}">
+                <div class="p-2.5">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-sm text-slate-900 truncate pr-2">${regNo}</h3>
+                        <span class="text-xs px-2 py-0.5 rounded-full border ${stateClass} font-semibold flex items-center gap-1 whitespace-nowrap">
+                            <i data-lucide="${stateIcon}" class="w-3 h-3"></i>
+                            ${state}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        ${primary}
+                        <span data-soc="${soc}">${secondary}</span>
+                    </div>
+                    <div class="mt-2 pt-2 border-t border-slate-100">
+                        <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                            <i data-lucide="clock" class="w-3 h-3"></i>
+                            <span class="truncate">${lastUpdate}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        listContainer.insertAdjacentHTML('beforeend', vehicleHtml);
+    }
+    
+    // Initialize lucide icons for the new content
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    // Update counts
+    const totalVehicles = Object.keys(vehicles).length;
+    document.getElementById('countAll').textContent = `(${totalVehicles})`;
+    document.getElementById('countMoving').textContent = `(${movingCount})`;
+    document.getElementById('countCharging').textContent = `(${chargingCount})`;
+    document.getElementById('countStopped').textContent = `(${stoppedCount})`;
+    document.getElementById('countLowSoc').textContent = `(${lowSocCount})`;
+    
+    // Hide/show Low SOC button based on count
+    const lowSocBtn = document.getElementById('filterLowSoc');
+    if (lowSocBtn) {
+        if (lowSocCount === 0) {
+            lowSocBtn.style.display = 'none';
+        } else {
+            lowSocBtn.style.display = '';
+        }
+    }
+    
+    // Add click handlers to zoom to vehicle
+    listContainer.querySelectorAll('.vehicle-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const regNo = this.dataset.reg;
+            const vehicle = vehicles[regNo];
+            if (vehicle && vehicle.points[0]) {
+                const point = vehicle.points[0];
+                map.setView([point.latitude, point.longitude], 15);
+                
+                // Open popup if marker exists
+                const marker = vehicleMarkers[regNo];
+                if (marker) {
+                    marker.openPopup();
+                }
+            }
+        });
+    });
+}
+
+// Save map zoom level and center to session storage
+function saveMapState() {
+    try {
+        const state = {
+            zoom: map.getZoom(),
+            center: map.getCenter(),
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.warn('Failed to save map state:', e);
+    }
+}
+
+// Restore map zoom level and center from session storage
+function restoreMapState() {
+    try {
+        const saved = sessionStorage.getItem(MAP_STATE_KEY);
+        if (saved) {
+            const state = JSON.parse(saved);
+            if (state.zoom && state.center) {
+                map.setView(state.center, state.zoom, { animate: false });
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to restore map state:', e);
+    }
+}
+
+// Format time ago
+function formatTimeAgo(timeString) {
+    if (!timeString) return 'N/A';
+    try {
+        let dateObj = null;
+        
+        // Handle numeric timestamps (milliseconds or seconds)
+        if (typeof timeString === 'number') {
+            // If timestamp is less than year 2100 in seconds, convert to milliseconds
+            dateObj = timeString < 4102444800 ? new Date(timeString * 1000) : new Date(timeString);
+        } else if (typeof timeString === 'string') {
+            // Try parsing as ISO string or standard format
+            dateObj = new Date(timeString);
+        }
+        
+        // Validate parsed date
+        if (!dateObj || isNaN(dateObj.getTime())) {
+            return 'N/A';
+        }
+        
+        const diffMs = new Date() - dateObj;
+        const diffMins = Math.floor(diffMs / 60000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+
+        return `${Math.floor(diffHours / 24)}d ago`;
+    } catch {
+        return 'N/A';
+    }
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        'bg-blue-500 text-white'
+    }`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+// Auto-refresh vehicles every 30 seconds
+function startAutoRefresh() {
+    setInterval(() => {
+        loadVehicles({
+            showLoading: false,
+            showSuccessNotification: false,
+            silentHealthCheck: true,
+        });
+    }, 2*60*1000);
+}
+
+// Initialize everything when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Lucide icons
+    lucide.createIcons();
+    
+    // Initialize map with clustering
+    initMap();
+    
+    // Set up event handlers
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+        loadVehicles({ showLoading: true, showSuccessNotification: true, silentHealthCheck: false });
+    });
+
+    // Project switcher dropdown
+    const projectBtn = document.getElementById('projectDropdownBtn');
+    const projectMenu = document.getElementById('projectDropdownMenu');
+    projectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        projectMenu.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => projectMenu.classList.add('hidden'));
+    document.querySelectorAll('.project-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeProject = {
+                vendor: btn.dataset.vendor,
+                spv: btn.dataset.spv,
+                label: btn.dataset.label
+            };
+            window.activeProject = activeProject;
+            document.getElementById('projectDropdownLabel').textContent = activeProject.label;
+            document.getElementById('project-subtitle').textContent = activeProject.label;
+            projectMenu.classList.add('hidden');
+            // Clear existing markers and reload
+            markerClusterGroup.clearLayers();
+            Object.keys(vehiclePolylines).forEach(reg => {
+                map.removeLayer(vehiclePolylines[reg]);
+                clearInterval(vehiclePolylineIntervals[reg]);
+            });
+            vehicleMarkers = {};
+            vehiclePolylines = {};
+            vehiclePolylineIntervals = {};
+            allVehicles = {};
+            // Reset initial load flag when switching projects
+            isInitialLoad = true;
+            sessionStorage.removeItem(MAP_STATE_KEY + '_loaded');
+            loadVehicles({ showLoading: true, showSuccessNotification: true, silentHealthCheck: false });
+        });
+    });
+    
+    // Initialize filter buttons
+    initializeFilters();
+    
+    // Search functionality
+    document.getElementById('vehicle-search').addEventListener('input', applyFilters);
+    
+    // Initial load
+    loadVehicles({ showLoading: true, showSuccessNotification: true, silentHealthCheck: false });
+    
+    // Start auto-refresh
+    startAutoRefresh();
+    
+});
+
+/**
+ * Initialize filter buttons with click handlers
+ */
+function initializeFilters() {
+    const filterButtons = {
+        filterAll: 'all',
+        filterMoving: 'moving', 
+        filterCharging: 'charging',
+        filterStopped: 'stopped',
+        filterLowSoc: 'lowsoc'
+    };
+    
+    Object.entries(filterButtons).forEach(([btnId, filterType]) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                currentStatusFilter = filterType;
+                
+                // Update button styles
+                Object.keys(filterButtons).forEach(id => {
+                    const button = document.getElementById(id);
+                    if (button) {
+                        if (id === btnId) {
+                            // Active state
+                            button.classList.add('bg-slate-100', 'border-slate-300');
+                            button.classList.remove('bg-white', 'hover:bg-green-50', 'hover:bg-blue-50', 'hover:bg-red-50');
+                        } else {
+                            // Inactive state
+                            button.classList.remove('bg-slate-100', 'border-slate-300');
+                            button.classList.add('bg-white');
+                            if (id === 'filterMoving') button.classList.add('hover:bg-blue-50');
+                            if (id === 'filterCharging') button.classList.add('hover:bg-green-50');
+                            if (id === 'filterStopped') button.classList.add('hover:bg-red-50');
+                            if (id === 'filterLowSoc') button.classList.add('hover:bg-orange-50');
+                        }
+                    }
+                });
+                
+                // Apply filters to map and sidebar
+                applyFilters();
+                
+                // Re-initialize icons after style changes
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+        }
+    });
+}
+
+/**
+ * Apply filters to both map markers and sidebar list
+ */
+function applyFilters() {
+    const searchTerm = document.getElementById('vehicle-search')?.value.trim().toLowerCase() || '';
+    const vehicleItems = document.querySelectorAll('.vehicle-item');
+    
+    // Track which vehicles should be visible
+    const visibleVehicleRegs = new Set();
+    
+    vehicleItems.forEach(item => {
+        const regNumber = item.getAttribute('data-reg');
+        const vehicleText = item.textContent.toLowerCase();
+        const matchesSearch = !searchTerm || vehicleText.includes(searchTerm);
+        
+        // Check status filter
+        let matchesStatus = true;
+        if (currentStatusFilter !== 'all') {
+            if (currentStatusFilter === 'lowsoc') {
+                // For lowsoc filter, check if SOC < 30%
+                const vehicle = allVehicles[regNumber];
+                if (vehicle && vehicle.points && vehicle.points[0]) {
+                    const soc = vehicle.points[0].soc ?? 0;
+                    matchesStatus = soc > 0 && soc < 30;
+                } else {
+                    matchesStatus = false;
+                }
+            } else {
+                const statusBadge = item.querySelector('span[class*="rounded-full"]');
+                const statusText = statusBadge?.textContent.trim().toLowerCase() || '';
+                matchesStatus = statusText === currentStatusFilter;
+            }
+        }
+        
+        const shouldShow = matchesSearch && matchesStatus;
+        item.style.display = shouldShow ? 'block' : 'none';
+        
+        if (shouldShow && regNumber) {
+            visibleVehicleRegs.add(regNumber);
+        }
+    });
+    
+    // Update map visibility
+    updateMapVisibility(visibleVehicleRegs);
+}
+
+/**
+ * Update map markers visibility based on filters
+ */
+function updateMapVisibility(visibleVehicleRegs) {
+    // Update markers in cluster group  
+    Object.keys(vehicleMarkers).forEach(reg => {
+        const marker = vehicleMarkers[reg];
+        const shouldShow = visibleVehicleRegs.has(reg);
+        
+        if (shouldShow) {
+            if (!markerClusterGroup.hasLayer(marker)) {
+                markerClusterGroup.addLayer(marker);
+            }
+        } else {
+            if (markerClusterGroup.hasLayer(marker)) {
+                markerClusterGroup.removeLayer(marker);
+            }
+        }
+    });
+    
+    // Update polylines visibility
+    Object.keys(vehiclePolylines).forEach(reg => {
+        const polyline = vehiclePolylines[reg];
+        const shouldShow = visibleVehicleRegs.has(reg);
+        
+        if (shouldShow) {
+            if (!map.hasLayer(polyline)) {
+                polyline.addTo(map);
+            }
+        } else {
+            if (map.hasLayer(polyline)) {
+                map.removeLayer(polyline);
+            }
+        }
+    });
+}
+</script>
+
+<script>
+// ========================
+// GEOFENCE MODULE
+// ========================
+(function() {
+    const GEOFENCE_COLOR = '#ef4444';
+    let drawControl = null;
+    let pendingLayer = null;   // layer drawn but not yet saved
+    let geofenceLayers = {};   // id -> Leaflet layer
+
+    // --- Layer group for all geofences ---
+    let geofenceGroup;
+
+    // --- Panel toggle ---
+    document.getElementById('geofenceToggleBtn').addEventListener('click', () => {
+        const panel = document.getElementById('geofencePanel');
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) {
+            loadGeofences();
+            lucide.createIcons();
+        }
+    });
+    document.getElementById('geofencePanelClose').addEventListener('click', () => {
+        document.getElementById('geofencePanel').classList.add('hidden');
+        cancelDraw();
+    });
+
+    // --- Wait for map to be initialised (DOMContentLoaded + initMap) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Poll until globalThis.map is ready
+        const waitForMap = setInterval(() => {
+            if (window._geofenceMapReady) {
+                clearInterval(waitForMap);
+                setupGeofenceDrawing();
+            }
+        }, 200);
+    });
+
+    function setupGeofenceDrawing() {
+        const map = window._gMap;
+        geofenceGroup = L.featureGroup().addTo(map);
+
+        // Draw buttons
+        document.getElementById('drawPolygonBtn').addEventListener('click', () => startDraw('polygon'));
+        document.getElementById('drawRectangleBtn').addEventListener('click', () => startDraw('rectangle'));
+        document.getElementById('drawCircleBtn').addEventListener('click', () => startDraw('circle'));
+        document.getElementById('geofenceSaveBtn').addEventListener('click', saveGeofence);
+        document.getElementById('geofenceCancelBtn').addEventListener('click', cancelDraw);
+
+        // By Coordinates button
+        document.getElementById('drawByCoordsBtn').addEventListener('click', () => {
+            cancelDraw();
+            const coordForm = document.getElementById('geofenceCoordForm');
+            const isHidden = coordForm.classList.contains('hidden');
+            coordForm.classList.toggle('hidden', !isHidden);
+            document.getElementById('drawByCoordsBtn').classList.toggle('bg-blue-100', isHidden);
+            document.getElementById('drawByCoordsBtn').classList.toggle('border-blue-500', isHidden);
+            document.getElementById('drawByCoordsBtn').classList.toggle('text-blue-800', isHidden);
+        });
+
+        // Shape type radio toggle
+        document.querySelectorAll('input[name="coordShapeType"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const isCircle = radio.value === 'circle';
+                document.getElementById('coordCircleInputs').classList.toggle('hidden', !isCircle);
+                document.getElementById('coordPolygonInputs').classList.toggle('hidden', isCircle);
+            });
+        });
+
+        // Plot on Map button
+        document.getElementById('coordPlotBtn').addEventListener('click', () => {
+            const shapeType = document.querySelector('input[name="coordShapeType"]:checked').value;
+            if (pendingLayer) {
+                geofenceGroup.removeLayer(pendingLayer);
+                pendingLayer = null;
+            }
+            if (shapeType === 'circle') {
+                const lat = parseFloat(document.getElementById('coordCenterLat').value);
+                const lng = parseFloat(document.getElementById('coordCenterLng').value);
+                const radius = parseFloat(document.getElementById('coordRadius').value);
+                if (isNaN(lat) || isNaN(lng) || isNaN(radius) || radius <= 0) {
+                    alert('Please enter valid latitude, longitude, and radius (> 0).');
+                    return;
+                }
+                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    alert('Latitude must be -90 to 90 and longitude -180 to 180.');
+                    return;
+                }
+                pendingLayer = L.circle([lat, lng], { radius, color: GEOFENCE_COLOR, fillOpacity: 0.15 });
+                pendingLayer.addTo(geofenceGroup);
+                map.flyTo([lat, lng], 14);
+            } else {
+                const lines = document.getElementById('coordPolygonPoints').value.trim().split('\n').filter(l => l.trim());
+                if (lines.length < 3) {
+                    alert('Please enter at least 3 coordinate pairs for a polygon.');
+                    return;
+                }
+                const latlngs = [];
+                for (const line of lines) {
+                    const parts = line.split(',').map(s => parseFloat(s.trim()));
+                    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+                        alert('Invalid coordinate: "' + line.trim() + '". Expected format: lat,lng');
+                        return;
+                    }
+                    if (parts[0] < -90 || parts[0] > 90 || parts[1] < -180 || parts[1] > 180) {
+                        alert('Coordinate out of range: "' + line.trim() + '"');
+                        return;
+                    }
+                    latlngs.push([parts[0], parts[1]]);
+                }
+                pendingLayer = L.polygon(latlngs, { color: GEOFENCE_COLOR, fillOpacity: 0.15 });
+                pendingLayer.addTo(geofenceGroup);
+                map.fitBounds(pendingLayer.getBounds(), { padding: [20, 20] });
+            }
+            document.getElementById('geofenceCoordForm').classList.add('hidden');
+            document.getElementById('drawByCoordsBtn').classList.remove('bg-blue-100', 'border-blue-500', 'text-blue-800');
+            document.getElementById('geofenceSaveForm').classList.remove('hidden');
+            document.getElementById('geofenceNameInput').focus();
+        });
+
+        // Cancel coord form
+        document.getElementById('coordFormCancelBtn').addEventListener('click', () => {
+            document.getElementById('geofenceCoordForm').classList.add('hidden');
+            document.getElementById('drawByCoordsBtn').classList.remove('bg-blue-100', 'border-blue-500', 'text-blue-800');
+        });
+
+        // Listen for drawn shapes
+        map.on(L.Draw.Event.CREATED, (e) => {
+            pendingLayer = e.layer;
+            pendingLayer.setStyle({ color: GEOFENCE_COLOR, fillOpacity: 0.15 });
+            geofenceGroup.addLayer(pendingLayer);
+            removeDrawControl();
+            document.getElementById('geofenceSaveForm').classList.remove('hidden');
+            document.getElementById('geofenceNameInput').focus();
+        });
+    }
+
+    function startDraw(type) {
+        const map = window._gMap;
+        cancelDraw();
+
+        const options = { shapeOptions: { color: GEOFENCE_COLOR, fillOpacity: 0.15 } };
+        let handler;
+        if (type === 'polygon') {
+            handler = new L.Draw.Polygon(map, options);
+        } else if (type === 'rectangle') {
+            handler = new L.Draw.Rectangle(map, options);
+        } else {
+            handler = new L.Draw.Circle(map, { ...options, showRadius: true });
+        }
+        handler.enable();
+        drawControl = handler;
+        window._activeDrawHandler = true;
+
+        // Highlight active draw button
+        ['drawPolygonBtn', 'drawRectangleBtn', 'drawCircleBtn'].forEach(id => {
+            document.getElementById(id).classList.remove('bg-emerald-100', 'border-emerald-500', 'text-emerald-800');
+        });
+        const activeId = type === 'polygon' ? 'drawPolygonBtn' : type === 'rectangle' ? 'drawRectangleBtn' : 'drawCircleBtn';
+        document.getElementById(activeId).classList.add('bg-emerald-100', 'border-emerald-500', 'text-emerald-800');
+    }
+
+    function removeDrawControl() {
+        if (drawControl) {
+            drawControl.disable();
+            drawControl = null;
+        }
+        window._activeDrawHandler = false;
+        ['drawPolygonBtn', 'drawRectangleBtn', 'drawCircleBtn'].forEach(id => {
+            document.getElementById(id).classList.remove('bg-emerald-100', 'border-emerald-500', 'text-emerald-800');
+        });
+    }
+
+    function cancelDraw() {
+        removeDrawControl();
+        if (pendingLayer) {
+            geofenceGroup.removeLayer(pendingLayer);
+            pendingLayer = null;
+        }
+        document.getElementById('geofenceSaveForm').classList.add('hidden');
+        document.getElementById('geofenceNameInput').value = '';
+        // Reset coordinate form
+        document.getElementById('geofenceCoordForm').classList.add('hidden');
+        document.getElementById('drawByCoordsBtn').classList.remove('bg-blue-100', 'border-blue-500', 'text-blue-800');
+        document.getElementById('coordCenterLat').value = '';
+        document.getElementById('coordCenterLng').value = '';
+        document.getElementById('coordRadius').value = '';
+        document.getElementById('coordPolygonPoints').value = '';
+    }
+
+    // --- Convert Leaflet layer to GeoJSON-compatible geometry ---
+    function layerToGeometry(layer) {
+        if (layer instanceof L.Circle) {
+            return {
+                type: 'Circle',
+                center: [layer.getLatLng().lat, layer.getLatLng().lng],
+                radius: layer.getRadius()
+            };
+        }
+        return layer.toGeoJSON().geometry;
+    }
+
+    // --- Render a saved geofence layer on the map ---
+    function renderGeofenceOnMap(gf) {
+        const map = window._gMap;
+        let layer;
+        const style = { color: gf.color || GEOFENCE_COLOR, weight: 2, fillOpacity: 0.12 };
+
+        if (gf.geometry.type === 'Circle') {
+            layer = L.circle(gf.geometry.center, { radius: gf.geometry.radius, ...style });
+        } else {
+            layer = L.geoJSON(gf.geometry, { style: () => style });
+        }
+
+        layer.bindTooltip(gf.name, { permanent: false, direction: 'center' });
+        layer.addTo(geofenceGroup);
+        geofenceLayers[gf.id] = layer;
+    }
+
+    // --- API helpers ---
+    function getCsrf() {
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    async function loadGeofences() {
+        try {
+            const resp = await fetch('/globaltracker/api/geofences/', { credentials: 'same-origin' });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            renderGeofenceList(data.geofences || []);
+            Object.values(geofenceLayers).forEach(l => geofenceGroup.removeLayer(l));
+            geofenceLayers = {};
+            (data.geofences || []).forEach(renderGeofenceOnMap);
+        } catch (err) {
+            console.error('Failed to load geofences:', err);
+        }
+    }
+
+    async function saveGeofence() {
+        const name = document.getElementById('geofenceNameInput').value.trim();
+        if (!name) {
+            document.getElementById('geofenceNameInput').focus();
+            return;
+        }
+        if (!pendingLayer) return;
+
+        const geometry = layerToGeometry(pendingLayer);
+        const payload = {
+            name,
+            geometry,
+            spv: window.activeProject ? window.activeProject.spv : '',
+            color: GEOFENCE_COLOR
+        };
+
+        try {
+            const resp = await fetch('/globaltracker/api/geofences/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf()
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw new Error('Save failed');
+            const saved = await resp.json();
+
+            // Move pending layer to permanent geofences
+            geofenceLayers[saved.id] = pendingLayer;
+            pendingLayer.bindTooltip(saved.name, { permanent: false, direction: 'center' });
+            pendingLayer = null;
+
+            document.getElementById('geofenceSaveForm').classList.add('hidden');
+            document.getElementById('geofenceNameInput').value = '';
+            loadGeofences();
+        } catch {
+            alert('Failed to save geofence. Please try again.');
+        }
+    }
+
+    async function deleteGeofence(id) {
+        try {
+            await fetch(`/globaltracker/api/geofences/${id}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrf() },
+                credentials: 'same-origin'
+            });
+            if (geofenceLayers[id]) {
+                geofenceGroup.removeLayer(geofenceLayers[id]);
+                delete geofenceLayers[id];
+            }
+            loadGeofences();
+        } catch {
+            alert('Failed to delete geofence.');
+        }
+    }
+
+    function renderGeofenceList(geofences) {
+        const container = document.getElementById('geofenceList');
+        if (geofences.length === 0) {
+            container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No geofences yet.</p>';
+            return;
+        }
+        container.innerHTML = geofences.map(gf => `
+            <div class="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2 group hover:border-emerald-300 transition-all">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${gf.color || GEOFENCE_COLOR}"></span>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(gf.name)}</p>
+                        ${gf.spv ? `<p class="text-[10px] text-slate-400">${escapeHtml(gf.spv)}</p>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <button onclick="window._zoomToGeofence(${gf.id})"
+                        class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Zoom to">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                    </button>
+                    <button onclick="window._deleteGeofence(${gf.id})"
+                        class="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Delete">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 011-1h4a1 1 0 011 1m-7 0H5"/></svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Expose zoom and delete for inline onclick
+    window._zoomToGeofence = (id) => {
+        const layer = geofenceLayers[id];
+        if (layer && window._gMap) {
+            window._gMap.fitBounds(layer instanceof L.Circle ? layer.getBounds() : layer.getBounds(), { padding: [20, 20] });
+        }
+    };
+    window._deleteGeofence = (id) => {
+        if (confirm('Delete this geofence?')) deleteGeofence(id);
+    };
+})();
+</script>
+
+</body>
+</html>

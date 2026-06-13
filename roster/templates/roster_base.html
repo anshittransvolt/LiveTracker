@@ -1,0 +1,178 @@
+{% extends 'dashboard/base/base.html' %}
+{% load static %}
+
+{% block title %}{% block roster_title %}Transport Roster{% endblock %} - Voltrack{% endblock %}
+
+{% block breadcrumb_block %}
+<nav class="mb-6" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <a href="{% url 'roster:assignment_page' %}" 
+                   class="ml-1 text-sm font-medium {% if request.resolver_match.url_name == 'assignment_page' %}text-gray-500{% else %}text-gray-700 hover:text-blue-600{% endif %} md:ml-2 transition-colors">
+                    <i data-lucide="clipboard-list" class="w-4 h-4 inline mr-1"></i>
+                    LiveTracker Roster
+                </a>
+            </div>
+        </li>
+        {% block roster_breadcrumb %}{% endblock %}
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- TABS NAVIGATION -->
+<div class="mb-4 -mx-6 -mt-6 px-4 py-2 bg-gray-50 border-b border-gray-200">
+    <div class="flex items-center justify-start gap-1.5 flex-wrap">
+        <!-- Assignment Tab -->
+        <a href="{% url 'roster:assignment_page' %}"
+           class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all
+           {% if request.resolver_match.url_name == 'assignment_page' %}
+                bg-blue-600 text-white shadow-sm
+           {% else %}
+                bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300
+           {% endif %}">
+            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i>
+            <span>Assignments</span>
+        </a>
+
+        <!-- Assignment Logs Tab (Only for Admin/Staff) -->
+        {% if user.is_authenticated and user.is_staff %}
+        <a href="{% url 'roster:assignment_logs_page' %}"
+           class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all
+           {% if request.resolver_match.url_name == 'assignment_logs_page' %}
+                bg-blue-600 text-white shadow-sm
+           {% else %}
+                bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300
+           {% endif %}">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+            <span>Logs</span>
+        </a>
+        {% endif %}
+
+        <!-- Driver Tab -->
+        <a href="{% url 'roster:driver_master_page' %}"
+           class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all
+           {% if request.resolver_match.url_name == 'driver_master_page' or request.resolver_match.url_name == 'driver_edit' %}
+                bg-blue-600 text-white shadow-sm
+           {% else %}
+                bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300
+           {% endif %}">
+            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+            <span>Drivers</span>
+        </a>
+
+        <!-- Vehicles Tab -->
+        <a href="{% url 'roster:transport_master_page' %}"
+           class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all
+           {% if request.resolver_match.url_name == 'transport_master_page' %}
+                bg-blue-600 text-white shadow-sm
+           {% else %}
+                bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300
+           {% endif %}">
+            <i data-lucide="truck" class="w-3.5 h-3.5"></i>
+            <span>Vehicles</span>
+        </a>
+    </div>
+    <!-- Global Feedback Button -->
+<button
+  id="globalFeedbackBtn"
+  class="fixed top-1/2 right-0 -translate-y-1/2
+         bg-gradient-to-br from-purple-600 to-purple-700
+         text-white w-10 h-24 px-2 py-3
+         rounded-l-xl shadow-lg
+         hover:from-purple-700 hover:to-purple-800
+         hover:w-11 hover:shadow-xl hover:shadow-purple-500/30
+         active:scale-95 transition-all duration-200 ease-out
+         z-[99999] group border-l-2 border-purple-400/50"
+  onclick="openFeedbackSidebar()"
+  title="Report Bug or Request Feature"
+  style="position: fixed !important; z-index: 99999 !important;">
+  <div class="flex flex-col items-center justify-center gap-1 h-full">
+    <i data-lucide="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
+    <span class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
+          style="writing-mode: vertical-rl; text-orientation: mixed;">
+      Feedback
+    </span>
+  </div>
+</button>
+<!-- Feedback Sidebar -->
+{% include "livetracker/feedback.html" %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    lucide.createIcons();
+  });
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+</script>
+</div>
+
+<!-- PAGE CONTENT -->
+<div class="-mx-6 px-6">
+    {% block roster_content %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_head %}
+
+<!-- jQuery (required) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+
+<style>
+    /* Custom scrollbar for roster pages */
+    ::-webkit-scrollbar { 
+        width: 8px; 
+        height: 8px;
+    }
+    ::-webkit-scrollbar-thumb { 
+        background: #cbd5e1; 
+        border-radius: 4px; 
+    }
+    ::-webkit-scrollbar-thumb:hover { 
+        background: #94a3b8; 
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+</style>
+{% block roster_extra_head %}{% endblock %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Re-initialize icons after page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+{% block roster_extra_js %}{% endblock %}
+{% endblock %}

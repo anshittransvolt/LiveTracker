@@ -1,0 +1,1582 @@
+{% extends "livetracker/base.html" %}
+{% load static %}
+{% block title %}TIME BOX — LiveTracker{% endblock %}
+
+{% block content %}
+<!-- Loading Overlay -->
+<div id="pageLoading" class="fixed inset-0 bg-white bg-opacity-95 z-[9999] flex items-center justify-center">
+    <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+        <p class="text-slate-700 font-semibold text-lg">Loading Route Timebox...</p>
+        <p class="text-slate-500 text-sm mt-2">Please wait while we fetch the data</p>
+    </div>
+</div>
+
+<div class="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 overflow-hidden">
+    <div class="w-full max-w-[95%] mx-auto px-2 flex flex-col flex-1 min-h-0">
+        
+        <!-- Header -->
+        <div class="flex-shrink-0 pb-3 pt-2 z-10 relative">
+            <!-- Title with Back and Help Buttons -->
+            <div class="mb-2 flex items-center justify-between">
+                <!-- Back Button (Left) -->
+                <a href="/dashboard/" 
+                   class="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-all group">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform"></i>
+                    <span class="text-xs font-semibold">Back</span>
+                </a>
+                
+                <!-- Title (Center) -->
+                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="route" class="w-7 h-7 text-blue-600"></i>
+                    Route Timebox
+                </h1>
+                
+                <!-- Help Button (Right) -->
+                <button id="wikiToggle" 
+                        class="flex items-center justify-center w-7 h-7 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-all shadow-sm"
+                        title="Journey Time Reference">
+                    <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        
+            
+            <!-- Stats, Filters, Averages, and Legend Row - Combined Component -->
+            <div class="bg-white rounded-lg px-3 py-1.5 shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between h-full">
+                    <!-- Left: Summary Stats + Filters + Trend Button -->
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-5 h-5 bg-green-500 rounded flex items-center justify-center">
+                                <i data-lucide="check-circle" class="w-3 h-3 text-white"></i>
+                            </div>
+                            <div>
+                                <p class="text-[8px] text-green-600 font-medium leading-none">On Time</p>
+                                <p class="text-sm font-bold text-green-700 leading-tight">{{ on_time_count }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-5 h-5 bg-red-500 rounded flex items-center justify-center">
+                                <i data-lucide="alert-circle" class="w-3 h-3 text-white"></i>
+                            </div>
+                            <div>
+                                <p class="text-[8px] text-red-600 font-medium leading-none">Delayed</p>
+                                <p class="text-sm font-bold text-red-700 leading-tight">{{ delayed_count }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-5 h-5 bg-blue-500 rounded flex items-center justify-center">
+                                <i data-lucide="truck" class="w-3 h-3 text-white"></i>
+                            </div>
+                            <div>
+                                <p class="text-[8px] text-blue-600 font-medium leading-none">Total</p>
+                                <p class="text-sm font-bold text-blue-700 leading-tight">{{ total_trucks }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="h-6 w-px bg-slate-300"></div>
+                        
+                        <!-- Filter Buttons -->
+                       <div class="flex items-center gap-3">
+    <button id="filter-all"
+        class="filter-btn px-4 py-2 text-sm rounded-md 
+               bg-blue-600 text-white font-medium 
+               hover:bg-blue-700 hover:text-white 
+              transition duration-200 shadow">
+        All
+    </button>
+
+    <button id="filter-dhar-to-dhule"
+        class="filter-btn px-4 py-2 text-sm rounded-md 
+               bg-slate-200 text-slate-700 font-medium 
+               hover:bg-blue-600 hover:text-white 
+               transition duration-200 shadow">
+        Dhar → Dhule
+    </button>
+
+    <button id="filter-dhule-to-dhar"
+        class="filter-btn px-4 py-2 text-sm rounded-md 
+               bg-slate-200 text-slate-700 font-medium 
+               hover:bg-blue-600 hover:text-white 
+               transition duration-200 shadow">
+        Dhule → Dhar
+    </button>
+</div>
+                        
+                        <div class="h-6 w-px bg-slate-300"></div>
+                        
+                        <!-- Trend Button -->
+                       
+                        <button id="trendToggle" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-slate-100 text-slate-700 font-medium hover:bg-blue-600 hover:text-white transition duration-200 shadow" title="Show Avg Delay Trend (Alt+T)">
+                            <i data-lucide="line-chart" class="w-4 h-4"></i>
+                            <span>Trend</span>
+                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-extrabold tracking-wide shadow-sm rounded-sm animate-pulse-slow">
+                                NEW
+                            </span>
+                        </button>
+                    </div>
+                    
+                    <!-- Right: Averages and Legend -->
+                    <div class="flex items-center gap-3">
+                        <!-- Averages -->
+                        <div class="flex items-center gap-2">
+                            <div class="text-center">
+                                <div class="px-2 py-1 rounded border border-blue-200 bg-blue-50">
+                                    <span class="block text-[9px] text-blue-700 font-semibold">Avg Duration</span>
+                                    <span class="block text-sm font-bold text-blue-700">{{ avg_total_duration }}</span>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="px-2 py-1 rounded border border-indigo-200 bg-indigo-50">
+                                    <span class="block text-[9px] text-indigo-700 font-semibold">Avg Drive</span>
+                                    <span class="block text-sm font-bold text-indigo-700">{{ avg_total_drive_time }}</span>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="px-2 py-1 rounded border border-red-200 bg-red-50">
+                                    <span class="block text-[9px] text-red-700 font-semibold">Avg Delay</span>
+                                    <span class="block text-sm font-bold text-red-700">{{ avg_total_delay }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Legend -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] text-slate-800 font-bold">Legend:</span>
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-5 h-4 bg-green-500 rounded-sm border border-slate-700"></div>
+                                <span class="text-[8px] text-slate-700 font-medium">On Time</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-5 h-4 bg-amber-500 rounded-sm border border-slate-700"></div>
+                                <span class="text-[8px] text-slate-700 font-medium">Warning</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-5 h-4 bg-red-500 rounded-sm border border-slate-700"></div>
+                                <span class="text-[8px] text-slate-700 font-medium">Delayed</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Table - Scrollable Area -->
+        <div class="flex-1 overflow-y-auto overflow-x-hidden pb-4 min-h-0">
+            <div class="bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+                <div id="timelineTableContainer" class="overflow-x-auto">
+                <table class="w-full min-w-[1400px]">
+                    <thead>
+                        <tr class="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                            <th class="px-2 py-1.5 text-left font-semibold text-xs uppercase tracking-wide" style="width: 10%;">
+                                Vehicle
+                            </th>
+                            <th class="px-2 py-1.5 text-left font-semibold text-xs uppercase tracking-wide" style="width: 60%;">
+                                TIME BOX
+                            </th>
+                            <th class="px-2 py-1.5 text-center font-semibold text-xs uppercase tracking-wide cursor-pointer hover:bg-blue-800 transition-colors" 
+                                style="width: 30%;"
+                                id="timeColumnHeader"
+                                title="Click to sort by Duration">
+                                <div class="flex items-center justify-center gap-1">
+                                    <span id="timeColumnTitle">Duration</span>
+                                    <i data-lucide="arrow-down" id="sortArrow" class="w-3 h-3"></i>
+                                </div>
+                                <span class="text-[9px] block">(HH:MM)</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        {% for truck in trucks %}
+                        <tr class="transition-colors
+                            {% if truck.route == 'dhule_to_dhar' %}
+                            bg-green-50 hover:bg-green-100
+                            {% else %}
+                            bg-blue-50 hover:bg-blue-100
+                            {% endif %}">
+                            <!-- Vehicle Number Column -->
+                            <td class="px-2 py-2">
+                                <div class="flex flex-col gap-1">
+                                    <span class="font-bold text-base text-slate-800">{{ truck.vehicle_number }}</span>
+                                    <span class="text-xs font-semibold px-2 py-1 rounded-full inline-block w-fit
+                                        {% if truck.route == 'dhule_to_dhar' %}
+                                            bg-amber-100 text-amber-700
+                                        {% else %}
+                                            bg-purple-100 text-purple-700
+                                        {% endif %}">
+                                        {% if truck.route == 'dhule_to_dhar' %}
+                                            Dhule → Dhar
+                                        {% else %}
+                                            Dhar → Dhule
+                                        {% endif %}
+                                    </span>
+                                    <!-- Action Buttons Row -->
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <!-- Open Analytics Button -->
+                                        <a
+                                            href="{% url 'livetracker:vehicle' truck.vehicle_number %}"
+                                            class="open-analytics inline-flex items-center gap-1 w-fit px-2 py-1 text-[11px] font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition"
+                                            data-url="{% url 'livetracker:vehicle' truck.vehicle_number %}"
+                                            title="Open full analytics in minimized dock"
+                                        >
+                                            <i data-lucide="bar-chart-2" class="w-3 h-3"></i>
+                                            <span>Analytics</span>
+                                        </a>
+                                        
+                                        <!-- Netradyne CCTV Coming Soon Icon -->
+                                        <div class="relative inline-flex items-center justify-center w-fit px-2 py-1 text-[11px] rounded bg-slate-100 text-slate-400 border border-slate-300 cursor-not-allowed group">
+                                            <i data-lucide="cctv" class="w-3 h-3"></i>
+                                            <!-- Tooltip -->
+                                            <span class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                                Netradyne - Coming Soon
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <!-- TIME BOX Column -->
+                            <td class="px-2 py-2">
+                                <div class="flex items-center gap-2 flex-nowrap">
+                                    {% for item in truck.checkpoints %}
+                                        {% if item.type == 'group' %}
+                                            <!-- Location Group Container -->
+                                            <div class="border-2 border-gray-400 rounded-lg px-2 pt-1 pb-2 bg-gray-50 flex flex-col justify-center">
+                                                <div class="text-[10px] font-semibold text-gray-600 mb-1 text-center">{{ item.location }}</div>
+                                                <div class="flex gap-1 items-center justify-center">
+                                                    {% for checkpoint in item.checkpoints %}
+                                                    <div class="flex flex-col items-center gap-0.5">
+                                                        <div class="timeline-box border border-slate-800 rounded 
+                                                            {% if checkpoint.status == 'delayed' %}bg-red-500{% elif checkpoint.status == 'warning' %}bg-amber-500{% elif checkpoint.status == 'pending' %}bg-gray-300 border-dashed{% elif checkpoint.status == 'completed_historical' %}bg-blue-400 opacity-70{% else %}bg-green-500{% endif %}
+                                                            {% if checkpoint.is_current %} ring-4 ring-blue-400 animate-pulse cursor-pointer{% endif %} w-10 h-6 shadow-sm"
+                                                            {% if checkpoint.is_current %}onclick="showDriverInfo('{{ truck.vehicle_number }}', '{{ truck.driver_name|default:"Not Assigned" }}', '{{ truck.driver_phone|default:"N/A" }}')"{% endif %}
+                                                            title="{{ checkpoint.name }}{% if checkpoint.status == 'pending' %}: Not yet reached{% elif checkpoint.status == 'completed_historical' %}: Completed Previously{% endif %}{% if checkpoint.time %} | Start: {{ checkpoint.time }}{% elif checkpoint.raw_display_start %} | Start: {{ checkpoint.raw_display_start|slice:':16' }}{% elif checkpoint.raw_start %} | Start: {{ checkpoint.raw_start|slice:':16' }}{% endif %}{% if checkpoint.end_time %} | End: {{ checkpoint.end_time }}{% elif checkpoint.raw_display_end %} | End: {{ checkpoint.raw_display_end|slice:':16' }}{% elif checkpoint.raw_end %} | End: {{ checkpoint.raw_end|slice:':16' }}{% endif %}{% if checkpoint.duration_hhmm %}&#10;Duration: {{ checkpoint.duration_hhmm }}{% endif %}{% if checkpoint.delay_hhmm %} | Delay: {{ checkpoint.delay_hhmm }}{% endif %}{% if checkpoint.is_current %}&#10;Click to view driver info{% endif %}">
+                                                            {% if checkpoint.is_current %}<span class="absolute -top-1 right-0 bg-blue-500 text-white text-[8px] px-0.5 rounded">LIVE</span>{% endif %}
+                                                        </div>
+                                                        <span class="text-[7px] text-slate-600">{{ checkpoint.name|truncatechars:9 }}</span>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <!-- Single Transit Checkpoint -->
+                                            <div class="flex flex-col items-center gap-0.5">
+                                                <div class="timeline-box border border-slate-800 rounded 
+                                                    {% if item.checkpoint.status == 'delayed' %}bg-red-500{% elif item.checkpoint.status == 'warning' %}bg-amber-500{% elif item.checkpoint.status == 'pending' %}bg-gray-300 border-dashed{% elif item.checkpoint.status == 'completed_historical' %}bg-blue-400 opacity-70{% else %}bg-green-500{% endif %}
+                                                    {% if item.checkpoint.is_current %} ring-4 ring-blue-400 animate-pulse cursor-pointer{% endif %} w-12 h-6 shadow-sm"
+                                                    {% if item.checkpoint.is_current %}onclick="showDriverInfo('{{ truck.vehicle_number }}', '{{ truck.driver_name|default:"Not Assigned" }}', '{{ truck.driver_phone|default:"N/A" }}')"{% endif %}
+                                                    title="{{ item.checkpoint.name }}{% if item.checkpoint.status == 'pending' %}: Not yet reached{% elif item.checkpoint.status == 'completed_historical' %}: Completed Previously{% endif %}{% if item.checkpoint.time %} | Start: {{ item.checkpoint.time }}{% elif item.checkpoint.raw_display_start %} | Start: {{ item.checkpoint.raw_display_start|slice:':16' }}{% elif item.checkpoint.raw_start %} | Start: {{ item.checkpoint.raw_start|slice:':16' }}{% endif %}{% if item.checkpoint.end_time %} | End: {{ item.checkpoint.end_time }}{% elif item.checkpoint.raw_display_end %} | End: {{ item.checkpoint.raw_display_end|slice:':16' }}{% elif item.checkpoint.raw_end %} | End: {{ item.checkpoint.raw_end|slice:':16' }}{% endif %}{% if item.checkpoint.duration_hhmm %}&#10;Duration: {{ item.checkpoint.duration_hhmm }}{% endif %}{% if item.checkpoint.delay_hhmm %} | Delay: {{ item.checkpoint.delay_hhmm }}{% endif %}{% if item.checkpoint.is_current %}&#10;Click to view driver info{% endif %}">
+                                                    {% if item.checkpoint.is_current %}<span class="absolute -top-2 right-0 bg-blue-500 text-white text-[10px] px-1 rounded">LIVE</span>{% endif %}
+                                                </div>
+                                                <span class="text-[8px] text-slate-600">{{ item.checkpoint.name|truncatechars:9 }}</span>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Double Chevron Arrow Between Items -->
+                                        {% if not forloop.last %}
+                                        <div class="flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" class="text-slate-600" fill="currentColor">
+                                                <path d="M383-480 200-664l56-56 240 240-240 240-56-56 183-184Zm264 0L464-664l56-56 240 240-240 240-56-56 183-184Z"/>
+                                            </svg>
+                                        </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            
+                            <!-- Total Time & Delay Column -->
+                            <td class="px-2 py-2">
+                                <div class="flex flex-row items-center justify-center h-full gap-4">
+                                    <!-- Duration Display -->
+                                    <div class="text-center">
+                                        <div class="border-2 border-blue-500 rounded-lg px-2 py-1.5 bg-blue-50 w-28 h-20 flex flex-col items-center justify-center gap-0.5">
+                                            <span class="block text-[9px] text-blue-700 font-semibold">Duration</span>
+                                            <p class="text-2xl font-bold text-blue-700 leading-none">{{ truck.total_duration }}</p>
+                                        </div>
+                                    </div>
+                                    <!-- Delay Display -->
+                                    <div class="text-center">
+                                        <div class="border-2 {% if truck.total_delay == '00:00' %}border-green-500 bg-green-50{% else %}border-red-500 bg-red-50{% endif %} rounded-lg px-2 py-1.5 w-28 min-h-[5rem] flex flex-col items-center justify-between gap-0.5">
+                                            <span class="block text-[9px] {% if truck.total_delay == '00:00' %}text-green-700{% else %}text-red-700{% endif %} font-semibold">Delay</span>
+                                            <p class="text-xl font-bold leading-none
+                                                {% if truck.total_delay == '00:00' %}
+                                                    text-green-600
+                                                {% else %}
+                                                    text-red-600
+                                                {% endif %}">
+                                                {{ truck.total_delay }}
+                                            </p>
+                                            <!-- Sub-boxes: Site vs Driver delay (numbers only, pretty hover tooltips) -->
+                                            <div class="grid grid-cols-2 gap-0.5 w-full">
+                                                <!-- Site Delay: use red to depict seriousness -->
+                                                <div class="border border-red-500 bg-red-50 rounded px-0.5 py-0.5 text-center metric-tooltip" data-tooltip="Site Delay: combined delay at Manawar and Dhule phases">
+                                                    <span class="text-[10px] font-bold text-red-700 leading-none">{{ truck.ultratech_delay }}</span>
+                                                </div>
+                                                <!-- Driver Delay remains amber -->
+                                                <div class="border border-amber-500 bg-amber-50 rounded px-0.5 py-0.5 text-center metric-tooltip" data-tooltip="Driver Delay: delay outside site phases (transit and others)">
+                                                    <span class="text-[10px] font-bold text-amber-700 leading-none">{{ truck.driver_delay }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Drive Time Display -->
+                                    <div class="text-center">
+                                        <div class="border-2 border-indigo-500 rounded-lg px-2 py-1.5 bg-indigo-50 w-28 h-20 flex flex-col items-center justify-center gap-0.5">
+                                            <span class="block text-[9px] text-indigo-700 font-semibold">Drive Time</span>
+                                            <p class="text-2xl font-bold text-indigo-700 leading-none">{{ truck.total_drive_time }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    
+    <!-- Collapsible Right Sidebar Wiki -->
+    {% include 'livetracker/timelinewiki.html' %}
+    
+    <!-- Overlay for sidebar -->
+    <div id="wikiOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[100]"></div>
+
+    <!-- Analytics Dock (minimized by default) -->
+    
+
+    <div id="analyticsDockPanel" class="fixed bottom-12 right-3 z-[10050] hidden">
+        <div class="relative w-[90vw] max-w-[1600px] h-[70vh] bg-white border border-slate-300 rounded-lg shadow-2xl flex flex-col overflow-hidden" id="analyticsDockShell">
+            <!-- Panel Header -->
+            <div id="analyticsDockHeader" class="flex items-center justify-between bg-slate-100 border-b border-slate-200 px-2 py-1.5 cursor-move select-none">
+                <div class="flex items-center gap-2 min-w-0">
+                    <div id="analyticsTabs" class="flex items-center gap-1 overflow-x-auto"></div>
+                    <!-- Vehicle quick loader -->
+                    <div class="flex items-center gap-1 ml-2 shrink-0">
+                        <select id="dockVehicleSelect" class="text-[11px] border border-slate-300 rounded px-1 py-0.5 max-w-[220px]"></select>
+                        <button id="dockLoadVehicle" class="text-[11px] px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700">Load</button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button id="minimizeAnalytics" class="px-2 py-1 text-[11px] rounded bg-slate-200 hover:bg-slate-300 text-slate-700 inline-flex items-center gap-1" title="Minimize">
+                        <i data-lucide="minus" class="w-3 h-3"></i>
+                        <span>Minimize</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Panel Content -->
+            <div id="analyticsFrames" class="flex-1 bg-white relative"></div>
+            <!-- Resize handles (edges + corners) -->
+            <div class="dock-resize dock-resize-n" data-dir="n"></div>
+            <div class="dock-resize dock-resize-s" data-dir="s"></div>
+            <div class="dock-resize dock-resize-e" data-dir="e"></div>
+            <div class="dock-resize dock-resize-w" data-dir="w"></div>
+            <div class="dock-resize dock-resize-ne" data-dir="ne"></div>
+            <div class="dock-resize dock-resize-nw" data-dir="nw"></div>
+            <div class="dock-resize dock-resize-se" data-dir="se"></div>
+            <div class="dock-resize dock-resize-sw" data-dir="sw"></div>
+        </div>
+    </div>
+    
+    <!-- Dock Overlay disabled (kept for future, non-interactive) -->
+    <div id="dockOverlay" class="fixed inset-0 bg-black bg-opacity-0 hidden z-[10040] pointer-events-none"></div>
+    
+    <!-- Trend Graph Modal -->
+    <div id="trendModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[1200] flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 transform transition-all">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 rounded-t-lg">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="line-chart" class="w-5 h-5"></i>
+                        Average Delay Trend <span id="trendSubtitle" class="text-blue-100 font-normal text-sm">(last <span id="trendDaysLabel">7</span> days)</span>
+                    </h3>
+                    <button onclick="closeTrendModal()" class="text-blue-100 hover:text-white transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-4 space-y-3">
+                <!-- Controls -->
+                <div class="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-slate-600 font-medium">Group By:</label>
+                            <select id="trendGroup" class="text-xs border border-slate-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="day" selected>Day</option>
+                                <option value="month">Month</option>
+                            </select>
+                        </div>
+                        <div id="trendDaysWrap" class="flex items-center gap-2">
+                            <label class="text-xs text-slate-600 font-medium">Days:</label>
+                            <select id="trendDays" class="text-xs border border-slate-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="7" selected>7</option>
+                                <option value="14">14</option>
+                                <option value="30">30</option>
+                            </select>
+                        </div>
+                        <div id="trendMonthsWrap" class="flex items-center gap-2 hidden">
+                            <label class="text-xs text-slate-600 font-medium">Months:</label>
+                            <select id="trendMonths" class="text-xs border border-slate-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="3" selected>3</option>
+                                <option value="6">6</option>
+                                <option value="12">12</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="trendDrillControls" class="flex items-center gap-2 hidden">
+                        <button id="trendBack" class="text-xs px-3 py-1.5 rounded bg-slate-700 text-white hover:bg-slate-700 transition flex items-center gap-1">
+                            <i data-lucide="arrow-left" class="w-3 h-3"></i>
+                            <span>Back</span>
+                        </button>
+                        <span id="trendDrillLabel" class="text-xs text-slate-600 font-medium"></span>
+                    </div>
+                </div>
+                
+                <!-- Chart Container -->
+                <div class="w-full bg-white rounded-lg border border-slate-200 p-4 relative" style="height: 450px;">
+                    <!-- Loading Overlay -->
+                    <div id="chartLoading" class="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center hidden z-10">
+                        <div class="text-center">
+                            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="text-sm text-slate-600 font-medium">Loading trend data...</p>
+                        </div>
+                    </div>
+                    <canvas id="avgDelayChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Information Panel Modal -->
+    <div id="driverInfoModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden z-[1200] flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform transition-all">
+            <div class="bg-slate-800 px-3 py-2 rounded-t-lg">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white flex items-center gap-1.5">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                        Information Panel
+                    </h3>
+                    <button onclick="closeDriverInfo()" class="text-slate-300 hover:text-white transition-colors">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-3 space-y-2.5">
+                <div class="flex items-center gap-2 pb-2 border-b border-slate-200">
+                    <div class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="truck" class="w-3.5 h-3.5 text-slate-600"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[9px] text-slate-500 font-medium mb-0.5">Vehicle Number</p>
+                        <p id="modalVehicleNumber" class="text-xs font-semibold text-slate-800 truncate"></p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 pb-2 border-b border-slate-200">
+                    <div class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-slate-600"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[9px] text-slate-500 font-medium mb-0.5">Driver Name</p>
+                        <p id="modalDriverName" class="text-xs font-semibold text-slate-800 truncate"></p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 pb-2 border-b border-slate-200">
+                    <div class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-600"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[9px] text-slate-500 font-medium mb-0.5">Mobile Number</p>
+                        <p id="modalDriverPhone" class="text-xs font-semibold text-slate-800"></p>
+                    </div>
+                </div>
+                
+                <div class="pb-2">
+                    <div class="flex items-start gap-2">
+                        <div class="w-7 h-7 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-600"></i>
+                        </div>
+                        <div class="flex-1">
+                            <label for="modalReasonInput" class="text-[12px] text-slate-500 font-bold mb-1 block">Reason for Delay/Issue</label>
+                            <textarea 
+                                id="modalReasonInput" 
+                                class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none" 
+                                rows="3" 
+                                placeholder="Enter reason for Delay/Issue..."
+                            ></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 pt-1">
+                    <button 
+                        id="saveReasonBtn"
+                        onclick="submitTimeboxReason()" 
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded text-xs font-medium transition flex items-center justify-center gap-1.5"
+                    >
+                        <i data-lucide="save" class="w-3 h-3" id="saveIcon"></i>
+                        <svg id="loadingSpinner" class="hidden animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span id="saveText">Save Reason</span>
+                    </button>
+                    <button 
+                        onclick="closeDriverInfo()" 
+                        class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-medium transition"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline-box {
+    position: relative;
+    cursor: pointer;
+}
+
+.timeline-box:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+    margin-bottom: 2px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Pretty tooltip for metric sub-boxes */
+.metric-tooltip { position: relative; cursor: help; }
+.metric-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(17, 24, 39, 0.95); /* slate-900 */
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 1000;
+}
+.metric-tooltip:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Compact table styling */
+tbody tr {
+    height: 50px;
+}
+
+/* NEW badge pulse animation */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+/* Resize handles */
+.dock-resize { position: absolute; z-index: 5; }
+.dock-resize-n { top: -3px; left: 8px; right: 8px; height: 6px; cursor: n-resize; }
+.dock-resize-s { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: s-resize; }
+.dock-resize-e { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: e-resize; }
+.dock-resize-w { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: w-resize; }
+.dock-resize-ne { top: -4px; right: -4px; width: 10px; height: 10px; cursor: nesw-resize; }
+.dock-resize-nw { top: -4px; left: -4px; width: 10px; height: 10px; cursor: nwse-resize; }
+.dock-resize-se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
+.dock-resize-sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
+</style>
+
+<script>
+// Route filter logic
+document.addEventListener('DOMContentLoaded', function() {
+    function filterRows(route) {
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const badge = row.querySelector('span.rounded-full');
+            if (!badge) return;
+            const text = badge.textContent.trim();
+            if (route === 'dhar_to_dhule' && text !== 'Dhar → Dhule') {
+                row.style.display = 'none';
+            } else if (route === 'dhule_to_dhar' && text !== 'Dhule → Dhar') {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        });
+    }
+    
+    // Update filter button styles
+    function updateFilterButtonStyles(activeFilter) {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            if (btn.id === activeFilter) {
+                // Active state: blue background with white text
+                btn.classList.remove('bg-slate-200', 'bg-slate-100', 'text-slate-700', 'text-black');
+                btn.classList.add('bg-blue-600', 'text-white');
+            } else {
+                // Inactive state: light gray background with dark text
+                btn.classList.remove('bg-blue-600', 'bg-blue-700', 'text-white');
+                btn.classList.add('bg-slate-200', 'text-slate-700');
+            }
+        });
+    }
+    
+    document.getElementById('filter-dhar-to-dhule').addEventListener('click', function() {
+        filterRows('dhar_to_dhule');
+        updateFilterButtonStyles('filter-dhar-to-dhule');
+    });
+    document.getElementById('filter-dhule-to-dhar').addEventListener('click', function() {
+        filterRows('dhule_to_dhar');
+        updateFilterButtonStyles('filter-dhule-to-dhar');
+    });
+    document.getElementById('filter-all').addEventListener('click', function() {
+        filterRows('all');
+        updateFilterButtonStyles('filter-all');
+    });
+});
+// Dummy data structure - Replace this with Django context data later
+const dummyTrucks = [
+    {
+        vehicle_number: 'MH18BZ3029',
+        route: 'dhar_to_dhule',
+        checkpoints: [
+            { name: 'Yard', status: 'on_time', time: '08:00 AM' },
+            { name: 'Charging', status: 'charging', time: '08:30 AM' },
+            { name: 'Loading', status: 'on_time', time: '09:00 AM' },
+            { name: 'Jhulwania Charging', status: 'charging', time: '11:30 AM' },
+            { name: 'Maharashtra Border', status: 'on_time', time: '02:00 PM' },
+            { name: 'Dhule Gate', status: 'on_time', time: '04:00 PM' }
+        ]
+    },
+    {
+        vehicle_number: 'MH18BZ2648',
+        route: 'dhule_to_dhar',
+        checkpoints: [
+            { name: 'Yard', status: 'on_time', time: '06:00 AM' },
+            { name: 'Charging', status: 'charging', time: '06:30 AM' },
+            { name: 'Unloading', status: 'delayed', time: '07:30 AM' },
+            { name: 'Maharashtra Border', status: 'delayed', time: '10:00 AM' },
+            { name: 'Jhulwania Charging', status: 'charging', time: '12:30 PM' },
+            { name: 'Dhar Gate', status: 'on_time', time: '03:00 PM' }
+        ]
+    },
+    {
+        vehicle_number: 'MH18BZ3024',
+        route: 'dhar_to_dhule',
+        checkpoints: [
+            { name: 'Yard', status: 'on_time', time: '07:00 AM' },
+            { name: 'Charging', status: 'charging', time: '07:45 AM' },
+            { name: 'Loading', status: 'on_time', time: '08:30 AM' },
+            { name: 'Jhulwania Charging', status: 'charging', time: '11:00 AM' },
+            { name: 'Maharashtra Border', status: 'on_time', time: '01:30 PM' },
+            { name: 'Dhule Gate', status: 'delayed', time: '03:45 PM' }
+        ]
+    }
+];
+
+// Trend Modal Functions
+function showTrendModal() {
+    const modal = document.getElementById('trendModal');
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    
+    // Reinitialize icons in modal
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }, 100);
+}
+
+function closeTrendModal() {
+    const modal = document.getElementById('trendModal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+// Driver Info Modal Functions
+function showDriverInfo(vehicleNumber, driverName, driverPhone) {
+    document.getElementById('modalVehicleNumber').textContent = vehicleNumber;
+    document.getElementById('modalDriverName').textContent = driverName;
+    document.getElementById('modalDriverPhone').textContent = driverPhone;
+    document.getElementById('modalReasonInput').value = ''; // Clear previous reason
+    
+    const modal = document.getElementById('driverInfoModal');
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    
+    // Reinitialize icons in modal
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }, 100);
+}
+
+function closeDriverInfo() {
+    const modal = document.getElementById('driverInfoModal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+async function submitTimeboxReason() {
+    const vehicleNumber = document.getElementById('modalVehicleNumber').textContent;
+    const driverName = document.getElementById('modalDriverName').textContent;
+    const driverPhone = document.getElementById('modalDriverPhone').textContent;
+    const reason = document.getElementById('modalReasonInput').value.trim();
+    
+    // Validate reason
+    if (!reason) {
+        if (typeof toastr !== 'undefined') {
+            toastr.error('Please enter a reason before submitting');
+        } else {
+            alert('Please enter a reason before submitting');
+        }
+        return;
+    }
+    
+    // Show loading state
+    const saveBtn = document.getElementById('saveReasonBtn');
+    const saveIcon = document.getElementById('saveIcon');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const saveText = document.getElementById('saveText');
+    
+    saveBtn.disabled = true;
+    saveIcon.classList.add('hidden');
+    loadingSpinner.classList.remove('hidden');
+    saveText.textContent = 'Saving...';
+    
+    try {
+        // Get CSRF token from cookie
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        const csrftoken = getCookie('csrftoken');
+        
+        // Submit to API
+        const response = await fetch('/livetracker/api/timebox/save-reason/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                vehicle_number: vehicleNumber,
+                driver_name: driverName,
+                driver_phone: driverPhone,
+                reason: reason
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            if (typeof toastr !== 'undefined') {
+                toastr.success('Reason saved successfully!');
+            } else {
+                alert('Reason saved successfully!');
+            }
+            closeDriverInfo();
+        } else {
+            if (typeof toastr !== 'undefined') {
+                toastr.error(data.error || 'Failed to save reason');
+            } else {
+                alert(data.error || 'Failed to save reason');
+            }
+        }
+    } catch (error) {
+        console.error('Error submitting reason:', error);
+        if (typeof toastr !== 'undefined') {
+            toastr.error('Error submitting reason. Please try again.');
+        } else {
+            alert('Error submitting reason. Please try again.');
+        }
+    } finally {
+        // Reset loading state
+        saveBtn.disabled = false;
+        saveIcon.classList.remove('hidden');
+        loadingSpinner.classList.add('hidden');
+        saveText.textContent = 'Save Reason';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Hide loading overlay after page loads
+    setTimeout(() => {
+        const loadingEl = document.getElementById('pageLoading');
+        if (loadingEl) {
+            loadingEl.style.opacity = '0';
+            loadingEl.style.transition = 'opacity 0.3s ease-out';
+            setTimeout(() => {
+                loadingEl.style.display = 'none';
+            }, 300);
+        }
+    }, 500);
+    
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    // Wiki Sidebar Toggle
+    const wikiToggle = document.getElementById('wikiToggle');
+    const wikiSidebar = document.getElementById('wikiSidebar');
+    const wikiOverlay = document.getElementById('wikiOverlay');
+    const closeWiki = document.getElementById('closeWiki');
+    
+    function openWiki() {
+        wikiSidebar.classList.remove('translate-x-full');
+        wikiOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        // Reinitialize icons in sidebar
+        setTimeout(() => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }, 100);
+    }
+    
+    function closeWikiSidebar() {
+        wikiSidebar.classList.add('translate-x-full');
+        wikiOverlay.classList.add('hidden');
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+    
+    if (wikiToggle) {
+        wikiToggle.addEventListener('click', openWiki);
+    }
+    if (closeWiki) {
+        closeWiki.addEventListener('click', closeWikiSidebar);
+    }
+    if (wikiOverlay) {
+        wikiOverlay.addEventListener('click', closeWikiSidebar);
+    }
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // Close trend modal if open
+            const trendModal = document.getElementById('trendModal');
+            if (trendModal && !trendModal.classList.contains('hidden')) {
+                closeTrendModal();
+                return;
+            }
+            // Close driver info modal if open
+            const driverModal = document.getElementById('driverInfoModal');
+            if (driverModal && !driverModal.classList.contains('hidden')) {
+                closeDriverInfo();
+                return;
+            }
+            // Close wiki sidebar if open
+            if (wikiSidebar && !wikiSidebar.classList.contains('translate-x-full')) {
+                closeWikiSidebar();
+            }
+        }
+    });
+    
+    // Sort by Duration on column header click
+    let sortAscending = false; // Start with descending (highest first)
+    document.getElementById('timeColumnHeader')?.addEventListener('click', function() {
+        sortAscending = !sortAscending;
+        
+        // Update arrow icon
+        const sortArrow = document.getElementById('sortArrow');
+        if (sortArrow) {
+            sortArrow.setAttribute('data-lucide', sortAscending ? 'arrow-up' : 'arrow-down');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+        
+        // Get all rows and sort them
+        const tbody = document.querySelector('tbody');
+        if (!tbody) return;
+        
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Parse duration from each row (format: HH:MM)
+        const parseTime = (timeStr) => {
+            if (!timeStr) return 0;
+            const parts = timeStr.split(':');
+            if (parts.length !== 2) return 0;
+            const hours = parseInt(parts[0]) || 0;
+            const minutes = parseInt(parts[1]) || 0;
+            return hours * 60 + minutes;
+        };
+        
+        rows.sort((a, b) => {
+            // Find the duration display in each row - it's in the first metric box with "Duration" label
+            const durationBoxA = a.querySelector('td:last-child .border-blue-500 p.text-2xl');
+            const durationBoxB = b.querySelector('td:last-child .border-blue-500 p.text-2xl');
+            
+            const durationA = durationBoxA?.textContent?.trim() || '00:00';
+            const durationB = durationBoxB?.textContent?.trim() || '00:00';
+            
+            const minutesA = parseTime(durationA);
+            const minutesB = parseTime(durationB);
+            
+            return sortAscending ? minutesA - minutesB : minutesB - minutesA;
+        });
+        
+        // Re-append rows in sorted order
+        rows.forEach(row => tbody.appendChild(row));
+    });
+    
+    // Auto-refresh mechanism - refresh every 30 seconds
+    const REFRESH_INTERVAL = 30000; // 30 seconds
+    let autoRefreshTimer = null;
+    let isManualRefreshInProgress = false;
+
+    function performTimelineRefresh(isAutomatic = false) {
+        if (isManualRefreshInProgress) return;
+        
+        const refreshBtn = document.getElementById('refreshTimeline');
+        if (!refreshBtn) return;
+        
+        isManualRefreshInProgress = true;
+        
+        // Animate refresh icon
+        const icon = refreshBtn.querySelector('i');
+        if (icon) {
+            icon.style.animation = 'spin 1s linear';
+        }
+        
+        if (!isAutomatic && typeof toastr !== 'undefined') {
+            toastr.info('Refreshing timeline data...', 'Update', { timeOut: 2000 });
+        }
+        
+        // Reload the page to get fresh data
+        setTimeout(() => {
+            location.reload();
+        }, 800);
+    }
+
+    // Manual refresh button handler
+    document.getElementById('refreshTimeline')?.addEventListener('click', function() {
+        performTimelineRefresh(false);
+    });
+
+    // Start auto-refresh when page loads
+    function startAutoRefresh() {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        autoRefreshTimer = setInterval(() => {
+            performTimelineRefresh(true);
+        }, REFRESH_INTERVAL);
+    }
+
+    // Auto-refresh page on load
+    document.addEventListener('DOMContentLoaded', () => {
+        startAutoRefresh();
+    });
+
+    // Also start immediately if already loaded
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAutoRefresh);
+    } else {
+        startAutoRefresh();
+    }
+
+    // In-page minimized Analytics Dock (kept as fallback if popup blocked)
+    const dockToggle = document.getElementById('analyticsDockToggle');
+    const dockPanel = document.getElementById('analyticsDockPanel');
+    const dockOverlay = document.getElementById('dockOverlay');
+    const tabsEl = document.getElementById('analyticsTabs');
+    const framesEl = document.getElementById('analyticsFrames');
+    const countEl = document.getElementById('analyticsCount');
+    const minimizeBtn = document.getElementById('minimizeAnalytics');
+    const panelShell = document.getElementById('analyticsDockShell');
+    const dockHeader = document.getElementById('analyticsDockHeader');
+    const dockPanelEl = document.getElementById('analyticsDockPanel');
+
+    const openAnalyticsMap = new Map(); // vehicleNumber -> { tabEl, frameEl }
+    let activeVehicle = null;
+
+    function updateCount() {
+        countEl.textContent = String(openAnalyticsMap.size);
+    }
+    function setActive(vehicleNumber) {
+        activeVehicle = vehicleNumber;
+        // Toggle tab active styles and frames visibility
+        openAnalyticsMap.forEach((entry, vn) => {
+            if (vn === vehicleNumber) {
+                entry.tabEl.classList.add('bg-blue-600','text-white');
+                entry.tabEl.classList.remove('bg-slate-200','text-slate-700');
+                entry.frameEl.classList.remove('hidden');
+            } else {
+                entry.tabEl.classList.remove('bg-blue-600','text-white');
+                entry.tabEl.classList.add('bg-slate-200','text-slate-700');
+                entry.frameEl.classList.add('hidden');
+            }
+        });
+        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+    }
+    function ensureFrame(vehicleNumber, url) {
+        if (openAnalyticsMap.has(vehicleNumber)) {
+            setActive(vehicleNumber);
+            return;
+        }
+        // Create tab
+        const tab = document.createElement('button');
+        tab.className = 'px-2 py-1 text-[11px] rounded bg-slate-200 text-slate-700 hover:bg-slate-300 inline-flex items-center gap-1';
+        tab.innerHTML = `<i data-lucide="truck" class="w-3 h-3"></i><span>${vehicleNumber}</span><button class="ml-1 close-tab text-[10px] rounded px-1 bg-slate-300 hover:bg-slate-400" title="Close">×</button>`;
+        tabsEl.appendChild(tab);
+
+        // Create frame wrapper
+        const frame = document.createElement('iframe');
+        frame.src = url;
+        frame.className = 'absolute inset-0 w-full h-full border-0 hidden';
+        frame.setAttribute('data-vehicle', vehicleNumber);
+        framesEl.appendChild(frame);
+
+        // Prevent new tabs/popups inside iframe: force same-frame navigation
+        frame.addEventListener('load', () => {
+            try {
+                const cw = frame.contentWindow;
+                const cd = frame.contentDocument || cw.document;
+                if (!cd) return;
+                // Rewrite anchors to same-frame
+                cd.querySelectorAll('a').forEach(a => a.target = '_self');
+                // Override window.open to navigate within iframe
+                cw.open = function(u, _n, _s) {
+                    try { cw.location.href = u; } catch (_) {}
+                    return null;
+                };
+                // Intercept clicks on anchors to keep navigation inside iframe
+                cd.addEventListener('click', (ev) => {
+                    const path = ev.composedPath ? ev.composedPath() : (function(el){ const arr=[]; while(el){ arr.push(el); el = el.parentElement; } return arr; })(ev.target);
+                    const anchor = path.find && path.find(n => n && n.tagName === 'A');
+                    if (!anchor) return;
+                    const href = anchor.getAttribute('href');
+                    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+                    ev.preventDefault();
+                    try { cw.location.href = href; } catch (_) {}
+                }, true);
+                // Also ensure forms submit in-frame
+                cd.querySelectorAll('form').forEach(f => {
+                    try { f.setAttribute('target', '_self'); } catch(_) {}
+                });
+            } catch (_) { /* cross-origin guard */ }
+        });
+
+        // Register
+        openAnalyticsMap.set(vehicleNumber, { tabEl: tab, frameEl: frame });
+        updateCount();
+
+        // Wire tab interactions
+        tab.addEventListener('click', (ev) => {
+            // Avoid when close button clicked
+            if (ev.target && ev.target.classList.contains('close-tab')) return;
+            setActive(vehicleNumber);
+        });
+        tab.querySelector('.close-tab').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            // Remove elements
+            framesEl.removeChild(frame);
+            tabsEl.removeChild(tab);
+            openAnalyticsMap.delete(vehicleNumber);
+            updateCount();
+            // Pick another active if needed
+            if (activeVehicle === vehicleNumber) {
+                const next = openAnalyticsMap.keys().next();
+                if (!next.done) setActive(next.value);
+                else activeVehicle = null;
+            }
+        });
+
+        // Activate the newly added tab but keep dock minimized (per request)
+        setActive(vehicleNumber);
+        // Keep panel minimized by default; user can expand via toggle
+        if (typeof toastr !== 'undefined') {
+            toastr.info(`Analytics prepared for ${vehicleNumber}`, 'Minimized');
+        }
+        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+    }
+
+    // Toggle dock panel visibility
+    function showDock() {
+        dockPanel.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+    }
+    function hideDock() {
+        dockPanel.classList.add('hidden');
+    }
+    dockToggle?.addEventListener('click', () => {
+        if (dockPanel.classList.contains('hidden')) showDock(); else hideDock();
+    });
+    minimizeBtn?.addEventListener('click', () => {
+        hideDock();
+    });
+
+    // Populate vehicle selector from current table
+    function populateDockVehicleSelect() {
+        const sel = document.getElementById('dockVehicleSelect');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const seen = new Set();
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const label = row.querySelector('td:first-child span.font-bold');
+            const vn = label ? label.textContent.trim() : null;
+            if (vn && !seen.has(vn)) {
+                const opt = document.createElement('option');
+                opt.value = vn;
+                opt.textContent = vn;
+                sel.appendChild(opt);
+                seen.add(vn);
+            }
+        });
+    }
+    populateDockVehicleSelect();
+    // Re-populate if filters change (basic approach: on any filter button click)
+    document.getElementById('filter-dhar-to-dhule')?.addEventListener('click', populateDockVehicleSelect);
+    document.getElementById('filter-dhule-to-dhar')?.addEventListener('click', populateDockVehicleSelect);
+    document.getElementById('filter-all')?.addEventListener('click', populateDockVehicleSelect);
+
+    // Load selected vehicle into dock
+    document.getElementById('dockLoadVehicle')?.addEventListener('click', () => {
+        const sel = document.getElementById('dockVehicleSelect');
+        const vn = sel?.value;
+        if (!vn) return;
+        const url = `/livetracker/${encodeURIComponent(vn)}/`;
+        ensureFrame(vn, url);
+        // Show dock to user
+        dockPanel.classList.remove('hidden');
+        setActive(vn);
+    });
+
+    // Utilities to switch panel positioning to left/top (for drag)
+    function ensureLeftTopPosition() {
+        if (!dockPanelEl) return;
+        const styles = window.getComputedStyle(dockPanelEl);
+        const hasBottomRight = (styles.bottom !== 'auto' || styles.right !== 'auto');
+        if (hasBottomRight) {
+            const rect = dockPanelEl.getBoundingClientRect();
+            dockPanelEl.style.left = `${rect.left}px`;
+            dockPanelEl.style.top = `${rect.top}px`;
+            dockPanelEl.style.bottom = 'auto';
+            dockPanelEl.style.right = 'auto';
+            dockPanelEl.classList.remove('bottom-12','right-3');
+        }
+    }
+
+    // Apply persisted size and position (if any)
+    (function applySavedDockState(){
+        try {
+            const savedSize = localStorage.getItem('analyticsDockSize');
+            if (savedSize) {
+                const { w, h } = JSON.parse(savedSize);
+                if (w) panelShell.style.width = `${w}px`;
+                if (h) panelShell.style.height = `${h}px`;
+            }
+        } catch(_) {}
+        try {
+            const savedPos = localStorage.getItem('analyticsDockPos');
+            if (savedPos) {
+                const { left, top } = JSON.parse(savedPos);
+                ensureLeftTopPosition();
+                if (typeof left === 'number') dockPanelEl.style.left = `${left}px`;
+                if (typeof top === 'number') dockPanelEl.style.top = `${top}px`;
+            }
+        } catch(_) {}
+    })();
+
+    // Drag move by header
+    if (dockHeader && dockPanelEl) {
+        let dragging = false, sx = 0, sy = 0, startLeft = 0, startTop = 0;
+        const move = (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - sx;
+            const dy = e.clientY - sy;
+            const newLeft = Math.min(window.innerWidth - panelShell.offsetWidth - 8, Math.max(8, startLeft + dx));
+            const newTop  = Math.min(window.innerHeight - panelShell.offsetHeight - 8, Math.max(8, startTop + dy));
+            dockPanelEl.style.left = `${newLeft}px`;
+            dockPanelEl.style.top  = `${newTop}px`;
+        };
+        const up = () => {
+            if (!dragging) return;
+            dragging = false;
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            try {
+                localStorage.setItem('analyticsDockPos', JSON.stringify({ left: dockPanelEl.offsetLeft, top: dockPanelEl.offsetTop }));
+            } catch(_) {}
+        };
+        dockHeader.addEventListener('mousedown', (e) => {
+            // Ignore drags starting on interactive elements
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (['button','select','input','a'].includes(tag)) return;
+            e.preventDefault();
+            ensureLeftTopPosition();
+            dragging = true;
+            sx = e.clientX; sy = e.clientY;
+            startLeft = dockPanelEl.offsetLeft;
+            startTop  = dockPanelEl.offsetTop;
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+    }
+
+    // Edge and corner resize
+    (function edgeResize(){
+        const minW = 480, minH = 300;
+        const maxW = Math.floor(window.innerWidth * 0.95);
+        const maxH = Math.floor(window.innerHeight * 0.9);
+        let resizing = false, dir = '', sx=0, sy=0, start = { w:0,h:0,left:0,top:0 };
+        function onMove(e){
+            if (!resizing) return;
+            const dx = e.clientX - sx;
+            const dy = e.clientY - sy;
+            let newW = start.w, newH = start.h, newLeft = start.left, newTop = start.top;
+            if (dir.includes('e')) newW = Math.min(maxW, Math.max(minW, start.w + dx));
+            if (dir.includes('s')) newH = Math.min(maxH, Math.max(minH, start.h + dy));
+            if (dir.includes('w')) {
+                newW = Math.min(maxW, Math.max(minW, start.w - dx));
+                newLeft = Math.min(start.left + start.w - minW, Math.max(8, start.left + dx));
+            }
+            if (dir.includes('n')) {
+                newH = Math.min(maxH, Math.max(minH, start.h - dy));
+                newTop = Math.min(start.top + start.h - minH, Math.max(8, start.top + dy));
+            }
+            panelShell.style.width = `${newW}px`;
+            panelShell.style.height = `${newH}px`;
+            dockPanelEl.style.left = `${newLeft}px`;
+            dockPanelEl.style.top = `${newTop}px`;
+        }
+        function onUp(){
+            if (!resizing) return;
+            resizing = false; dir='';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            try {
+                localStorage.setItem('analyticsDockSize', JSON.stringify({ w: panelShell.offsetWidth, h: panelShell.offsetHeight }));
+                localStorage.setItem('analyticsDockPos', JSON.stringify({ left: dockPanelEl.offsetLeft, top: dockPanelEl.offsetTop }));
+            } catch(_) {}
+        }
+        document.querySelectorAll('#analyticsDockShell .dock-resize').forEach(h => {
+            h.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                ensureLeftTopPosition();
+                resizing = true;
+                dir = h.getAttribute('data-dir') || '';
+                sx = e.clientX; sy = e.clientY;
+                start = { w: panelShell.offsetWidth, h: panelShell.offsetHeight, left: dockPanelEl.offsetLeft, top: dockPanelEl.offsetTop };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+    })();
+
+    function openMinimizedPopup(url, windowName) {
+        const features = [
+            'popup=1',
+            'toolbar=0', 'location=0', 'menubar=0', 'status=0',
+            'scrollbars=1', 'resizable=1',
+            'width=1100', 'height=700'
+        ].join(',');
+        let popup = null;
+        try {
+            popup = window.open(url, windowName || 'Analytics', features);
+            if (popup) {
+                // Try to keep current page focused (simulate minimized)
+                try { popup.blur(); } catch (e) {}
+                try { window.focus(); } catch (e) {}
+            }
+        } catch (e) {
+            popup = null;
+        }
+        return popup;
+    }
+
+    // Hook per-row Analytics buttons to load in the in-page minimized dock (no new windows)
+    document.querySelectorAll('.open-analytics').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            // Always target full analytics page for this vehicle (embedded)
+            let url = '';
+            // Vehicle number is nearby in DOM or part of URL; safest to read from row
+            const row = this.closest('tr');
+            let vehicleNumber = null;
+            if (row) {
+                const label = row.querySelector('td:first-child span.font-bold');
+                vehicleNumber = label ? label.textContent.trim() : null;
+            }
+            // Fallback: extract from URL
+            if (!vehicleNumber) {
+                const parts = (this.getAttribute('data-url') || this.href).split('/').filter(Boolean);
+                vehicleNumber = parts[parts.length - 1] || 'Vehicle';
+            }
+            url = `/livetracker/${encodeURIComponent(vehicleNumber)}/?embed=1`;
+            // Always use in-page minimized dock
+            ensureFrame(vehicleNumber, url);
+            showDock();
+            setActive(vehicleNumber);
+        });
+    });
+
+    
+    // If running in embed mode, hide non-essential UI for cleaner dock view
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('embed') === '1') {
+            document.getElementById('analyticsDockToggle')?.classList.add('hidden');
+            document.getElementById('analyticsDockPanel')?.classList.add('hidden');
+            document.getElementById('avgDelayTrendCard')?.classList.add('hidden');
+            // Make timeline horizontally scrollable within dock iframe
+            try { document.getElementById('timelineTableContainer')?.classList.remove('overflow-x-visible'); document.getElementById('timelineTableContainer')?.classList.add('overflow-x-auto'); } catch(_) {}
+            const header = document.querySelector('.mb-3');
+            header && (header.style.display = 'none');
+        }
+    } catch(_) {}
+});
+
+// CSS animation for refresh button
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
+
+// Chart.js - Avg Delay Trend
+(function() {
+    let chart;
+    let currentGroup = 'day';
+    let currentMonth = null; // YYYY-MM when drilling into a month
+    function renderChart(labels, values) {
+        const ctx = document.getElementById('avgDelayChart');
+        if (!ctx) return;
+        if (chart) { chart.destroy(); }
+        chart = new (window.Chart)(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Avg Delay (HH:MM)',
+                    data: values,
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.25,
+                    pointRadius: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: { display: true, text: 'HH:MM' },
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => {
+                                try { const m = Math.max(0, Math.round(value)); const h = Math.floor(m/60); const mm = m%60; return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; } catch(_) { return value; }
+                            }
+                        }
+                    },
+                    x: {
+                        title: { display: true, text: currentGroup === 'month' ? 'Month' : 'Date' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => { try { const m = Math.max(0, Math.round(ctx.parsed.y)); const h = Math.floor(m/60); const mm = m%60; return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; } catch(_) { return ctx.parsed.y; } } } }
+                },
+                onClick: async (evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const idx = elements[0].index;
+                    if (currentGroup === 'month') {
+                        // Drill into selected month - switch to day view
+                        const label = chart.data.labels[idx];
+                        currentMonth = label; // YYYY-MM
+                        currentGroup = 'day';
+                        grpSel.value = 'day';
+                        daysWrap.classList.remove('hidden');
+                        monthsWrap.classList.add('hidden');
+                        await refresh();
+                    }
+                }
+            }
+        });
+    }
+    async function loadSeries(group, days, months, monthParam) {
+        const loadingEl = document.getElementById('chartLoading');
+        try {
+            // Show loading
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            
+            let url = `${window.location.origin}/livetracker/api/timebox/avg-delay-series/?group_by=${group}`;
+            if (group === 'day') {
+                if (monthParam) url += `&month=${encodeURIComponent(monthParam)}`;
+                else url += `&days=${days || 7}`;
+            } else {
+                url += `&months=${months || 3}`;
+            }
+            const res = await fetch(url, { credentials: 'same-origin' });
+            const data = await res.json();
+            const labels = data.series.map(p => group === 'month' ? p.date : p.date.slice(5));
+            const values = data.series.map(p => p.avg_delay_minutes);
+            renderChart(labels, values);
+        } catch (e) {
+            // swallow
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Failed to load trend data');
+            }
+        } finally {
+            // Hide loading
+            if (loadingEl) loadingEl.classList.add('hidden');
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const grpSel = document.getElementById('trendGroup');
+        const daysSel = document.getElementById('trendDays');
+        const monthsSel = document.getElementById('trendMonths');
+        const daysWrap = document.getElementById('trendDaysWrap');
+        const monthsWrap = document.getElementById('trendMonthsWrap');
+        const subtitle = document.getElementById('trendSubtitle');
+        const daysLbl = document.getElementById('trendDaysLabel');
+        const backBtn = document.getElementById('trendBack');
+        const drillControls = document.getElementById('trendDrillControls');
+        const trendToggle = document.getElementById('trendToggle');
+        let trendInitialized = false;
+
+        async function refresh() {
+            if (!window.Chart) return;
+            if (currentGroup === 'day') {
+                if (currentMonth) {
+                    // Drilled into a specific month
+                    subtitle.textContent = `(${currentMonth})`;
+                    await loadSeries('day', null, null, currentMonth);
+                    drillControls.classList.remove('hidden');
+                    document.getElementById('trendDrillLabel').textContent = `Viewing ${currentMonth}`;
+                } else {
+                    // Normal day view
+                    subtitle.innerHTML = `(last <span id="trendDaysLabel">${daysSel.value}</span> days)`;
+                    await loadSeries('day', daysSel.value);
+                    drillControls.classList.add('hidden');
+                }
+            } else {
+                // Month view
+                subtitle.textContent = `(last ${monthsSel.value} months)`;
+                await loadSeries('month', null, monthsSel.value);
+                drillControls.classList.add('hidden');
+                currentMonth = null;
+            }
+        }
+
+        grpSel?.addEventListener('change', async () => {
+            currentGroup = grpSel.value;
+            if (currentGroup === 'day') {
+                daysWrap.classList.remove('hidden');
+                monthsWrap.classList.add('hidden');
+            } else {
+                daysWrap.classList.add('hidden');
+                monthsWrap.classList.remove('hidden');
+            }
+            await refresh();
+        });
+        daysSel?.addEventListener('change', refresh);
+        monthsSel?.addEventListener('change', refresh);
+        backBtn?.addEventListener('click', async () => {
+            if (currentMonth) {
+                // Go back from drilled month view to normal day view
+                currentMonth = null;
+                await refresh();
+            }
+        });
+
+        // Toggle button to show modal and lazy init
+        trendToggle?.addEventListener('click', async () => {
+            showTrendModal();
+            if (!trendInitialized) {
+                currentGroup = grpSel.value;
+                await refresh();
+                trendInitialized = true;
+            }
+        });
+
+        // Keyboard shortcuts: Alt+T for Trend toggle, Alt+A opens dock and focuses vehicle selector
+        document.addEventListener('keydown', (e) => {
+            if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const k = (e.key || '').toLowerCase();
+            if (k === 't') {
+                e.preventDefault();
+                trendToggle?.click();
+            } else if (k === 'a') {
+                e.preventDefault();
+                // Open dock and focus the vehicle dropdown; populate if empty
+                const sel = document.getElementById('dockVehicleSelect');
+                if (sel && !sel.options.length) {
+                    const seen = new Set();
+                    document.querySelectorAll('tbody tr').forEach(row => {
+                        if (row.style.display === 'none') return;
+                        const label = row.querySelector('td:first-child span.font-bold');
+                        const vn = label ? label.textContent.trim() : null;
+                        if (vn && !seen.has(vn)) {
+                            const opt = document.createElement('option');
+                            opt.value = vn;
+                            opt.textContent = vn;
+                            sel.appendChild(opt);
+                            seen.add(vn);
+                        }
+                    });
+                }
+                const dp = document.getElementById('analyticsDockPanel');
+                if (dp) dp.classList.remove('hidden');
+                // focus selector for quick typing
+                setTimeout(() => { try { sel && sel.focus(); } catch(_) {} }, 0);
+            }
+        });
+    });
+})();
+</script>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voltrack - Login</title>
+    <link rel="icon" type="image/x-icon" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  </head>
+  <body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <!-- Mobile Header with logo and branding (visible only on mobile) -->
+    
+
+    <div class="flex w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden mt-16 lg:mt-0" style="min-height: 700px; max-height: 92vh;">
+      <div class="hidden lg:flex lg:w-3/5 relative rounded-l-2xl overflow-hidden">
+        <!-- Background Image -->
+        <img src="{% static 'dashboard/assets/images/login-bg-cover.jpg' %}" alt="Background Image" class="absolute inset-0 w-full h-full object-cover">
+
+        <!-- Transparent Black Overlay -->
+        <div class="absolute inset-0 bg-black bg-opacity-40"></div>
+
+        <!-- Centered Quote -->
+        <div class="absolute inset-0 flex items-center justify-center p-8">
+          <div class="text-center">
+            <p class="text-white text-xl font-light italic leading-relaxed mb-4">
+              "Powering the future, <br> With clean energy, one mile at a time."
+            </p>
+            <div class="w-16 h-px bg-white mx-auto opacity-60"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Section - Form -->
+      <div class="w-full lg:w-2/5 flex flex-col relative bg-white rounded-r-2xl lg:rounded-r-2xl overflow-y-auto">
+        <!-- Form Content Container -->
+        <div class="flex flex-col justify-start lg:justify-center min-h-full px-6 lg:px-8 py-6 max-w-sm mx-auto w-full">
+          <!-- Header Section -->
+          <div class="text-center mb-5">
+            <img src="https://transvolt.in/Images/Logo/black.svg" alt="Transvolt Logo" class="h-5 mb-1 w-auto mx-auto">
+            <h1 class="text-2xl font-bold text-gray-900 mx-auto tracking-tight mb-1">
+              Voltrack
+            </h1>
+            <p class="text-gray-500 text-sm">Sign in to your account</p>
+          </div>
+          <!-- Welcome Section -->
+          <!-- Display Login Messages -->
+          {% if messages %}
+          <div class="space-y-1 mb-2">
+            {% for message in messages %}
+            <div
+              class="{% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700{% elif message.tags == 'success' %}bg-green-50 border border-green-200 text-green-700{% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %} px-4 py-3 rounded-lg text-sm flex items-center"
+            >
+              {% if message.tags == 'error' %}
+                <i data-lucide="alert-circle" class="w-4 h-4 mr-2 flex-shrink-0"></i>
+              {% elif message.tags == 'success' %}
+                <i data-lucide="check-circle" class="w-4 h-4 mr-2 flex-shrink-0"></i>
+              {% else %}
+                <i data-lucide="info" class="w-4 h-4 mr-2 flex-shrink-0"></i>
+              {% endif %}
+              {{ message }}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+         
+
+          <!-- Microsoft Sign-in Button -->
+          <a href="{% url 'dashboard:ms_login' %}" class="w-full flex items-center justify-center bg-gray-100 border border-gray-200 py-2.5 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium text-gray-700 no-underline">
+            <img src="{% static 'dashboard/assets/images/microsoft-logo.png' %}" alt="Microsoft Logo" class="w-4 h-4 mr-2">
+            Sign in with Transvolt Account
+          </a>
+
+           <!-- Divider -->
+          <div class="flex items-center my-3">
+            <div class="flex-grow border-t border-gray-300"></div>
+            <span class="px-3 text-xs text-gray-500 bg-white">or</span>
+            <div class="flex-grow border-t border-gray-300"></div>
+          </div>
+
+          <!-- Collapsible Login Form Toggle Button -->
+          <button 
+            type="button"
+            id="toggleLoginForm"
+            class="w-full flex items-center justify-center bg-white border border-gray-300 py-2.5 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-sm font-medium text-gray-600"
+          >
+            <i data-lucide="chevron-down" id="chevronIcon" class="w-4 h-4 mr-2 transition-transform duration-200"></i>
+            <span>Sign in with Username & Password</span>
+          </button>
+
+          <!-- Collapsible Form Container -->
+          <div id="loginFormContainer" class="hidden mt-3 overflow-hidden transition-all duration-300">
+            {% include 'dashboard/auth/login_form.html' %}
+          </div>
+
+          
+      
+          <!-- Footer -->
+          <div class="mt-4 text-center space-y-2">
+            <p class="text-sm text-gray-500">
+              By continuing, you agree to our
+                <a href="{% url 'dashboard:tos' %}" class="text-blue-600 hover:underline">Terms of Service</a>
+                and
+                <a href="{% url 'dashboard:privacy' %}" class="text-blue-600 hover:underline">Privacy Policy</a>
+            </p>
+            
+            <p class="text-xs text-gray-400">
+              © 2025 Voltrack. All Rights Reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{% static 'dashboard/js/login.js' %}"></script>
+    <script>
+      // Initialize Lucide icons after page load
+      document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+      });
+    </script>
+  </body>
+</html>

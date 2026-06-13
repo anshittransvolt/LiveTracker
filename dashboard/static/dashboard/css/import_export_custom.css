@@ -1,0 +1,188 @@
+/* Import/Export Preview Fix - Override Jazzmin Dark Theme */
+
+/* Fix import/export preview table visibility */
+.import-preview table,
+.export-preview table,
+table.import-preview,
+table.export-preview {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* Fix table headers */
+.import-preview th,
+.export-preview th,
+table.import-preview th,
+table.export-preview th {
+    background-color: #f8f9fa !important;
+    color: #000000 !important;
+    border: 1px solid #dee2e6 !important;
+    padding: 8px !important;
+    font-weight: 600 !important;
+}
+
+/* Fix table cells */
+.import-preview td,
+.export-preview td,
+table.import-preview td,
+table.export-preview td {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #dee2e6 !important;
+    padding: 8px !important;
+}
+
+/* Fix alternating rows */
+.import-preview tr:nth-child(even) td,
+.export-preview tr:nth-child(even) td,
+table.import-preview tr:nth-child(even) td,
+table.export-preview tr:nth-child(even) td {
+    background-color: #f8f9fa !important;
+}
+
+/* Fix error rows */
+.import-preview tr.error td,
+.export-preview tr.error td,
+table.import-preview tr.error td,
+table.export-preview tr.error td {
+    background-color: #f8d7da !important;
+    color: #721c24 !important;
+}
+
+/* Fix success/new rows */
+.import-preview tr.success td,
+.import-preview tr.new td,
+.export-preview tr.success td,
+table.import-preview tr.success td,
+table.import-preview tr.new td {
+    background-color: #d4edda !important;
+    color: #155724 !important;
+}
+
+/* Fix update rows */
+.import-preview tr.update td,
+table.import-preview tr.update td {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+}
+
+/* Fix skip rows */
+.import-preview tr.skip td,
+table.import-preview tr.skip td {
+    background-color: #e2e3e5 !important;
+    color: #383d41 !important;
+}
+
+/* Fix field list display */
+.import-fields-list,
+.field-list {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    padding: 10px !important;
+    border: 1px solid #dee2e6 !important;
+    border-radius: 4px !important;
+}
+
+.import-fields-list ul,
+.field-list ul {
+    list-style-type: disc !important;
+    margin-left: 20px !important;
+    color: #000000 !important;
+}
+
+.import-fields-list li,
+.field-list li {
+    color: #000000 !important;
+    padding: 2px 0 !important;
+}
+
+/* Fix form elements in import/export */
+.import-export-form {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+.import-export-form label {
+    color: #000000 !important;
+    font-weight: 500 !important;
+}
+
+.import-export-form select,
+.import-export-form input[type="file"] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ced4da !important;
+}
+
+/* Fix result messages */
+.import-export-result {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    padding: 15px !important;
+    border-radius: 4px !important;
+    margin: 10px 0 !important;
+}
+
+.import-export-result.success {
+    background-color: #d4edda !important;
+    border: 1px solid #c3e6cb !important;
+    color: #155724 !important;
+}
+
+.import-export-result.error {
+    background-color: #f8d7da !important;
+    border: 1px solid #f5c6cb !important;
+    color: #721c24 !important;
+}
+
+/* Fix pagination in preview */
+.import-preview .pagination,
+.export-preview .pagination {
+    background-color: transparent !important;
+}
+
+.import-preview .pagination a,
+.export-preview .pagination a {
+    color: #007bff !important;
+    background-color: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+.import-preview .pagination a:hover,
+.export-preview .pagination a:hover {
+    background-color: #e9ecef !important;
+}
+
+/* Fix any remaining dark elements */
+.content-wrapper {
+    background-color: #ffffff !important;
+}
+
+.card,
+.box {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* Ensure all text is visible */
+body.import-page,
+body.export-page {
+    background-color: #f4f6f9 !important;
+    color: #000000 !important;
+}
+
+/* Fix buttons in import/export forms */
+.import-export-form button,
+.import-export-form input[type="submit"] {
+    background-color: #007bff !important;
+    color: #ffffff !important;
+    border: none !important;
+    padding: 8px 16px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+}
+
+.import-export-form button:hover,
+.import-export-form input[type="submit"]:hover {
+    background-color: #0056b3 !important;
+}

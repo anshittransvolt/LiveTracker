@@ -1,0 +1,297 @@
+{% extends 'dashboard/base/base.html' %}
+{% load static %}
+
+{% block title %}Action Log - {{ target_user.username }}{% endblock %}
+
+{% block breadcrumb_block %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <a href="{% url 'dashboard:active_users' %}" 
+                   class="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors md:ml-2">
+                    <i data-lucide="users" class="w-4 h-4 inline mr-1"></i>
+                    Active Users
+                </a>
+            </div>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+                    <i data-lucide="log" class="w-4 h-4 inline mr-1"></i>
+                    Action Log - {{ target_user.username }}
+                </span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<div class="space-y-4">
+
+    <!-- User Info Card -->
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm p-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                    {{ target_user.username|first|upper }}
+                </div>
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ target_user.get_full_name|default:target_user.username }}</h2>
+                    <p class="text-xs text-slate-600">@{{ target_user.username }}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-slate-600">Total Actions</p>
+                <p class="text-2xl font-bold text-blue-600">{{ total_logs }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+        <div class="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+            <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="filter" class="w-4 h-4"></i>
+                Filters
+            </h3>
+        </div>
+        
+        <form method="get" class="p-4">
+            <div class="flex flex-wrap items-end gap-3">
+                
+                <!-- Period Filter -->
+                <div>
+                    <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                        Time Period
+                    </label>
+                    <select name="period" 
+                            class="px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                        <option value="today" {% if period == 'today' %}selected{% endif %}>Today</option>
+                        <option value="yesterday" {% if period == 'yesterday' %}selected{% endif %}>Yesterday</option>
+                        <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
+                        <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
+                        <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
+                    </select>
+                </div>
+
+                <!-- Section Filter -->
+                <div>
+                    <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                        Section/Module
+                    </label>
+                    <select name="section"
+                            class="px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                        <option value="all">All Sections</option>
+                        {% for section in sections %}
+                            <option value="{{ section }}" {% if section_filter == section %}selected{% endif %}>
+                                {{ section }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Search Box with Buttons -->
+                <div class="flex items-end gap-2">
+                    <div class="w-64">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1.5">
+                            <i data-lucide="search" class="w-3 h-3 inline mr-1"></i>Search Action/Path
+                        </label>
+                        <input type="text" name="search" value="{{ search_query }}"
+                               placeholder="Search..."
+                               class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    
+                    <!-- Apply Button -->
+                    <button type="submit"
+                            class="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition">
+                        Apply
+                    </button>
+
+                    <!-- Reset Button -->
+                    {% if search_query or section_filter != 'all' or period != 'today' %}
+                    <a href="{% url 'dashboard:user_action_log' target_user.id %}"
+                       class="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-200 transition">
+                        Reset
+                    </a>
+                    {% endif %}
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="flex items-center justify-between px-1">
+        <div class="text-xs text-slate-600">
+            Showing <span class="font-semibold text-slate-900">{{ filtered_logs }}</span> of 
+            <span class="font-semibold text-slate-900">{{ total_logs }}</span> actions
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700 w-12">#</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Section</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Action</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Path</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Method</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Status</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-700">Timestamp</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                    {% for log in logs %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-3 py-2 text-slate-600 font-medium">{{ forloop.counter }}</td>
+                        
+                        <!-- Section -->
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {{ log.section|default:"—" }}
+                            </span>
+                        </td>
+
+                        <!-- Action -->
+                        <td class="px-3 py-2 text-slate-700 max-w-xs truncate" title="{{ log.action }}">
+                            {{ log.action|truncatewords:3 }}
+                        </td>
+
+                        <!-- Path -->
+                        <td class="px-3 py-2 text-slate-600 text-[11px] font-mono max-w-xs truncate" title="{{ log.path }}">
+                            {{ log.path|truncatewords:3 }}
+                        </td>
+
+                        <!-- Method -->
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+                                {% if log.method == 'GET' %}
+                                    bg-blue-50 text-blue-700 border border-blue-200
+                                {% elif log.method == 'POST' %}
+                                    bg-green-50 text-green-700 border border-green-200
+                                {% elif log.method == 'PUT' %}
+                                    bg-amber-50 text-amber-700 border border-amber-200
+                                {% elif log.method == 'DELETE' %}
+                                    bg-red-50 text-red-700 border border-red-200
+                                {% else %}
+                                    bg-slate-50 text-slate-700 border border-slate-200
+                                {% endif %}">
+                                {{ log.method|default:"—" }}
+                            </span>
+                        </td>
+
+                        <!-- Status Code -->
+                        <td class="px-3 py-2">
+                            {% if log.response_status %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+                                    {% if log.response_status >= 200 and log.response_status < 300 %}
+                                        bg-green-50 text-green-700 border border-green-200
+                                    {% elif log.response_status >= 300 and log.response_status < 400 %}
+                                        bg-blue-50 text-blue-700 border border-blue-200
+                                    {% elif log.response_status >= 400 and log.response_status < 500 %}
+                                        bg-amber-50 text-amber-700 border border-amber-200
+                                    {% else %}
+                                        bg-red-50 text-red-700 border border-red-200
+                                    {% endif %}">
+                                    {{ log.response_status }}
+                                </span>
+                            {% else %}
+                                <span class="text-slate-400 text-[11px]">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Timestamp -->
+                        <td class="px-3 py-2 text-slate-600 text-xs whitespace-nowrap" title="{{ log.created_at|date:'d M Y, H:i:s' }}">
+                            {{ log.created_at|date:"d M Y" }} {{ log.created_at|time:"H:i" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-3 py-8 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <i data-lucide="inbox" class="w-12 h-12 mb-2"></i>
+                                <p class="text-sm font-medium">No action logs found</p>
+                                <p class="text-xs mt-1">No actions match your filters</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if paginator.num_pages > 1 %}
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-600">
+                Page <span class="font-semibold">{{ logs.number }}</span> of 
+                <span class="font-semibold">{{ paginator.num_pages }}</span>
+                <span class="text-slate-400 mx-2">·</span>
+                <span class="font-semibold">{{ filtered_logs }}</span> total records
+            </div>
+            <div class="flex items-center gap-2">
+                {% if logs.has_previous %}
+                    <a href="?page=1&period={{ period }}&section={{ section_filter }}&search={{ search_query }}"
+                       class="px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                        First
+                    </a>
+                    <a href="?page={{ logs.previous_page_number }}&period={{ period }}&section={{ section_filter }}&search={{ search_query }}"
+                       class="px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                        <i data-lucide="chevron-left" class="w-3 h-3 inline"></i>
+                        Previous
+                    </a>
+                {% else %}
+                    <button disabled class="px-2 py-1 text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed">
+                        First
+                    </button>
+                    <button disabled class="px-2 py-1 text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed">
+                        <i data-lucide="chevron-left" class="w-3 h-3 inline"></i>
+                        Previous
+                    </button>
+                {% endif %}
+
+                {% if logs.has_next %}
+                    <a href="?page={{ logs.next_page_number }}&period={{ period }}&section={{ section_filter }}&search={{ search_query }}"
+                       class="px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                        Next
+                        <i data-lucide="chevron-right" class="w-3 h-3 inline"></i>
+                    </a>
+                    <a href="?page={{ paginator.num_pages }}&period={{ period }}&section={{ section_filter }}&search={{ search_query }}"
+                       class="px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                        Last
+                    </a>
+                {% else %}
+                    <button disabled class="px-2 py-1 text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed">
+                        Next
+                        <i data-lucide="chevron-right" class="w-3 h-3 inline"></i>
+                    </button>
+                    <button disabled class="px-2 py-1 text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed">
+                        Last
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

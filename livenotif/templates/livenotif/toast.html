@@ -1,0 +1,38 @@
+<div class="fixed bottom-4 right-4 space-y-4 z-[99999]" id="livetracker-toast-container">
+
+    {% for toast in toasts %}
+    <div
+        data-toast-id="{{ toast.id }}"
+        class="
+            lt-toast 
+            transform translate-x-10 opacity-0 transition-all duration-300
+            p-4 rounded-xl shadow-lg text-white w-80
+            {% if toast.severity == 'high' %} bg-red-600
+            {% elif toast.severity == 'medium' %} bg-amber-500 text-black
+            {% else %} bg-blue-500
+            {% endif %}
+        "
+    >
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-xl">ℹ️</span>
+            <h2 class="font-semibold text-lg">{{ toast.title }}</h2>
+        </div>
+
+        <p class="text-sm mb-4">{{ toast.message }}</p>
+
+        <div class="flex justify-end gap-2">
+            <button
+                class="lt-ignore px-3 py-1 rounded-md bg-gray-200 text-black text-sm hover:bg-gray-300"
+            >
+                Ignore
+            </button>
+
+            <button
+                class="lt-action px-3 py-1 rounded-md bg-black/30 text-white text-sm hover:bg-black/40"
+            >
+                Action
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>

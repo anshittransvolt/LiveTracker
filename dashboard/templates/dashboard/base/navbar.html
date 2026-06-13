@@ -1,0 +1,256 @@
+<!-- Navigation Bar -->
+<nav class="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+    <div class="flex items-center justify-between px-2 sm:px-4 py-3">
+        <!-- Left side - Menu toggle and Logo -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            <button id="sidebar-toggle"
+                class="lg:hidden p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <i data-lucide="menu" class="w-5 h-5 text-gray-600"></i>
+            </button>
+            <a href="{% url 'dashboard:dashboard' %}" class="flex items-center space-x-1 sm:space-x-2 hover:opacity-80 transition-opacity">
+                <img src="https://transvolt.in/Images/Logo/black.svg" alt="Transvolt Logo" class="h-3 sm:h-4">
+                <span class="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">Voltrack</span>
+            </a>
+        </div>
+
+        <!-- Right side - User menu -->
+        <div class="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
+            <!-- Project Dropdown -->
+            {% include "dashboard/base/project_dropdown.html" %}
+
+            <!-- Notifications -->
+            <div class="relative">
+                <button id="notifications-toggle" aria-expanded="false" aria-controls="notifications-drawer"
+                    class="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 relative">
+                    <i data-lucide="bell" class="w-5 h-5 text-gray-600"></i>
+                    <span id="notifications-badge"
+                        class="hidden absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+
+                <!-- Notification Drawer -->
+                <div id="notifications-drawer"
+                    class="hidden origin-top-right transform transition-all duration-150 ease-out absolute right-0 mt-2 w-80 sm:w-96 max-h-96 overflow-auto bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                        <h4 class="text-sm font-medium text-gray-900">Notifications</h4>
+                        <button id="notifications-close" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <ul id="notifications-list" class="divide-y divide-gray-200">
+                        {% comment %} Replace `notifications` with your context variable or load via AJAX {% endcomment%}
+                        {% if notifications %}
+                        {% for n in notifications %}
+                        <li class="px-4 py-3 hover:bg-gray-50">
+                            <a href="{{ n.link|default:'#' }}" class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-0.5">
+                                    <span
+                                        class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">{{
+                                        n.title|slice:':1'|upper }}</span>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-900">{{ n.title }}</p>
+                                    <p class="text-xs text-gray-600">{{ n.message }}</p>
+                                    <p class="text-xs text-gray-400 mt-1">{{ n.timestamp|default:'' }}</p>
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                        {% else %}
+                        <li class="px-4 py-6 text-center text-sm text-gray-500">No notifications</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- User Profile -->
+            <div class="relative">
+                <button id="user-menu-toggle"
+                    class="flex items-center space-x-1 sm:space-x-2 p-2 rounded-md hover:bg-gray-100 ">
+                    <div
+                        class="w-7 h-7 sm:w-8 sm:h-8 bg-gray-200 rounded-full flex items-center justify-center text-black font-semibold text-xs sm:text-sm">
+                        {{ user.first_name|first|default:user.username|first|upper }}
+                    </div>
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-gray-600 hidden sm:block"></i>
+                </button>
+
+                <!-- User Dropdown -->
+                <div id="user-dropdown"
+                    class="hidden absolute right-0 mt-2 w-40 sm:w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+
+                    <a href="{% url 'dashboard:profile' %}"
+                        class="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100">
+                        <i data-lucide="user" class="w-3 h-3 sm:w-4 sm:h-4 mr-2"></i>
+                        Profile
+                    </a>
+                    {% if user.is_staff %}
+                    <a href="/admin/"
+                        class="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100">
+                        <i data-lucide="shield" class="w-3 h-3 sm:w-4 sm:h-4 mr-2"></i>
+                        Admin
+                    </a>
+                    {% endif %}
+                    <hr class="my-1">
+                    <a href="{% url 'dashboard:logout' %}"
+                        class="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50">
+                        <i data-lucide="log-out" class="w-3 h-3 sm:w-4 sm:h-4 mr-2"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+<script>
+    // Notifications drawer toggle and AJAX loading
+    ; (function () {
+        const toggle = document.getElementById('notifications-toggle');
+        const drawer = document.getElementById('notifications-drawer');
+        const closeBtn = document.getElementById('notifications-close');
+        const notificationsList = document.getElementById('notifications-list');
+        const badge = document.getElementById('notifications-badge');
+
+        let notificationsLoaded = false;
+
+        if (!toggle || !drawer) return;
+
+        function openDrawer() {
+            drawer.classList.remove('hidden');
+            drawer.classList.add('block');
+            toggle.setAttribute('aria-expanded', 'true');
+
+            // Load notifications on first open
+            if (!notificationsLoaded) {
+                loadNotifications();
+            }
+        }
+
+        function closeDrawer() {
+            drawer.classList.remove('block');
+            drawer.classList.add('hidden');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+
+        function loadNotifications() {
+            // Show loading state
+            notificationsList.innerHTML = '<li class="px-4 py-6 text-center text-sm text-gray-500"><i data-lucide="loader-2" class="w-5 h-5 mx-auto animate-spin"></i></li>';
+            lucide.createIcons();
+
+            fetch('{% url "dashboard:api_notifications" %}')
+                .then(response => response.json())
+                .then(data => {
+                    notificationsLoaded = true;
+                    renderNotifications(data.notifications);
+                    updateBadge(data.unread_count);
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    notificationsList.innerHTML = '<li class="px-4 py-6 text-center text-sm text-red-500">Failed to load notifications</li>';
+                });
+        }
+
+        function renderNotifications(notifications) {
+            if (notifications.length === 0) {
+                notificationsList.innerHTML = '<li class="px-4 py-6 text-center text-sm text-gray-500">No notifications</li>';
+                return;
+            }
+
+            notificationsList.innerHTML = notifications.map(n => {
+                const typeColors = {
+                    'info': 'bg-blue-100 text-blue-700',
+                    'success': 'bg-green-100 text-green-700',
+                    'warning': 'bg-yellow-100 text-yellow-700',
+                    'error': 'bg-red-100 text-red-700'
+                };
+                const colorClass = typeColors[n.type] || 'bg-blue-100 text-blue-700';
+                const readClass = n.is_read ? 'opacity-60' : '';
+
+                return `
+                <li class="px-4 py-3 hover:bg-gray-50 ${readClass}" data-notification-id="${n.id}">
+                    <a href="${n.link}" class="flex items-start space-x-3">
+                        <div class="flex-shrink-0 mt-0.5">
+                            <span class="inline-flex items-center justify-center h-8 w-8 rounded-full ${colorClass} text-xs font-semibold">
+                                ${n.title.charAt(0).toUpperCase()}
+                            </span>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900">${n.title}</p>
+                            <p class="text-xs text-gray-600">${n.message}</p>
+                            <p class="text-xs text-gray-400 mt-1">${n.timestamp}</p>
+                        </div>
+                        ${!n.is_read ? '<span class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"></span>' : ''}
+                    </a>
+                </li>
+            `;
+            }).join('');
+        }
+
+        function updateBadge(count) {
+            if (count > 0) {
+                badge.classList.remove('hidden');
+                badge.textContent = count > 9 ? '9+' : count;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        toggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (drawer.classList.contains('hidden')) openDrawer(); else closeDrawer();
+        });
+
+        if (closeBtn) closeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            closeDrawer();
+        });
+
+        // close on click outside
+        document.addEventListener('click', function (ev) {
+            if (!drawer.classList.contains('hidden')) {
+                if (!drawer.contains(ev.target) && !toggle.contains(ev.target)) {
+                    closeDrawer();
+                }
+            }
+        });
+
+        // close on ESC
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape') closeDrawer();
+        });
+
+        // Mark notification as read on click
+        notificationsList.addEventListener('click', function (e) {
+            const li = e.target.closest('li[data-notification-id]');
+            if (li) {
+                const notifId = li.dataset.notificationId;
+                fetch(`/dashboard/api/notifications/${notifId}/read/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                }).then(() => {
+                    li.classList.add('opacity-60');
+                    // Reload to update badge count
+                    notificationsLoaded = false;
+                    loadNotifications();
+                });
+            }
+        });
+
+        // Helper to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    })();
+</script>

@@ -1,0 +1,375 @@
+<div id="feedbackSidebar" class="fixed top-0 right-0 h-full w-full md:w-[380px] bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-out z-[100001] overflow-y-auto"
+       style="z-index: 100001 !important;">
+    <!-- Header -->
+    <div class="sticky top-0 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200 px-6 py-4 z-10">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+            <i data-lucide="message-circle" class="w-5 h-5 text-purple-600"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-800">Submit Feedback</h3>
+            <p class="text-xs text-slate-600">Help us improve Voltrack</p>
+          </div>
+        </div>
+        <button onclick="closeFeedbackSidebar()" class="p-2 hover:bg-purple-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="p-5">
+      <form id="feedbackForm" class="space-y-4">
+        <!-- Feedback Type Selection -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            Feedback Type *
+          </label>
+          <div class="flex gap-2">
+            <label class="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 border-2 border-slate-300 rounded-lg hover:border-red-400 hover:bg-red-50 cursor-pointer transition-all has-[:checked]:border-red-500 has-[:checked]:bg-red-50">
+              <input type="radio" name="feedback_type" value="bug" id="feedbackTypeBug" class="w-3.5 h-3.5 text-red-600 focus:ring-red-500" required checked onchange="selectFeedbackType('bug')" />
+              <span class="text-xs font-medium text-slate-700">Bug</span>
+            </label>
+            <label class="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 border-2 border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+              <input type="radio" name="feedback_type" value="feature" id="feedbackTypeFeature" class="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500" required onchange="selectFeedbackType('feature')" />
+              <span class="text-xs font-medium text-slate-700">Feature</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            Title *
+          </label>
+          <input type="text" id="feedbackTitle" name="title" required
+                 placeholder="Brief summary of the issue or feature"
+                 class="w-full px-3 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm" />
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            Description *
+          </label>
+          <textarea id="feedbackDescription" name="description" required rows="5"
+                    placeholder="Provide detailed information... What happened? What did you expect? Steps to reproduce?"
+                    class="w-full px-3 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all resize-none text-sm"></textarea>
+        </div>
+
+        <!-- Screenshot Upload (Optional) -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            Screenshot (Optional)
+          </label>
+          <div id="screenshotDropArea" class="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center hover:border-purple-400 transition-all">
+            <input type="file" id="feedbackScreenshot" name="screenshot" accept="image/*"
+                   class="hidden" onchange="handleScreenshotUpload(event)" />
+            <button type="button" onclick="document.getElementById('feedbackScreenshot').click()"
+                    class="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors">
+              <i data-lucide="upload" class="w-4 h-4"></i>
+              <span class="text-xs font-medium">Upload or Press Ctrl+V</span>
+            </button>
+            <div id="screenshotPreview" class="hidden mt-2">
+              <img id="screenshotImage" class="max-w-full h-auto rounded-lg border border-slate-200" />
+              <button type="button" onclick="removeScreenshot()"
+                      class="mt-2 text-xs text-red-600 hover:text-red-700 font-medium">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden fields for auto-captured context info -->
+        <input type="hidden" id="capturedPageUrl" />
+        <input type="hidden" id="capturedBrowser" />
+        <input type="hidden" id="capturedOS" />
+        <input type="hidden" id="capturedDevice" />
+
+        <!-- Success/Error Messages -->
+        <div id="feedbackSuccess" class="hidden p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div class="flex items-center gap-2 text-green-700">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span class="text-xs font-medium">Feedback submitted successfully! Thank you for helping us improve.</span>
+          </div>
+        </div>
+
+        <div id="feedbackError" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div class="flex items-center gap-2 text-red-700">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span class="text-xs font-medium" id="feedbackErrorText">An error occurred. Please try again.</span>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="feedbackSubmitBtn"
+                class="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-xs rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2">
+          <i data-lucide="send" class="w-3.5 h-3.5"></i>
+          <span>Submit Feedback</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Feedback Sidebar Overlay -->
+  <div id="feedbackOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100000]" 
+       onclick="closeFeedbackSidebar()" style="z-index: 100000 !important;"></div>
+
+  <script>
+    // Feedback Sidebar Functions - Initialize variables at script scope
+    let selectedFeedbackType = 'bug';
+    let capturedScreenshot = null;
+
+    function openFeedbackSidebar() {
+      const sidebar = document.getElementById('feedbackSidebar');
+      const overlay = document.getElementById('feedbackOverlay');
+      
+      if (sidebar && overlay) {
+        overlay.classList.remove('hidden');
+        setTimeout(() => {
+          sidebar.classList.remove('translate-x-full');
+        }, 10);
+        
+        // Capture context information
+        captureContextInfo();
+        
+        // Enable paste event listener
+        document.addEventListener('paste', handlePasteScreenshot);
+        
+        lucide.createIcons();
+      }
+    }
+
+    function closeFeedbackSidebar() {
+      const sidebar = document.getElementById('feedbackSidebar');
+      const overlay = document.getElementById('feedbackOverlay');
+      
+      if (sidebar && overlay) {
+        sidebar.classList.add('translate-x-full');
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          resetFeedbackForm();
+        }, 300);
+        
+        // Remove paste event listener
+        document.removeEventListener('paste', handlePasteScreenshot);
+      }
+    }
+
+    function selectFeedbackType(type) {
+      selectedFeedbackType = type;
+      lucide.createIcons();
+    }
+
+    function handleScreenshotUpload(event) {
+      const file = event.target.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          capturedScreenshot = e.target.result;
+          document.getElementById('screenshotImage').src = e.target.result;
+          document.getElementById('screenshotPreview').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function handlePasteScreenshot(event) {
+      // Check if feedback sidebar is open
+      const sidebar = document.getElementById('feedbackSidebar');
+      if (sidebar.classList.contains('translate-x-full')) return;
+      
+      const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          event.preventDefault();
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            capturedScreenshot = e.target.result;
+            document.getElementById('screenshotImage').src = e.target.result;
+            document.getElementById('screenshotPreview').classList.remove('hidden');
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    }
+
+    function removeScreenshot() {
+      capturedScreenshot = null;
+      document.getElementById('feedbackScreenshot').value = '';
+      document.getElementById('screenshotPreview').classList.add('hidden');
+    }
+
+    function captureContextInfo() {
+      // Capture page URL
+      document.getElementById('capturedPageUrl').value = window.location.href;
+      
+      // Capture browser info
+      const ua = navigator.userAgent;
+      let browserName = 'Unknown';
+      if (ua.indexOf('Firefox') > -1) browserName = 'Firefox';
+      else if (ua.indexOf('Chrome') > -1) browserName = 'Chrome';
+      else if (ua.indexOf('Safari') > -1) browserName = 'Safari';
+      else if (ua.indexOf('Edge') > -1) browserName = 'Edge';
+      document.getElementById('capturedBrowser').value = browserName;
+      
+      // Capture OS
+      let osName = 'Unknown';
+      if (ua.indexOf('Win') > -1) osName = 'Windows';
+      else if (ua.indexOf('Mac') > -1) osName = 'macOS';
+      else if (ua.indexOf('Linux') > -1) osName = 'Linux';
+      else if (ua.indexOf('Android') > -1) osName = 'Android';
+      else if (ua.indexOf('iOS') > -1) osName = 'iOS';
+      document.getElementById('capturedOS').value = osName;
+      
+      // Capture device type
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+      const isTablet = /iPad|Android/i.test(ua) && !/Mobile/i.test(ua);
+      let deviceType = 'Desktop';
+      if (isTablet) deviceType = 'Tablet';
+      else if (isMobile) deviceType = 'Mobile';
+      document.getElementById('capturedDevice').value = deviceType;
+    }
+
+    function resetFeedbackForm() {
+      selectedFeedbackType = 'bug';
+      capturedScreenshot = null;
+      document.getElementById('feedbackForm').reset();
+      document.getElementById('feedbackSuccess').classList.add('hidden');
+      document.getElementById('feedbackError').classList.add('hidden');
+      removeScreenshot();
+    }
+
+    // Form submission
+    document.getElementById('feedbackForm')?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('feedbackSubmitBtn');
+      const successDiv = document.getElementById('feedbackSuccess');
+      const errorDiv = document.getElementById('feedbackError');
+      const errorText = document.getElementById('feedbackErrorText');
+      
+      // Hide messages
+      successDiv.classList.add('hidden');
+      errorDiv.classList.add('hidden');
+      
+      // Validation
+      if (!selectedFeedbackType) {
+        errorText.textContent = 'Please select a feedback type';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+      
+      const title = document.getElementById('feedbackTitle').value.trim();
+      const description = document.getElementById('feedbackDescription').value.trim();
+      
+      if (!title || !description) {
+        errorText.textContent = 'Please fill in all required fields';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+      
+      // Disable button and show loading
+      const originalHTML = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>Submitting...</span>';
+      lucide.createIcons();
+      
+      try {
+        // Check if screenshot is available
+        const screenshotInput = document.getElementById('feedbackScreenshot');
+        const hasScreenshot = screenshotInput.files.length > 0 || capturedScreenshot;
+        
+        let response;
+        if (hasScreenshot) {
+          // Use FormData for file upload
+          const formData = new FormData();
+          formData.append('feedback_type', selectedFeedbackType);
+          formData.append('title', title);
+          formData.append('description', description);
+          formData.append('page_url', document.getElementById('capturedPageUrl').value);
+          formData.append('browser', document.getElementById('capturedBrowser').value);
+          formData.append('os', document.getElementById('capturedOS').value);
+          formData.append('device', document.getElementById('capturedDevice').value);
+          
+          // Handle screenshot from file input or pasted image
+          if (screenshotInput.files.length > 0) {
+            formData.append('screenshot', screenshotInput.files[0]);
+          } else if (capturedScreenshot) {
+            // Convert base64 data URL to blob
+            const base64Data = capturedScreenshot.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteArray = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteArray[i] = byteCharacters.charCodeAt(i);
+            }
+            const blob = new Blob([byteArray], { type: 'image/png' });
+            formData.append('screenshot', blob, 'pasted-screenshot.png');
+          }
+          
+          response = await fetch('/livetracker/api/feedback/submit/', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+          });
+        } else {
+          // Use JSON for submissions without screenshot
+          response = await fetch('/livetracker/api/feedback/submit/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+              feedback_type: selectedFeedbackType,
+              title: title,
+              description: description,
+              page_url: document.getElementById('capturedPageUrl').value,
+              browser: document.getElementById('capturedBrowser').value,
+              os: document.getElementById('capturedOS').value,
+              device: document.getElementById('capturedDevice').value
+            })
+          });
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          successDiv.classList.remove('hidden');
+          lucide.createIcons();
+          
+          // Close sidebar after 2 seconds
+          setTimeout(() => {
+            closeFeedbackSidebar();
+          }, 2000);
+        } else {
+          errorText.textContent = data.error || 'Failed to submit feedback';
+          errorDiv.classList.remove('hidden');
+          lucide.createIcons();
+        }
+      } catch (error) {
+        console.error('Error submitting feedback:', error);
+        errorText.textContent = error.message || 'An error occurred. Please try again.';
+        errorDiv.classList.remove('hidden');
+        lucide.createIcons();
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHTML;
+        lucide.createIcons();
+      }
+    });
+
+    // Close on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeFeedbackSidebar();
+      }
+    });
+  </script>

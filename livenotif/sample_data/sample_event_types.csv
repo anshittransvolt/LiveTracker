@@ -1,0 +1,11 @@
+event_id,event_name,event_description,severity,icon
+EVT-101,Critical System Alert,System error detected! Immediate action required.,high,🚨
+EVT-102,Session Warning,Your session will expire in 5 minutes. Please save your work.,medium,⚠️
+EVT-103,Vehicle Registration,New vehicle has been successfully added to the system.,normal,ℹ️
+EVT-201,Engine Overheat,Vehicle engine temperature exceeded safe limits.,high,🔥
+EVT-202,Battery Low,Vehicle battery level below 20%.,medium,🔋
+EVT-203,Oil Change Due,Regular oil change maintenance required.,medium,🛢️
+EVT-204,Tire Pressure Low,One or more tires have low pressure.,medium,🛞
+EVT-205,Scheduled Maintenance,Scheduled maintenance reminder.,normal,🔧
+EVT-206,GPS Signal Lost,Vehicle GPS signal temporarily unavailable.,normal,📡
+EVT-207,Document Expiry,Vehicle documents expiring soon.,medium,📄

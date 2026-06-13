@@ -1,0 +1,66 @@
+{
+  "gate_in_manawar": {
+    "template": " {vehicle_no} — Gate In (Manawar) at {geofence}",
+    "priority": "medium"
+  },
+  "gate_out_manawar": {
+    "template": " {vehicle_no} — Gate Out (Manawar) at {geofence}",
+    "priority": "medium"
+  },
+  "arrival_dabhashi": {
+    "template": " {vehicle_no} — Arrived at Dabhashi",
+    "priority": "low"
+  },
+  "arrival_dharampuri": {
+    "template": " {vehicle_no} — Arrived at Dharampuri",
+    "priority": "low"
+  },
+  "charging_overrun": {
+    "template": " {vehicle_no} — Charging at {geofence} > 90 min (entered {entered_time})",
+    "priority": "high"
+  },
+  "charging_full_stuck": {
+    "template": " {vehicle_no} — SOC=100% for >5 min at {geofence}",
+    "priority": "high"
+  },
+  "tare_weight_overrun": {
+    "template": " {vehicle_no} — Tare weight dwell in Weighing Area > {minutes} min",
+    "priority": "medium"
+  },
+  "gross_weight_overrun": {
+    "template": " {vehicle_no} — Gross weight dwell in Weighing Area > {minutes} min",
+    "priority": "medium"
+  },
+  "loading_overrun": {
+    "template": " {vehicle_no} — Loading dwell in Loading Area > {minutes} min",
+    "priority": "medium"
+  },
+  "tarpaulin_overrun": {
+    "template": " {vehicle_no} — Tarpaulin dwell in Tarpulien > {minutes} min",
+    "priority": "medium"
+  },
+  "maha_border_dwell": {
+    "template": " {vehicle_no} — Maha Border dwell > {minutes} min",
+    "priority": "medium"
+  },
+  "unloading_overrun": {
+    "template": " {vehicle_no} — Unloading dwell at Dhule > {minutes} min",
+    "priority": "medium"
+  },
+  "transit_breach_manawar_jhulwania": {
+    "template": " {vehicle_no} — Transit Manawar→Jhulwania expected {expected}m±{tolerance}m actual {actual}m",
+    "priority": "high"
+  },
+  "transit_breach_jhulwania_dhule": {
+    "template": " {vehicle_no} — Transit Jhulwania→Dhule expected {expected}m±{tolerance}m actual {actual}m",
+    "priority": "high"
+  },
+  "unplanned_stop_outside_geofence": {
+    "template": " {vehicle_no} — Unplanned stop outside geofence > {minutes} min at {lat},{lon}",
+    "priority": "high"
+  },
+  "data_feed_gap": {
+    "template": "{vehicle_no} — Data feed gap. Last connected at {last_connected}",
+    "priority": "high"
+  }
+}

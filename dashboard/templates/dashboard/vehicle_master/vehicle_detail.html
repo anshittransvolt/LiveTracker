@@ -1,0 +1,331 @@
+{% extends 'dashboard/base/base.html' %}
+{% load static %}
+
+{% block title %}{{ vehicle.registration_number }} - Vehicle Details{% endblock %}
+
+{% block breadcrumb_block %}
+<nav class="mb-6" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <a href="{% url 'dashboard:vehicle_list' %}" 
+                   class="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2 transition-colors">
+                    <i data-lucide="truck" class="w-4 h-4 inline mr-1"></i>
+                    Vehicle Master
+                </a>
+            </div>
+        </li>
+        <li aria-current="page">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">{{ vehicle.registration_number }}</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ vehicle.registration_number }}</h1>
+            <p class="text-sm text-gray-600">Complete vehicle information and specifications</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="exportVehicleCSV()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>
+                Export
+            </button>
+            <a href="/admin/dashboard/vehicle/{{ vehicle.pk }}/change/" target="_blank" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+                Edit
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column - Main Info -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Vehicle Images -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Vehicle Images</h2>
+                </div>
+                <div class="p-6">
+                    {% if images %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for image in images %}
+                            <div class="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                                <img src="{{ image.image.url }}" alt="Vehicle Image" class="w-full h-full object-cover">
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="flex flex-col items-center justify-center py-12 text-center">
+                            <div class="bg-gray-100 rounded-full p-4 mb-3">
+                                <i data-lucide="image-off" class="w-8 h-8 text-gray-400"></i>
+                            </div>
+                            <p class="text-sm text-gray-500">No images available</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Specifications -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Technical Specifications</h2>
+                </div>
+                <div class="p-6">
+                    {% if spec_sections or flat_specs %}
+                        {% if spec_sections %}
+                        <div class="space-y-4 mb-6">
+                            {% for section in spec_sections %}
+                            <div class="rounded-lg border border-gray-200 overflow-hidden">
+                                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                                    <h3 class="text-sm font-semibold text-gray-900">{{ section.title }}</h3>
+                                </div>
+                                <div class="p-4">
+                                    <dl class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {% for item in section.items %}
+                                        <div class="border-b border-gray-100 pb-2">
+                                            <dt class="text-xs font-medium text-gray-500 uppercase mb-1">{{ item.label }}</dt>
+                                            <dd class="text-sm font-semibold text-gray-900">{{ item.value }}</dd>
+                                        </div>
+                                        {% endfor %}
+                                    </dl>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if flat_specs %}
+                        <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for spec in flat_specs %}
+                            <div class="border-b border-gray-100 pb-3">
+                                <dt class="text-xs font-medium text-gray-500 uppercase mb-1">{{ spec.key }}</dt>
+                                <dd class="text-sm font-semibold text-gray-900">{{ spec.value }}</dd>
+                            </div>
+                            {% endfor %}
+                        </dl>
+                        {% endif %}
+                    {% else %}
+                        <div class="flex flex-col items-center justify-center py-8 text-center">
+                            <div class="bg-gray-100 rounded-full p-3 mb-2">
+                                <i data-lucide="file-text" class="w-6 h-6 text-gray-400"></i>
+                            </div>
+                            <p class="text-sm text-gray-500">No specifications available</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Battery Information -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Battery Information</h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-2">Battery Type</label>
+                            <div class="flex items-center">
+                                <div class="bg-yellow-50 rounded-lg p-2 mr-3">
+                                    <i data-lucide="battery" class="w-5 h-5 text-yellow-600"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-900">{{ vehicle.battery_type|default:"Not specified" }}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-2">Battery Capacity</label>
+                            <div class="flex items-center">
+                                <div class="bg-green-50 rounded-lg p-2 mr-3">
+                                    <i data-lucide="zap" class="w-5 h-5 text-green-600"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-900">{{ vehicle.battery_capacity|default:"Not specified" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Details & Vendor -->
+        <div class="space-y-6">
+            <!-- Vehicle Details -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Vehicle Details</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Registration Number</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.registration_number }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Model Number</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.model.model_number|default:"--" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Vehicle Type</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.vehicle_type|default:"--" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Vehicle Category</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.vehicle_category|default:"--" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Depot</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.depot|default:"--" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Length</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.length|default:"--" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Last Updated</label>
+                        <p class="text-sm text-gray-600">{{ vehicle.updated_date|date:"M d, Y H:i" }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendor Information -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Vendor Information</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    {% if vehicle.model and vehicle.model.vendor %}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Vendor Name</label>
+                        <p class="text-sm font-semibold text-gray-900">{{ vehicle.model.vendor.vendor_name }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Support Email</label>
+                        <a href="mailto:{{ vehicle.model.vendor.vendor_support_email }}" class="text-sm text-blue-600 hover:text-blue-800">
+                            {{ vehicle.model.vendor.vendor_support_email }}
+                        </a>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Contact Email</label>
+                        <a href="mailto:{{ vehicle.model.vendor.transvolt_contact_email }}" class="text-sm text-blue-600 hover:text-blue-800">
+                            {{ vehicle.model.vendor.transvolt_contact_email }}
+                        </a>
+                    </div>
+                    {% if vehicle.model.vendor.vendor_support_site %}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Support Site</label>
+                        <a href="{{ vehicle.model.vendor.vendor_support_site }}" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center">
+                            Visit site
+                            <i data-lucide="external-link" class="w-3 h-3 ml-1"></i>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-sm text-gray-500">No vendor information available</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <!-- <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 shadow-sm">
+                <div class="p-6">
+                    <h3 class="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                    <div class="space-y-2">
+                        <button class="w-full flex items-center px-4 py-2 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="activity" class="w-4 h-4 mr-2 text-blue-600"></i>
+                            View Battery Health
+                        </button>
+                        <button class="w-full flex items-center px-4 py-2 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="map" class="w-4 h-4 mr-2 text-green-600"></i>
+                            Track Location
+                        </button>
+                        <button class="w-full flex items-center px-4 py-2 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="file-text" class="w-4 h-4 mr-2 text-purple-600"></i>
+                            Generate Report
+                        </button>
+                    </div>
+                </div>
+            </div> -->
+        </div>
+    </div>
+</div>
+
+{{ csv_specs|json_script:"csv-specs-data" }}
+
+<script>
+function exportVehicleCSV() {
+    // Prepare headers and data
+    const headers = [
+        'Registration Number',
+        'Model Number',
+        'Vehicle Type',
+        'Vehicle Category',
+        'Depot',
+        'Length (m)',
+        'Battery Type',
+        'Battery Capacity',
+        'Vendor Name',
+        'Vendor Support Email',
+        'Last Updated'
+    ];
+    
+    const data = [
+        '{{ vehicle.registration_number }}',
+        '{{ vehicle.model.model_number|default:"--" }}',
+        '{{ vehicle.vehicle_type|default:"--" }}',
+        '{{ vehicle.vehicle_category|default:"--" }}',
+        '{{ vehicle.depot|default:"--" }}',
+        '{{ vehicle.length|default:"--" }}',
+        '{{ vehicle.battery_type|default:"--" }}',
+        '{{ vehicle.battery_capacity|default:"--" }}',
+        '{{ vehicle.model.vendor.vendor_name|default:"--" }}',
+        '{{ vehicle.model.vendor.vendor_support_email|default:"--" }}',
+        '{{ vehicle.updated_date|date:"Y-m-d H:i:s" }}'
+    ];
+    
+    // Add specifications to headers and data
+    const csvSpecsDataElement = document.getElementById('csv-specs-data');
+    const csvSpecs = csvSpecsDataElement ? JSON.parse(csvSpecsDataElement.textContent) : [];
+    csvSpecs.forEach(spec => {
+        headers.push(spec.key || '');
+        data.push(spec.value || '');
+    });
+    
+    // Convert to CSV format
+    const formatRow = (row) => {
+        return row.map(cell => {
+            const cellStr = String(cell);
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                return '"' + cellStr.replace(/"/g, '""') + '"';
+            }
+            return cellStr;
+        }).join(',');
+    };
+    
+    const csvContent = formatRow(headers) + '\n' + formatRow(data);
+    
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'vehicle_{{ vehicle.registration_number }}_details.csv');
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+{% endblock %}

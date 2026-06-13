@@ -1,0 +1,4 @@
+event_id,event_name,event_description,severity,icon
+EVT-TEST-01,Test High Severity,This is a test high severity event,high,🚨
+EVT-TEST-02,Test Medium Severity,This is a test medium severity event,medium,⚠️
+EVT-TEST-03,Test Normal Severity,This is a test normal severity event,normal,ℹ️

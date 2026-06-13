@@ -1,0 +1,492 @@
+{% extends 'dashboard/base/base.html' %}
+{% load static %}
+
+{% block title %}Active Vehicles Report - Voltrack{% endblock %}
+
+{% block breadcrumb_block %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-700 md:ml-2">
+                    <i data-lucide="file-chart-column-increasing" class="w-4 h-4 inline mr-1"></i>
+                    Reports
+                </span>
+            </div>
+        </li>
+        <li class="inline-flex items-center">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+                    <i data-lucide="truck" class="w-4 h-4 inline mr-1"></i>
+                    Active Vehicles
+                </span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 shadow-xl flex flex-col items-center gap-2">
+        
+        <!-- Lucide Loader Icon -->
+        <i data-lucide="loader-circle" class="w-6 h-6 text-slate-700 animate-spin"></i>
+
+        <p class="text-sm font-medium text-slate-700">Loading data...</p>
+        <p class="text-xs text-slate-500">Please wait</p>
+    </div>
+</div>
+
+<div class="space-y-4">
+
+    <!-- Filters Section -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+        <div class="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i>
+                    <h2 class="text-sm font-semibold text-slate-800">Active Vehicles Report</h2>
+                    <span class="text-xs text-slate-500">·</span>
+                    <span class="text-xs text-slate-600"><span class="font-semibold text-slate-900" id="total-count">{{ vehicles|length }}</span> Total</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="export-csv-btn" 
+                            class="p-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-all relative" title="Export to CSV">
+                        <i data-lucide="download" class="w-4 h-4" id="export-icon"></i>
+                        <div id="export-spinner" class="hidden absolute inset-0 flex items-center justify-center">
+                            <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-3">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                
+                <!-- Date Selector -->
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">
+                        <i data-lucide="calendar" class="w-3 h-3 inline mr-0.5"></i>Date
+                    </label>
+                    <input type="date" 
+                           id="date-filter" 
+                           value="{{ selected_date|date:'Y-m-d' }}"
+                           class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all">
+                </div>
+
+                <!-- Route Filter -->
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">
+                        <i data-lucide="route" class="w-3 h-3 inline mr-0.5"></i>Route
+                    </label>
+                    <select id="route-filter" 
+                            class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all">
+                        <option value="all">All Routes</option>
+                        <option value="DHAR_TO_DHULE">Dhar to Dhule</option>
+                        <option value="DHULE_TO_DHAR">Dhule to Dhar</option>
+                    </select>
+                </div>
+
+                <!-- Search Box -->
+                <div class="md:col-span-7">
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">
+                        <i data-lucide="search" class="w-3 h-3 inline mr-0.5"></i>Search
+                    </label>
+                    <input type="text" 
+                           id="search-box" 
+                           placeholder="Search by vehicle number, driver name..." 
+                           class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all">
+                </div>
+
+                <!-- Reset Button -->
+                <div class="md:col-span-1">
+                    <button id="reset-filters-btn" 
+                            class="px-2.5 py-1 text-xs bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-all font-medium whitespace-nowrap">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3 inline"></i>
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div class="flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
+            <span class="text-xs text-blue-800">
+                Showing <strong id="visible-count">{{ vehicles|length }}</strong> active vehicles out of <strong>{{ total_count }}</strong> total
+            </span>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200" id="vehicles-table">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 w-12">#</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="1">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="truck" class="w-3.5 h-3.5 mr-1"></i>Vehicle Number
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="2">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="activity" class="w-3.5 h-3.5 mr-1"></i>Status
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="3">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 mr-1"></i>Last Connected
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="4">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="user" class="w-3.5 h-3.5 mr-1"></i>Assigned Driver
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="5">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="route" class="w-3.5 h-3.5 mr-1"></i>Route
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors sortable" data-column="6">
+                            <div class="flex items-center gap-1">
+                                <i data-lucide="gauge" class="w-3.5 h-3.5 mr-1"></i>Daily KM
+                                <i data-lucide="chevrons-up-down" class="w-3 h-3 text-slate-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-700">
+                            <i data-lucide="map-pin" class="w-3.5 h-3.5 inline mr-1"></i>GPS Location
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-100" id="table-body">
+                    {% for vehicle in vehicles %}
+                    <tr class="hover:bg-slate-50 transition-colors vehicle-row"
+                        data-route="{{ vehicle.route|default:'' }}"
+                        data-status="{{ vehicle.status }}"
+                        data-date="{% if vehicle.last_connected %}{{ vehicle.last_connected|date:'Y-m-d' }}{% endif %}">
+                        <td class="px-3 py-2.5 text-xs text-slate-500">{{ forloop.counter }}</td>
+                        <td class="px-3 py-2.5">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i>
+                                <span class="text-xs font-semibold text-slate-900">{{ vehicle.vehicle_no }}</span>
+                            </div>
+                        </td>
+                        <td class="px-3 py-2.5">
+                            {% if vehicle.status == 'Running' or vehicle.status == 'Moving' %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-green-100 text-green-800 rounded">
+                                <i data-lucide="play-circle" class="w-3 h-3 mr-1"></i>{{ vehicle.status }}
+                            </span>
+                            {% elif vehicle.status == 'Stop' or vehicle.status == 'Idle' %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-yellow-100 text-yellow-800 rounded">
+                                <i data-lucide="pause-circle" class="w-3 h-3 mr-1"></i>{{ vehicle.status }}
+                            </span>
+                            {% elif vehicle.status == 'Offline' %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-800 rounded">
+                                <i data-lucide="wifi-off" class="w-3 h-3 mr-1"></i>Offline
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-700 rounded">
+                                {{ vehicle.status|default:"Unknown" }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2.5 text-xs text-slate-600">
+                            {% if vehicle.last_connected %}
+                                {{ vehicle.last_connected|date:"M d, Y H:i" }}
+                            {% else %}
+                                <span class="text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2.5">
+                            {% if vehicle.latest_assignment %}
+                            <div class="flex items-center gap-2">
+                                
+                                <div>
+                                    
+                                    <div class="text-[10px] text-slate-500 font-semibold">{{ vehicle.latest_assignment.driver.employee_code }}</div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-xs text-slate-400">Not assigned</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2.5">
+                            {% if vehicle.route == 'DHAR_TO_DHULE' %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-800 rounded">
+                                <i data-lucide="arrow-right" class="w-3 h-3 mr-1"></i>Dhar → Dhule
+                            </span>
+                            {% elif vehicle.route == 'DHULE_TO_DHAR' %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-800 rounded">
+                                <i data-lucide="arrow-left" class="w-3 h-3 mr-1"></i>Dhule → Dhar
+                            </span>
+                            {% else %}
+                            <span class="text-xs text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2.5">
+                            {% if vehicle.daily_km %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold bg-blue-50 text-blue-700 rounded">
+                                {{ vehicle.daily_km|floatformat:1 }} km
+                            </span>
+                            {% else %}
+                            <span class="text-xs text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2.5">
+                            {% if vehicle.gps_location %}
+                            <a href="https://www.google.com/maps?q={{ vehicle.gps_location }}" 
+                               target="_blank"
+                               class="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                                <i data-lucide="map-pin" class="w-3 h-3 mr-1"></i>View Map
+                            </a>
+                            {% else %}
+                            <span class="text-xs text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-3 py-12 text-center">
+                            <i data-lucide="truck" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                            <p class="text-sm text-slate-600 font-medium">No Active Vehicles</p>
+                            <p class="text-xs text-slate-400 mt-1">No vehicle data received from API</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Initialize Lucide Icons -->
+<script>
+    lucide.createIcons();
+</script>
+
+<!-- Filter and Export Logic -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const dateFilter = document.getElementById('date-filter');
+    const routeFilter = document.getElementById('route-filter');
+    const resetBtn = document.getElementById('reset-filters-btn');
+    const exportBtn = document.getElementById('export-csv-btn');
+    const tableBody = document.getElementById('table-body');
+    const visibleCount = document.getElementById('visible-count');
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    // Show loading overlay
+    function showLoading() {
+        loadingOverlay.classList.remove('hidden');
+    }
+
+    // Hide loading overlay
+    function hideLoading() {
+        loadingOverlay.classList.add('hidden');
+    }
+
+    // Reload page when date changes to fetch data for that date
+    dateFilter.addEventListener('change', function() {
+        showLoading();
+        const selectedDate = dateFilter.value;
+        const url = new URL(window.location.href);
+        url.searchParams.set('date', selectedDate);
+        window.location.href = url.toString();
+    });
+
+    function filterTable() {
+        const searchTerm = searchBox.value.toLowerCase();
+        const selectedRoute = routeFilter.value;
+        const rows = tableBody.getElementsByClassName('vehicle-row');
+        let visibleRows = 0;
+
+        Array.from(rows).forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const route = row.getAttribute('data-route') || '';
+
+            const matchesSearch = text.includes(searchTerm);
+            const matchesRoute = selectedRoute === 'all' || route === selectedRoute;
+
+            if (matchesSearch && matchesRoute) {
+                row.style.display = '';
+                visibleRows++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        visibleCount.textContent = visibleRows;
+    }
+
+    searchBox.addEventListener('input', filterTable);
+    routeFilter.addEventListener('change', filterTable);
+
+    resetBtn.addEventListener('click', function() {
+        showLoading();
+        searchBox.value = '';
+        routeFilter.value = 'all';
+        // Reset to today's date
+        const today = new Date().toISOString().split('T')[0];
+        const url = new URL(window.location.href);
+        url.searchParams.set('date', today);
+        window.location.href = url.toString();
+    });
+
+    // Initial filter on page load
+    filterTable();
+
+    exportBtn.addEventListener('click', function() {
+        // Show loading spinner on button
+        const exportIcon = document.getElementById('export-icon');
+        const exportSpinner = document.getElementById('export-spinner');
+        exportIcon.classList.add('hidden');
+        exportSpinner.classList.remove('hidden');
+        exportBtn.disabled = true;
+
+        // Use setTimeout to allow UI to update
+        setTimeout(() => {
+            try {
+                const rows = Array.from(tableBody.getElementsByClassName('vehicle-row'))
+                    .filter(row => row.style.display !== 'none');
+                
+                let csv = 'Vehicle Number,Status,Last Connected,Assigned Driver,Route,Daily KM,GPS Location\n';
+                
+                rows.forEach(row => {
+                    const cells = row.getElementsByTagName('td');
+                    const vehicleNum = cells[1].textContent.trim();
+                    const status = cells[2].textContent.trim();
+                    const lastConnected = cells[3].textContent.trim();
+                    const driver = cells[4].textContent.trim().replace(/\s+/g, ' ');
+                    const route = cells[5].textContent.trim().replace(/\s+/g, ' ');
+                    const dailyKm = cells[6].textContent.trim();
+                    const gps = cells[7].textContent.trim();
+                    
+                    csv += `"${vehicleNum}","${status}","${lastConnected}","${driver}","${route}","${dailyKm}","${gps}"\n`;
+                });
+                
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.setAttribute('hidden', '');
+                a.setAttribute('href', url);
+                a.setAttribute('download', `active_vehicles_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } finally {
+                // Hide loading spinner
+                exportSpinner.classList.add('hidden');
+                exportIcon.classList.remove('hidden');
+                exportBtn.disabled = false;
+                lucide.createIcons();
+            }
+        }, 100);
+    });
+
+    // Table sorting functionality
+    let sortDirection = {};
+    const sortableHeaders = document.querySelectorAll('.sortable');
+
+    sortableHeaders.forEach(header => {
+        const columnIndex = parseInt(header.getAttribute('data-column'));
+        sortDirection[columnIndex] = 'asc';
+
+        header.addEventListener('click', function() {
+            const rows = Array.from(tableBody.getElementsByClassName('vehicle-row'));
+            const direction = sortDirection[columnIndex];
+
+            // Sort rows
+            rows.sort((a, b) => {
+                const aCell = a.getElementsByTagName('td')[columnIndex];
+                const bCell = b.getElementsByTagName('td')[columnIndex];
+                
+                let aValue = aCell.textContent.trim();
+                let bValue = bCell.textContent.trim();
+
+                // Handle numeric values (Daily KM)
+                if (columnIndex === 6) {
+                    // Extract numeric value
+                    const aNum = parseFloat(aValue.replace(/[^0-9.]/g, '')) || 0;
+                    const bNum = parseFloat(bValue.replace(/[^0-9.]/g, '')) || 0;
+                    return direction === 'asc' ? aNum - bNum : bNum - aNum;
+                }
+
+                // Handle date values
+                if (columnIndex === 3) {
+                    const aDate = new Date(aValue);
+                    const bDate = new Date(bValue);
+                    if (isNaN(aDate) && isNaN(bDate)) return 0;
+                    if (isNaN(aDate)) return 1;
+                    if (isNaN(bDate)) return -1;
+                    return direction === 'asc' ? aDate - bDate : bDate - aDate;
+                }
+
+                // Handle text values
+                return direction === 'asc' 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            });
+
+            // Clear table body and re-append sorted rows
+            tableBody.innerHTML = '';
+            rows.forEach((row, index) => {
+                // Update row number
+                row.getElementsByTagName('td')[0].textContent = index + 1;
+                tableBody.appendChild(row);
+            });
+
+            // Toggle sort direction
+            sortDirection[columnIndex] = direction === 'asc' ? 'desc' : 'asc';
+
+            // Update sort indicator
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('[data-lucide="chevrons-up-down"], [data-lucide="chevron-up"], [data-lucide="chevron-down"]');
+                if (icon) {
+                    icon.setAttribute('data-lucide', 'chevrons-up-down');
+                    icon.classList.remove('text-blue-600');
+                    icon.classList.add('text-slate-400');
+                }
+            });
+
+            const currentIcon = header.querySelector('[data-lucide]');
+            if (currentIcon && !currentIcon.classList.contains('w-3.5')) {
+                currentIcon.setAttribute('data-lucide', sortDirection[columnIndex] === 'asc' ? 'chevron-down' : 'chevron-up');
+                currentIcon.classList.remove('text-slate-400');
+                currentIcon.classList.add('text-blue-600');
+            }
+
+            lucide.createIcons();
+        });
+    });
+
+    // Initialize lucide icons after dynamic content
+    lucide.createIcons();
+});
+</script>
+
+{% endblock %}

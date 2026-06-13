@@ -1,0 +1,474 @@
+<!-- Sidebar -->
+<aside id="sidebar" class="fixed left-0 top-16 h-full w-64 bg-white border-r border-gray-200 transform -translate-x-full lg:translate-x-0 transition-all duration-300 ease-in-out z-40 lg:w-64 sidebar-expanded">
+    <div class="h-full flex flex-col">
+        <!-- Sidebar Header -->
+        <div class="p-3 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <!--<img src="https://transvolt.in/Transvolt-Arrow%202.svg" alt="Transvolt Logo" class="h-6">-->
+                <button type="button" id="sidebar-collapse-btn" class="hidden lg:block p-1 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                    <i data-lucide="panel-left-close" class="w-5 h-5 text-gray-600"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar Menu -->
+        {% load badge_filters %}
+        {% url 'dashboard:dashboard' as dashboard_url %}
+        {% url 'dashboard:revision_history' as revision_url %}
+        <nav class="flex-1 overflow-y-auto p-2">
+            <ul class="space-y-1 pb-20">
+                <!-- Dashboard (Page Code: 101) -->
+                {% if '101' in user_page_codes and selected_project in user_project_codes %}
+                <li>
+                    <a href="{{ dashboard_url }}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if request.path == dashboard_url %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if request.path == dashboard_url %}aria-current="page"{% endif %}>
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">Dashboard</span>
+                    </a>
+                </li>
+                {% endif %}
+                <!-- Battery (Page Codes: 201, 202, 204, 205, 206, 302, 304, 406) -->
+                {% if selected_project in user_project_codes %}
+                {% if '201' in user_page_codes or '202' in user_page_codes or '204' in user_page_codes or '205' in user_page_codes or '206' in user_page_codes or '302' in user_page_codes or '304' in user_page_codes or '406' in user_page_codes %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'battery' in request.path and 'fleet-mileage' not in request.path or 'fleet-high-temperature' in request.path or 'min-max-voltage' in request.path or 'soc-jumps-drops' in request.path %}text-gray-700{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="battery-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="battery" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Battery</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon {% if 'battery' in request.path and 'fleet-mileage' not in request.path or 'fleet-high-temperature' in request.path or 'min-max-voltage' in request.path or 'soc-jumps-drops' in request.path %}rotate-90{% endif %}"></i>
+                    </button>
+                    <ul id="battery-menu" class="{% if 'battery' in request.path and 'fleet-mileage' not in request.path or 'fleet-high-temperature' in request.path or 'min-max-voltage' in request.path or 'soc-jumps-drops' in request.path %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu">
+                        <!-- Battery Health Overview (Page Code: 201) -->
+                        {% if '201' in user_page_codes %}
+                        <li><a href="{% url 'battery:health_overview' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'health-overview' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="activity" class="w-3.5 h-3.5 mr-2"></i><span>Health Overview</span></a></li>
+                        {% endif %}
+                        
+                        <!-- Battery Energy Consumption (Page Code: 202) -->
+                        {% if '202' in user_page_codes %}
+                        {% is_new '2026-02-25' as show_energy_consumption_badge %}
+                        <li><a href="{% url 'battery:energy_consumption' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'energy-consumption' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="zap" class="w-3.5 h-3.5 mr-2"></i><span>Energy Consumption</span>{% if show_energy_consumption_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        
+
+                        <!-- SOC Jumps & Drops Report (Page Code: 406) -->
+                        {% if '406' in user_page_codes %}
+                        <li><a href="{% url 'reports:soc_jumps_drops_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'soc-jumps-drops' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="zap-off" class="w-3.5 h-3.5 mr-2"></i><span>SOC Jumps & Drops</span></a></li>
+                        {% endif %}
+
+                        <!-- Fleet High Temperature (Page Code: 302) -->
+                        {% if '302' in user_page_codes %}
+                        <li><a href="{% url 'vehicle:vehicle_fleet_high_temperature' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'fleet-high-temperature' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="thermometer" class="w-3.5 h-3.5 mr-2"></i><span>Fleet High Temperature</span></a></li>
+                        {% endif %}
+                        
+
+                        <!-- Temperature & SOC vs Time (Page Code: 206) -->
+                        {% if '206' in user_page_codes %}
+                        <li><a href="{% url 'battery:temp_vs_soc' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'temp-vs-soc' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="thermometer" class="w-3.5 h-3.5 mr-2"></i><span>Temperature & SOC vs Time</span></a></li>
+                        {% endif %}
+                        
+                        
+                        <!-- SoC Jumps & Drops (Page Code: 303) -->
+                        <!-- {% if '303' in user_page_codes %}
+                        {% is_new '2026-02-23' as show_soc_jumps_badge %}
+                        <li><a href="{% url 'vehicle:vehicle_soc_jumps_and_drops' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'soc-jumps-and-drops' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="zap-off" class="w-3.5 h-3.5 mr-2"></i><span>SoC Jumps &amp; Drops</span>{% if show_soc_jumps_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %} -->
+                        
+                        <!-- Min Max Voltage (Page Code: 304) -->
+                        {% if '304' in user_page_codes %}
+                        {% is_new '2026-02-25' as show_min_max_voltage_badge %}
+                        <li><a href="{% url 'vehicle:vehicle_min_max_voltage' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'min-max-voltage' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="battery" class="w-3.5 h-3.5 mr-2"></i><span>Voltage Range Report</span></a></li>
+                        {% endif %}
+                        
+                        <!-- Admin Only Battery Pages -->
+                        {% if user.is_superuser %}
+                        <li class="mt-2 pt-2 border-t border-gray-200">
+                            <a href="{% url 'battery:battery_master_list' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'battery/master' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}">
+                                <i data-lucide="database" class="w-3.5 h-3.5 mr-2"></i>
+                                <span>Battery Master</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'battery:swap_history_list' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'battery/swap-history' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-2"></i>
+                                <span>Battery Swap History</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+                {% endif %}
+
+                <!-- ML Models Section (Page Code: 3001, ULTRATECH only) -->
+                {% if selected_project == 'ULTRATECH' and selected_project in user_project_codes and '3001' in user_page_codes %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'ml-models' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="ml-models-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="brain-circuit" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Predictive Battery Models</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon {% if 'ml-models' in request.path %}rotate-90{% endif %}"></i>
+                    </button>
+                    <ul id="ml-models-menu" class="{% if 'ml-models' in request.path %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu">
+                        <li>
+                            <a target="_blank" href="{% if selected_project_slug %}/{{ selected_project_slug }}/ml-models/executive-summary/{% else %}{% url 'dashboard:ml_executive_summary' %}{% endif %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'executive-summary' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}">
+                                <i data-lucide="brain-cog" class="w-3.5 h-3.5 mr-2"></i>
+                                <span>EKF Model Ultratech</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                {% endif %}
+
+                <!-- Vehicles (Page Code: 203) -->
+                {% if selected_project in user_project_codes %}
+                {% if '203' in user_page_codes %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'fleet-mileage' in request.path %}text-gray-700{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="vehicles-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="truck" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Vehicles</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon {% if 'fleet-mileage' in request.path %}rotate-90{% endif %}"></i>
+                    </button>
+                    <ul id="vehicles-menu" class="{% if 'fleet-mileage' in request.path %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu">
+                        <!-- Battery Fleet Mileage (Page Code: 203) -->
+                        {% if '203' in user_page_codes %}
+                        {% is_new '2026-02-25' as show_fleet_mileage_badge %}
+                        <li><a href="{% url 'battery:fleet_mileage' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'fleet-mileage' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="map" class="w-3.5 h-3.5 mr-2"></i><span>Fleet Mileage</span>{% if show_fleet_mileage_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                    </ul>
+                </li>
+                {% endif %}
+                {% endif %}
+
+                <!-- Reports (Page Codes: 401-409) -->
+                {% if selected_project in user_project_codes %}
+                {% if '401' in user_page_codes or '402' in user_page_codes or '403' in user_page_codes or '404' in user_page_codes or '405' in user_page_codes or '406' in user_page_codes or '407' in user_page_codes or '408' in user_page_codes or '409' in user_page_codes %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'reports' in request.path and 'soc-jumps-drops' not in request.path or 'active_drivers_report' in request.resolver_match.url_name or 'active_vehicles_report' in request.resolver_match.url_name or 'timebox_delay_reasons_report' in request.resolver_match.url_name %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="reports-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="file-chart-column-increasing" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Reports</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon"></i>
+                    </button>
+                    <ul id="reports-menu" class="{% if 'reports' in request.path and 'soc-jumps-drops' not in request.path or 'active_drivers_report' in request.resolver_match.url_name or 'active_vehicles_report' in request.resolver_match.url_name or 'timebox_delay_reasons_report' in request.resolver_match.url_name %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu max-h-96 overflow-y-auto">
+                        <!-- Active Drivers Report (Page Code: 401) -->
+                        {% if '401' in user_page_codes and show_iplt_links %}
+                        {% is_new '2026-01-16' as show_active_drivers_badge %}
+                        <li><a href="{% url 'roster:active_drivers_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'active_drivers_report' in request.resolver_match.url_name %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="users" class="w-3.5 h-3.5 mr-2"></i><span>Active Drivers</span>{% if show_active_drivers_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        <!-- Active Vehicles Report (Page Code: 402) -->
+                        {% if '402' in user_page_codes and show_iplt_links %}
+                        {% is_new '2026-01-21' as show_active_vehicles_badge %}
+                        <li><a href="{% url 'roster:active_vehicles_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'active_vehicles_report' in request.resolver_match.url_name %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="truck" class="w-3.5 h-3.5 mr-2"></i><span>Active Vehicles</span>{% if show_active_vehicles_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        <!-- Timebox Delay Reason Report (Page Code: 403) -->
+                        {% if '403' in user_page_codes and show_iplt_links %}
+                        {% is_new '2026-01-16' as show_timebox_badge %}
+                        <li><a href="{% url 'roster:timebox_delay_reasons_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'timebox_delay_reasons_report' in request.resolver_match.url_name %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="clock-alert" class="w-3.5 h-3.5 mr-2"></i><span>Timebox Delay Reason Report</span>{% if show_timebox_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        <!-- Speed Violations Report (Page Code: 404) -->
+                        {% if '404' in user_page_codes %}
+                        {% is_new '2026-02-23' as show_speed_violation_badge %}
+                        <li><a href="{% url 'reports:speed_violation_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'speed-violations' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-2"></i><span>Speed Violations Report</span>{% if show_speed_violation_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        <!-- Low SoC Report (Page Code: 405) -->
+                        {% if '405' in user_page_codes %}
+                        {% is_new '2026-02-23' as show_low_soc_badge %}
+                        <li><a href="{% url 'reports:low_soc_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'low-soc' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="battery" class="w-3.5 h-3.5 mr-2"></i><span>Low SoC Report</span>{% if show_low_soc_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+
+                        
+
+                        <!-- Temperature Differential Report (Page Code: 407) -->
+                        {% if '407' in user_page_codes %}
+                        <li><a href="{% url 'reports:temperature_differential_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'temperature-differential' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="thermometer" class="w-3.5 h-3.5 mr-2"></i><span>Temperature Differential</span></a></li>
+                        {% endif %}
+
+                        <!-- High Temperature Events Report (Page Code: 408) -->
+                        {% if '408' in user_page_codes %}
+                        <li><a href="{% url 'reports:high_temperature_events_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'high-temperature-events' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="flame" class="w-3.5 h-3.5 mr-2"></i><span>High Temperature Events</span></a></li>
+                        {% endif %}
+
+                        <!-- Voltage Differential Report (Page Code: 409) -->
+                        {% if '409' in user_page_codes %}
+                        <li><a href="{% url 'reports:voltage_differential_report' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'voltage-differential' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="zap" class="w-3.5 h-3.5 mr-2"></i><span>Voltage Differential</span></a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+                {% endif %}
+
+                <!-- Notifications (Page Codes: 301, 307, 1101-1103) -->
+                {% if selected_project in user_project_codes %}
+                {% if '301' in user_page_codes or '307' in user_page_codes or '1101' in user_page_codes or '1102' in user_page_codes or '1103' in user_page_codes %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'alarms' in request.path or 'all-alerts' in request.path or 'alerts' in request.path and 'all-alerts' not in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="alarms-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="alert-circle" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Notifications</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon {% if 'alarms' in request.path or 'all-alerts' in request.path or 'alerts' in request.path and 'all-alerts' not in request.path %}rotate-90{% endif %}"></i>
+                    </button>
+                    <ul id="alarms-menu" class="{% if 'alarms' in request.path or 'all-alerts' in request.path or 'alerts' in request.path and 'all-alerts' not in request.path %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu">
+                        <!-- Vehicle Alerts (Page Code: 301) -->
+                        {% if '301' in user_page_codes %}
+                        <li><a href="{% url 'vehicle:vehicle_alerts' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'alerts' in request.path and 'all-alerts' not in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="bell" class="w-3.5 h-3.5 mr-2"></i><span>Alerts</span></a></li>
+                        {% endif %}
+
+                        {% if '307' in user_page_codes %}
+                        <li><a href="{% url 'vehicle:vehicle_all_alerts' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'all-alerts' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="list" class="w-3.5 h-3.5 mr-2"></i><span>All Notifications</span></a></li>
+                        {% endif %}
+
+                        {% if '301' in user_page_codes or '307' in user_page_codes %}
+                        <li class="my-1 border-t border-gray-200"></li>
+                        {% endif %}
+
+                        <!-- Low SOC Alarms (Page Code: 1101) -->
+                        {% if '1101' in user_page_codes %}
+                        <li><a href="{% url 'alarms:low_soc_alarms' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'low-soc-alarms' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="battery" class="w-3.5 h-3.5 mr-2"></i><span>Low SOC Alarms</span></a></li>
+                        {% endif %}
+                        
+                        <!-- High Temperature Alarms (Page Code: 1102) -->
+                        {% if '1102' in user_page_codes %}
+                        <li><a href="{% url 'alarms:high_temp_alarms' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'high-temp-alarms' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="thermometer" class="w-3.5 h-3.5 mr-2"></i><span>High Temperature Alarms</span></a></li>
+                        {% endif %}
+
+                        {% if '1103' in user_page_codes %}
+                        <li><a href="{% url 'alarms:over_under_voltage_alarms' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'over-under-voltage-alarms' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="battery-warning" class="w-3.5 h-3.5 mr-2"></i><span>Over/Under Voltage Alarms</span></a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+                {% endif %}
+
+                <!-- Live Tracker - Conditional rendering based on selected project (Page Code: 501) -->
+                {% if selected_project in user_project_codes and show_iplt_links and '501' in user_page_codes %}
+                <!-- IPLT Livetracker - Only for ULTRATECH -->
+                <li>
+                    <a href="{% url 'livetracker:all' %}" target="_blank" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'livetracker' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if 'livetracker' in request.path %}aria-current="page"{% endif %}>
+                        <i data-lucide="map-pinned" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">IPLT Livetracker</span>
+                    </a>
+                </li>
+                <!-- IPLT Timebox (Page Code: 601) - Only for ULTRATECH -->
+                {% if '601' in user_page_codes %}
+                <li>
+                    <a href="{% url 'livetracker:timebox' %}"  target="_blank" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors text-gray-700 hover:bg-blue-50 hover:text-blue-700">
+                        <i data-lucide="clock-4" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">IPLT Timebox</span>
+                    </a>
+                </li>
+                {% endif %}
+                <!-- MIS Dashboard (Page Code: 701) - Only for ULTRATECH -->
+                {% if '701' in user_page_codes %}
+                <li>
+                    <a href="{% url 'mis:dashboard' %}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'mis' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if 'mis' in request.path %}aria-current="page"{% endif %}>
+                        <i data-lucide="database" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">MIS (Daily Logs)</span>
+                    </a>
+                </li>
+                {% endif %}
+                <!-- LiveTracker Roster (Page Code: 801) - Only for ULTRATECH -->
+                {% if '801' in user_page_codes %}
+                <li>
+                    <a href="{% url 'roster:assignment_page' %}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'roster' in request.path and 'reports' not in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if 'roster' in request.path and 'reports' not in request.path %}aria-current="page"{% endif %}>
+                        <i data-lucide="clipboard-list" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">LiveTracker Roster</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% endif %}
+                
+                {% if show_globaltracker_links %}
+                <!-- LiveTracker - Only for MBMT, UMT, Nagpur (Page Code: 501) -->
+                {% if '501' in user_page_codes and selected_project in user_project_codes %}
+                <li>
+                    <a href="{% url 'globaltracker:dashboard' %}" target="_blank" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'globaltracker' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-teal-50 hover:text-teal-700{% endif %}">
+                        <i data-lucide="globe" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">LiveTracker</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% endif %}
+               
+
+                <!-- Feedback (Page Code: 1001) -->
+                {% if '1001' in user_page_codes and selected_project in user_project_codes %}
+                {% is_new '2026-01-16' as show_feedback_badge %}
+                <li>
+                    <a href="{% url 'dashboard:view_feedback' %}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'feedback' in request.path and 'administration' not in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if 'feedback' in request.path and 'administration' not in request.path %}aria-current="page"{% endif %}>
+                        <i data-lucide="message-square" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">My Feedback</span>{% if show_feedback_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Bug Report -->
+                <!-- <li>
+                    <a href="#" class="flex items-center px-2 py-2 text-sm text-gray-700 rounded-md hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                        <i data-lucide="bug" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">Bug Report</span>
+                    </a>
+                </li> -->
+                <!-- Revision History (Page Code: 1002) -->
+                {% if '1002' in user_page_codes and selected_project in user_project_codes %}
+                <li>
+                    <a href="{{ revision_url }}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if request.path == revision_url %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if request.path == revision_url %}aria-current="page"{% endif %}>
+                        <i data-lucide="file-text" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">Revision History</span>
+                    </a>
+                </li>
+                {% endif %}
+                
+                <!-- Vehicle Type Master (Page Code: 901) -->
+                {% if '901' in user_page_codes and selected_project in user_project_codes %}
+                <li>
+                    <a href="{% url 'dashboard:vehicle_list' %}" class="flex items-center px-2 py-2 text-sm rounded-md transition-colors {% if 'vehicles' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" {% if 'vehicles' in request.path %}aria-current="page"{% endif %}>
+                        <i data-lucide="car" class="w-4 h-4 mr-3"></i>
+                        <span class="truncate">Vehicle Type Master</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Administration (Admin Only - Page Codes: 2001-2004) -->
+                {% if user.is_superuser and '2001' in user_page_codes or user.is_superuser and '2002' in user_page_codes or user.is_superuser and '2003' in user_page_codes or user.is_superuser and '2004' in user_page_codes and selected_project in user_project_codes %}
+                {% is_new '2026-01-19' as show_feedback_badge %}
+                <li>
+                    <button type="button" class="w-full flex items-center justify-between px-2 py-2 text-sm rounded-md transition-colors menu-toggle {% if 'administration' in request.path or 'users' in request.path or 'roles' in request.path %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700 hover:bg-blue-50 hover:text-blue-700{% endif %}" data-menu="admin-menu">
+                        <div class="flex items-center">
+                            <i data-lucide="shield" class="w-4 h-4 mr-3"></i>
+                            <span class="truncate">Administration</span>{% if show_feedback_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 transform transition-transform duration-200 chevron-icon {% if 'administration' in request.path or 'users' in request.path or 'roles' in request.path %}rotate-90{% endif %}"></i>
+                    </button>
+                    <ul id="admin-menu" class="{% if 'administration' in request.path or 'users' in request.path or 'roles' in request.path %}{% else %}hidden{% endif %} ml-6 mt-1 space-y-1 submenu">
+                        <!-- Manage Active Users (Page Code: 2001) -->
+                        {% if '2001' in user_page_codes %}
+                        <li><a href="{% url 'dashboard:active_users' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'active-users' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="users-round" class="w-3.5 h-3.5 mr-2"></i><span>Active Users</span></a></li>
+                        {% endif %}
+                        
+                        <!-- Manage Users (Page Code: 2002) -->
+                        {% if '2002' in user_page_codes %}
+                        <li><a href="{% url 'dashboard:manage_users' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'manage-users' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="user-cog" class="w-3.5 h-3.5 mr-2"></i><span>Manage Users</span></a></li>
+                        {% endif %}
+                        
+                        <!-- Feedback Management (Page Code: 2003) -->
+                        {% if '2003' in user_page_codes %}
+                        <li><a href="{% url 'dashboard:admin_feedback_list' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'administration/feedback' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="message-square" class="w-3.5 h-3.5 mr-2"></i><span>Feedback Management</span>{% if show_feedback_badge %}{% include 'dashboard/newflashing.html' %}{% endif %}</a></li>
+                        {% endif %}
+                        
+                        <!-- Manage Group Access (Page Code: 2004) -->
+                        {% if '2004' in user_page_codes %}
+                        <li><a href="{% url 'dashboard:manage_group_access' %}" class="flex items-center px-2 py-1 text-xs rounded-md transition-colors {% if 'manage-group-access' in request.path %}bg-blue-100 text-blue-700 font-semibold{% else %}text-gray-600 hover:bg-blue-50 hover:text-blue-600{% endif %}"><i data-lucide="users" class="w-3.5 h-3.5 mr-2"></i><span>Manage Group Access</span></a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+
+            </ul>
+        </nav>
+    </div>
+</aside>
+
+<!-- Sidebar Overlay for mobile -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden hidden"></div>
+<!-- Collapse styles: when sidebar has .sidebar-collapsed on desktop show icons-only -->
+<style>
+@media (min-width: 1024px) {
+    /* shrink sidebar width when collapsed */
+    #sidebar.sidebar-collapsed {
+        width: 4.5rem; /* ~72px to fit icons */
+        overflow: visible;
+    }
+
+    /* hide text labels and submenu items when collapsed */
+    #sidebar.sidebar-collapsed .truncate,
+    #sidebar.sidebar-collapsed nav a span,
+    #sidebar.sidebar-collapsed .submenu li a span,
+    #sidebar.sidebar-collapsed .submenu li > span span {
+        display: none !important;
+    }
+
+    /* center icon in menu toggle */
+    #sidebar.sidebar-collapsed .menu-toggle > div {
+        justify-content: center;
+    }
+
+    /* hide chevrons when collapsed */
+    #sidebar.sidebar-collapsed .chevron-icon {
+        display: none !important;
+    }
+
+    /* ensure submenu container is hidden */
+    #sidebar.sidebar-collapsed .submenu {
+        display: none !important;
+    }
+
+    /* remove left indent for submenu items (they're hidden anyway) */
+    #sidebar.sidebar-collapsed .ml-6 { margin-left: 0 !important; }
+
+    /* tighten header padding */
+    #sidebar.sidebar-collapsed .p-2 { padding-left: .5rem; padding-right: .5rem; }
+
+    /* remove icon right margin so icons are centered */
+    #sidebar.sidebar-collapsed .mr-2 { margin-right: 0 !important; }
+}
+
+/* Slim scrollbar styling */
+#sidebar nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+#sidebar nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#sidebar nav::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+#sidebar nav::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+#sidebar nav {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Reports submenu slim scrollbar styling */
+#reports-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+#reports-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#reports-menu::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+#reports-menu::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Firefox scrollbar */
+#reports-menu {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+</style>
+
+{% load static %}

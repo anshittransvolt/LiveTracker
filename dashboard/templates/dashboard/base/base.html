@@ -1,0 +1,197 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Voltrack{% endblock %}</title>
+    
+    <!-- Favicons -->
+     <link rel="icon" type="image/x-icon" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://transvolt.in/Transvolt-Arrow%202.svg">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    
+    <!-- Additional CSS -->
+    <link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}">
+    <!-- Toastr notifications CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Include Navbar Component -->
+    {% include 'dashboard/base/navbar.html' %}
+
+    <!-- Include Sidebar Component -->
+    {% include 'dashboard/base/sidebar.html' %}
+
+    <!-- Main Content -->
+    <main id="main-content" class="lg:ml-64 mt-16 min-h-screen transition-all duration-300 ease-in-out">
+        <div class="p-6">
+            <!-- Breadcrumb Navigation -->
+            {% block breadcrumb_block %}
+                {% include 'dashboard/base/breadcrumb.html' %}
+            {% endblock %}
+            
+            <!-- Messages are displayed via Toastr toasts (see scripts at the end of the page) -->
+            
+            <!-- Main Content Area -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                {% block content %}
+                <div class="text-center py-12">
+                    <i data-lucide="box" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No content yet</h3>
+                    <p class="text-gray-500">This is the base template. Add your content in child templates.</p>
+                </div>
+                {% endblock %}
+            </div>
+        </div>
+    </main>
+    <!-- Global Feedback Button -->
+<button
+  id="globalFeedbackBtn"
+  class="fixed top-1/2 right-0 -translate-y-1/2
+         bg-gradient-to-br from-purple-600 to-purple-700
+         text-white w-10 h-24 px-2 py-3
+         rounded-l-xl shadow-lg
+         hover:from-purple-700 hover:to-purple-800
+         hover:w-11 hover:shadow-xl hover:shadow-purple-500/30
+         active:scale-95 transition-all duration-200 ease-out
+         z-[99999] group border-l-2 border-purple-400/50"
+  onclick="openFeedbackSidebar()"
+  title="Report Bug or Request Feature"
+  style="position: fixed !important; z-index: 99999 !important;">
+  <div class="flex flex-col items-center justify-center gap-1 h-full">
+    <i data-lucide="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
+    <span class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
+          style="writing-mode: vertical-rl; text-orientation: mixed;">
+      Feedback
+    </span>
+  </div>
+</button>
+<!-- Feedback Sidebar -->
+{% include "livetracker/feedback.html" %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    lucide.createIcons();
+  });
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+</script>
+
+    <!-- JavaScript -->
+    <script src="{% static 'dashboard/js/sidebar.js' %}">
+    </script>
+    
+    <!-- Messages JavaScript -->
+    <script>
+        // Function to dismiss messages
+        function dismissMessage(messageId) {
+            const messageElement = document.getElementById(messageId);
+            if (messageElement) {
+                messageElement.style.opacity = '0';
+                messageElement.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    messageElement.remove();
+                }, 300);
+            }
+        }
+        
+        // Auto-dismiss success messages after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+                
+                // Re-initialize after a short delay to catch any dynamically loaded content
+                setTimeout(function() {
+                    lucide.createIcons();
+                }, 100);
+                
+                setTimeout(function() {
+                    lucide.createIcons();
+                }, 500);
+            }
+            
+            const successMessages = document.querySelectorAll('[id^="message-"]');
+            successMessages.forEach((message, index) => {
+                // Add transition styles
+                message.style.transition = 'all 0.3s ease-in-out';
+                
+                // Auto-dismiss success messages after 5 seconds
+                if (message.classList.contains('bg-green-50')) {
+                    setTimeout(() => {
+                        dismissMessage(message.id);
+                    }, 5000);
+                }
+            });
+        });
+    </script>
+    
+    <!-- jQuery + Toastr (for admin-style toasts) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        // Initialize Toastr and display Django messages as toast notifications
+        document.addEventListener('DOMContentLoaded', function() {
+            // Default toastr options
+            if (typeof toastr !== 'undefined') {
+                toastr.options = {
+                    "closeButton": true,
+                    "debug": false,
+                    "newestOnTop": true,
+                    "progressBar": true,
+                    "positionClass": "toast-top-right",
+                    "preventDuplicates": true,
+                    "timeOut": "5000",
+                };
+            }
+
+            // Render Django messages via toastr
+            {% if messages %}
+                {% for message in messages %}
+                    (function() {
+                        var text = "{{ message|escapejs }}";
+                        var tags = "{{ message.tags }}";
+                        // prefer toastr where available
+                        if (typeof toastr !== 'undefined') {
+                            if (tags.indexOf('error') !== -1) {
+                                toastr.error(text);
+                            } else if (tags.indexOf('warning') !== -1) {
+                                toastr.warning(text);
+                            } else if (tags.indexOf('success') !== -1) {
+                                toastr.success(text);
+                            } else {
+                                toastr.info(text);
+                            }
+                        } else {
+                            // fallback: simple alert
+                            // console.log(tags + ': ' + text);
+                        }
+                    })();
+                {% endfor %}
+            {% endif %}
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!-- Loading Overlay Component -->
+<div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[99999] flex items-center justify-center">
+  <div class="flex flex-col items-center gap-4 p-4 select-none max-w-full">
+
+    <!-- Lottie Animation Wrapper -->
+    <div class="w-[460px] max-w-full h-auto">
+      <dotlottie-wc
+        src="https://lottie.host/c0cf72e9-3e59-4aae-a1ea-00ba96cdf4d0/goZbhn1KV9.lottie"
+        autoplay
+        loop
+        style="width: 100%; height: auto; display: block; object-fit: contain;">
+      </dotlottie-wc>
+    </div>
+
+    <!-- Text Container -->
+    <div class="text-center mt-2">
+      <p id="loadingMainText" class="text-2xl font-semibold text-white transition-opacity duration-500 opacity-100">
+        Fetching real-time data...
+      </p>
+      <p id="loadingMessage" class="text-lg text-gray-200 transition-opacity duration-500 opacity-100">
+        Please wait…
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Loading Messages Script -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const messages = [
+      "Warming up the GPS…",
+      "Tracking your vehicle…",
+      "Collecting the latest signals…",
+      "Crunching drive analytics…",
+      "Getting things ready…"
+    ];
+
+    const loadingMainText = document.getElementById("loadingMainText");
+    const loadingMessage = document.getElementById("loadingMessage");
+
+    let index = 0;
+
+    function updateLoadingText() {
+      // Fade out
+      loadingMainText.style.opacity = "0";
+      loadingMessage.style.opacity = "0";
+
+      setTimeout(() => {
+        // Update text
+        loadingMainText.textContent = messages[index];
+        loadingMessage.textContent = "Please wait…";
+
+        // Fade in
+        loadingMainText.style.opacity = "1";
+        loadingMessage.style.opacity = "1";
+
+        index = (index + 1) % messages.length;
+      }, 400);
+    }
+
+    // Change text every 3 seconds
+    setInterval(updateLoadingText, 3000);
+  });
+</script>

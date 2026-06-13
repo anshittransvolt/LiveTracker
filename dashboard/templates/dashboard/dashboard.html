@@ -1,0 +1,591 @@
+{% extends 'dashboard/base/base.html' %}
+
+{% block breadcrumb_block %}
+{% endblock %}
+
+{% block content %}
+
+<style>
+  /* Apply hover only to clickable KPI cards (<a>), not active-vehicle cards (<div>). */
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border {
+    position: relative;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    border-color: #bfdbfe;
+  }
+
+  /* Show "Details" text only on card hover */
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border span.text-xs.text-slate-500.group-hover\:text-blue-600.transition-colors {
+    position: absolute;
+    top: 0.5rem;
+    right: 1.75rem;
+    opacity: 0;
+    transition: opacity 180ms ease, color 180ms ease;
+    pointer-events: none;
+  }
+
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border:hover span.text-xs.text-slate-500.group-hover\:text-blue-600.transition-colors {
+    opacity: 1;
+  }
+
+  @keyframes kpi-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Individual KPI card loader */
+  .kpi-card-loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border.kpi-loading {
+    pointer-events: none;
+    cursor: progress;
+    transform: none;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+  }
+
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border.kpi-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, 0.72);
+    z-index: 2;
+  }
+
+  .min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border.kpi-loading .kpi-card-loader {
+    display: flex;
+  }
+
+  .kpi-card-loader-spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    border: 3px solid #e0e7ff;
+    border-top-color: #4f46e5;
+    animation: kpi-spin .6s linear infinite;
+  }
+</style>
+
+<div class="min-h-screen bg-gray-100 p-6">
+
+  <!-- ================= Header ================= -->
+  <div class="flex flex-col items-center text-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">
+        Battery KPIs
+      </h1>
+      <!-- <p class="text-sm text-gray-500 mt-2">
+        Live fleet comparison across all Projects
+      </p> -->
+    </div>
+  </div>
+
+  <!-- ================= KPI Table Headers ================= -->
+  <div class="hidden md:flex mb-3 items-stretch gap-4">
+    <div class="w-10"></div>
+    <div class="flex-1">
+      <div class="grid grid-cols-4 gap-4">
+        <div class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-4">Total Count</div>
+        <div class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-4">Avg SOH</div>
+        <div class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-4">Avg Efficiency</div>
+        <div class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-4">Avg/Max Temp</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ULTRATECH PROJECT ================= -->
+  <div class="mb-6 flex items-stretch gap-4">
+    <div class="hidden md:flex w-10 rounded-lg bg-blue-50 border border-blue-200 items-center justify-center p-1">
+      <span class="text-sm font-bold tracking-[0.14em] text-blue-700 "
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">ULTRATECH</span>
+    </div>
+    <div class="flex-1">
+      <h2 class="md:hidden text-2xl font-bold text-gray-800 mb-3 border-l-4 border-blue-500 pl-3">
+        Ultratech
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+        <!-- Total Count -->
+        <div class="bg-white rounded-lg shadow border p-4">
+          <div class="text-right text-blue-600 mb-1 mt-1">
+            <span class="text-4xl font-bold">{{ active_vehicle_counts.ULTRATECH|default:"56" }}</span><span
+              class="text-2xl font-normal text-gray-400">/69</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Active / Total vehicles
+          </p>
+        </div>
+
+        <!-- Average SOH -->
+        <a href="/ultratech{% url 'battery:health_overview' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-green-600 mb-1 text-right">
+            {{ average_soh_values.ULTRATECH|default:"97.4"|floatformat:-1 }}%
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Average battery health
+          </p>
+        </a>
+
+        <!-- Average Energy Efficiency -->
+        <a href="/ultratech{% url 'battery:energy_consumption' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-purple-600 mb-1 text-right">
+            {{ average_efficiency_values.ULTRATECH|default:"1.83"|floatformat:-2 }}
+            <span class="text-base font-medium">kWh/km</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Energy consumption rate
+          </p>
+        </a>
+
+        <!-- Average Fleet Temperature -->
+        <a href="/ultratech{% url 'vehicle:vehicle_fleet_high_temperature' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-[25px] font-bold mb-1 text-right">
+
+            <!-- AVG -->
+            <span class="
+        {% if project_temperatures.ULTRATECH.avg > 50 %}text-red-700
+        {% elif project_temperatures.ULTRATECH.avg > 40 %}text-red-600
+        {% elif project_temperatures.ULTRATECH.avg > 35 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.ULTRATECH.avg|default_if_none:"36.9"|floatformat:1 }}
+            </span>
+            <span class="text-gray-400 mx-1">|</span>
+
+            <!-- MAX -->
+            <span class="
+        {% if project_temperatures.ULTRATECH.max > 50 %}text-red-700
+        {% elif project_temperatures.ULTRATECH.max > 40 and project_temperatures.ULTRATECH.max <= 50 %}text-red-600
+        {% elif project_temperatures.ULTRATECH.max > 35 and project_temperatures.ULTRATECH.max <= 40 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.ULTRATECH.max|default_if_none:"45.0"|floatformat:1 }}
+            </span>
+
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Average / Max fleet temperature
+          </p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MBMT PROJECT ================= -->
+  <div class="mb-6 flex items-stretch gap-4">
+    <div class="hidden md:flex w-10 rounded-lg bg-orange-50 border border-orange-200 items-center justify-center">
+      <span class="text-sm font-bold tracking-[0.14em] text-orange-700"
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">MBMT</span>
+    </div>
+    <div class="flex-1">
+      <h2 class="md:hidden text-2xl font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-3">
+        MBMT
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+        <!-- Total Count -->
+        <div class="bg-white rounded-lg shadow border p-4">
+          <div class="text-right text-blue-600 mb-1 mt-1">
+            <span class="text-4xl font-bold">{{ active_vehicle_counts.MBMT|default:"56" }}</span><span
+              class="text-2xl font-normal text-gray-400">/57</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Active / Total vehicles
+          </p>
+        </div>
+
+        <!-- Average SOH -->
+        <a href="/mbmt{% url 'battery:health_overview' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-green-600 mb-1 text-right">
+            {{ 98.1|floatformat:-1 }}%
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Average battery health
+          </p>
+
+        </a>
+
+        <!-- Average Energy Efficiency -->
+        <a href="/mbmt{% url 'battery:energy_consumption' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-purple-600 mb-1 text-right">
+            {{ average_efficiency_values.MBMT|default:"1.49"|floatformat:-2 }}
+            <span class="text-base font-medium">kWh/km</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Energy consumption rate
+          </p>
+        </a>
+
+        <!-- Average Fleet Temperature -->
+        <a href="/mbmt{% url 'vehicle:vehicle_fleet_high_temperature' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-[25px] font-bold mb-1 text-right">
+
+            <!-- AVG -->
+            <span class="
+        {% if project_temperatures.MBMT.avg > 50 %}text-red-700
+        {% elif project_temperatures.MBMT.avg > 40 %}text-red-600
+        {% elif project_temperatures.MBMT.avg > 35 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.MBMT.avg|default_if_none:"38.8"|floatformat:1 }}
+            </span>
+
+            <span class="text-gray-400 mx-1">|</span>
+
+            <!-- MAX -->
+            <span class="
+        {% if project_temperatures.MBMT.max > 50 %}text-red-700
+        {% elif project_temperatures.MBMT.max > 40 and project_temperatures.MBMT.max <= 50 %}text-red-600
+        {% elif project_temperatures.MBMT.max > 35 and project_temperatures.MBMT.max <= 40 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.MBMT.max|default_if_none:"46.0"|floatformat:1 }}
+            </span>
+
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Avg /Max fleet temperature
+          </p>
+        </a>
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= UMT PROJECT ================= -->
+  <div class="mb-6 flex items-stretch gap-4">
+    <div class="hidden md:flex w-10 rounded-lg bg-teal-50 border border-teal-200 items-center justify-center">
+      <span class="text-sm font-bold tracking-[0.14em] text-teal-700"
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">UMT</span>
+    </div>
+    <div class="flex-1">
+      <h2 class="md:hidden text-xl font-bold text-gray-800 mb-3 border-l-4 border-teal-500 pl-3">
+        UMT
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+        <!-- Total Count -->
+        <div class="bg-white rounded-lg shadow border p-4">
+          <div class="text-right text-blue-600 mb-1 mt-1">
+            <span class="text-4xl font-bold">{{ active_vehicle_counts.UMT|default:"19" }}</span><span
+              class="text-2xl font-normal text-gray-400">/20</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Active / Total vehicles
+          </p>
+        </div>
+
+        <!-- Average SOH -->
+        <a href="/umt{% url 'battery:health_overview' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-green-600 mb-1 text-right">
+            {{ 98.1|floatformat:-1 }}%
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Average battery health
+          </p>
+
+        </a>
+
+        <!-- Average Energy Efficiency -->
+        <a href="/umt{% url 'battery:energy_consumption' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-purple-600 mb-1 text-right">
+            {{ average_efficiency_values.UMT|default:"1.19"|floatformat:-2 }}
+            <span class="text-base font-medium">kWh/km</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Energy consumption rate
+          </p>
+        </a>
+
+        <!-- Average Fleet Temperature -->
+        <a href="/umt{% url 'vehicle:vehicle_fleet_high_temperature' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-[25px] font-bold mb-1 text-right">
+
+            <!-- AVG -->
+            <span class="
+        {% if project_temperatures.UMT.avg > 50 %}text-red-700
+        {% elif project_temperatures.UMT.avg > 40 %}text-red-600
+        {% elif project_temperatures.UMT.avg > 35 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.UMT.avg|default_if_none:"36.7"|floatformat:1 }}
+            </span>
+
+            <span class="text-gray-400 mx-1">|</span>
+
+            <!-- MAX -->
+            <span class="
+        {% if project_temperatures.UMT.max > 50 %}text-red-700
+        {% elif project_temperatures.UMT.max > 40 and project_temperatures.UMT.max <= 50 %}text-red-600
+        {% elif project_temperatures.UMT.max > 35 and project_temperatures.UMT.max <= 40 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.UMT.max|default_if_none:"48.0"|floatformat:1 }}
+            </span>
+
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Avg/Max fleet temperature
+          </p>
+        </a>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= NAGPUR PROJECT ================= -->
+  <div class="mb-6 flex items-stretch gap-4">
+    <div class="hidden md:flex w-10 rounded-lg bg-indigo-50 border border-indigo-200 items-center justify-center">
+      <span class="text-sm font-bold tracking-[0.14em] text-indigo-700"
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">NAGPUR</span>
+    </div>
+    <div class="flex-1">
+      <h2 class="md:hidden text-xl font-bold text-gray-800 mb-3 border-l-4 border-indigo-500 pl-3">
+        Nagpur
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+        <!-- Total Count -->
+        <div class="bg-white rounded-lg shadow border p-4">
+          <div class="text-right text-blue-600 mb-1 mt-1">
+            <span class="text-4xl font-bold">{{ active_vehicle_counts.NAGPUR|default:"130" }}</span><span
+              class="text-2xl font-normal text-gray-400">/201</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Active / Total vehicles
+          </p>
+        </div>
+
+        <!-- Average SOH -->
+        <a href="/nagpur{% url 'battery:health_overview' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-green-600 mb-1 text-right">
+            {{ average_soh_values.NAGPUR|default:"99.4"|floatformat:-1 }}%
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Average battery health
+          </p>
+        </a>
+
+        <!-- Average Energy Efficiency -->
+        <a href="/nagpur{% url 'battery:energy_consumption' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-3xl font-bold text-purple-600 mb-1 text-right">
+            {{ average_efficiency_values.NAGPUR|default:"1.8"|floatformat:-2 }}
+            <span class="text-base font-medium">kWh/km</span>
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Energy consumption rate
+          </p>
+        </a>
+
+        <!-- Average Fleet Temperature -->
+        <a href="/nagpur{% url 'vehicle:vehicle_fleet_high_temperature' %}"
+          class="group block bg-white rounded-lg shadow border p-4 hover:shadow-md transition-shadow">
+          <div class="kpi-card-loader" aria-hidden="true">
+            <div class="kpi-card-loader-spinner"></div>
+          </div>
+          <i data-lucide="arrow-up-right"
+            class="absolute top-2 right-2 w-4 h-4 text-slate-400 opacity-0 translate-x-0.5 -translate-y-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:text-blue-600 group-hover:translate-x-0 group-hover:translate-y-0"></i>
+          <div class="flex justify-end mb-2">
+            <span class="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Details</span>
+          </div>
+          <div class="text-[25px] font-bold mb-1 text-right">
+
+            <!-- AVG -->
+            <span class="
+        {% if project_temperatures.NAGPUR.avg > 50 %}text-red-700
+        {% elif project_temperatures.NAGPUR.avg > 40 %}text-red-600
+        {% elif project_temperatures.NAGPUR.avg > 35 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.NAGPUR.avg|default_if_none:"39.6"|floatformat:1 }}
+            </span>
+
+            <span class="text-gray-400 mx-1">|</span>
+
+            <!-- MAX -->
+            <span class="
+        {% if project_temperatures.NAGPUR.max > 50 %}text-red-700
+        {% elif project_temperatures.NAGPUR.max > 40 and project_temperatures.NAGPUR.max < 50 %}text-red-600
+        {% elif project_temperatures.NAGPUR.max > 35 and project_temperatures.NAGPUR.max < 40 %}text-amber-500
+        {% else %}text-blue-500
+        {% endif %}
+    ">
+              {{ project_temperatures.NAGPUR.max|default_if_none:"47.0"|floatformat:1 }}
+            </span>
+
+          </div>
+          <p class="text-xs text-gray-500 text-right">
+            Avg/Max fleet temperature
+          </p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+
+</div><!-- End min-h-screen -->
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const kpiLinks = document.querySelectorAll(".min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border");
+
+    function resetKpiLoaders() {
+      kpiLinks.forEach(function (el) {
+        el.classList.remove("kpi-loading");
+        el.removeAttribute("aria-busy");
+      });
+    }
+
+    // Safety reset when this page is freshly rendered.
+    resetKpiLoaders();
+
+    kpiLinks.forEach(function (link) {
+      link.addEventListener("click", function (e) {
+        // Ignore non-primary click/new tab gestures.
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+          return;
+        }
+
+        resetKpiLoaders();
+        link.classList.add("kpi-loading");
+        link.setAttribute("aria-busy", "true");
+      });
+    });
+  });
+
+  // Reset loaders if page is restored from browser cache (back/forward).
+  window.addEventListener("pageshow", function () {
+    const kpiLinks = document.querySelectorAll(".min-h-screen .grid a.block.bg-white.rounded-lg.shadow.border");
+    kpiLinks.forEach(function (el) {
+      el.classList.remove("kpi-loading");
+      el.removeAttribute("aria-busy");
+    });
+    const loaders = document.querySelectorAll(".kpi-card-loader");
+    loaders.forEach(function (loader) {
+      loader.classList.remove("show");
+    });
+  });
+</script>
+
+{% endblock %}

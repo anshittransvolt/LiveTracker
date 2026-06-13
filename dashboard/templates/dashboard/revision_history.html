@@ -1,0 +1,91 @@
+{% extends 'dashboard/base/base.html' %}
+
+{% load revision_extras %}
+
+{% block breadcrumb_block %}
+<nav class="mb-6" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li aria-current="page">
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+                    <i data-lucide="git-branch" class="w-4 h-4 inline mr-1"></i>
+                    Revision History
+                </span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header card -->
+    <div class="bg-white border rounded-lg shadow-sm p-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900">Revision History</h2>
+                <p class="text-gray-600 mt-1">Track changes and updates to the system</p>
+            </div>
+
+            <div class="flex gap-4">
+                <div class="px-4 py-3 bg-blue-50 rounded-lg">
+                    <div class="text-xs text-blue-600">Current Version</div>
+                    <div class="font-semibold text-blue-800 text-lg">{{ current_version|default:"--" }}</div>
+                </div>
+                <div class="px-4 py-3 bg-green-50 rounded-lg">
+                    <div class="text-xs text-green-600">Release Date</div>
+                    <div class="font-semibold text-green-800 text-lg">{% if release_date %}{{ release_date|date:"F j, Y" }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="px-4 py-3 bg-gray-50 rounded-lg">
+                    <div class="text-xs text-gray-600">Status</div>
+                    <div class="font-semibold text-gray-800 text-lg">{{ status }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revision list -->
+    <div class="grid gap-6">
+        {% if revisions.exists %}
+            {% for rev in revisions %}
+            <div class="bg-white border rounded-lg shadow-sm overflow-hidden">
+                <div class="p-5 md:p-6">
+                    <div class="flex items-start md:items-center md:justify-between gap-4">
+                        <div class="flex items-start gap-4">
+                            <div class="flex-shrink-0">
+                                <div class="h-12 w-12 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-semibold">v{{ rev.version }}</div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">{{ rev.title }}</h3>
+                                <div class="text-sm text-gray-500">Released {{ rev.created_at|date:"F j, Y" }}</div>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <div>By {{ rev.created_by_text|default:"System" }}</div>
+                            {% if forloop.first %}
+                                <div class="mt-1 inline-block text-xs bg-green-50 text-green-800 px-2 py-1 rounded">Latest</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mt-4 prose max-w-none text-gray-800 p-0">
+                        {{ rev.description|bullet_list }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center text-gray-500 py-8">No revisions published yet.</div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

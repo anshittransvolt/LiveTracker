@@ -1,0 +1,43 @@
+{% load static %}
+
+{# Breadcrumb Component - Simple and Modular #}
+{% if breadcrumbs %}
+<nav class="mb-6" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <!-- Home/Dashboard Link (Always first) -->
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:dashboard' %}" 
+               class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Dashboard
+            </a>
+        </li>
+
+        <!-- Dynamic Breadcrumb Items -->
+        {% for crumb in breadcrumbs %}
+            <li {% if forloop.last %}aria-current="page"{% endif %}>
+                <div class="flex items-center">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                    
+                    {% if crumb.url and not forloop.last %}
+                        <a href="{{ crumb.url }}" 
+                           class="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2 transition-colors">
+                            {% if crumb.icon %}
+                                <i data-lucide="{{ crumb.icon }}" class="w-4 h-4 inline mr-1"></i>
+                            {% endif %}
+                            {{ crumb.title }}
+                        </a>
+                    {% else %}
+                        <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+                            {% if crumb.icon %}
+                                <i data-lucide="{{ crumb.icon }}" class="w-4 h-4 inline mr-1"></i>
+                            {% endif %}
+                            {{ crumb.title }}
+                        </span>
+                    {% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ol>
+</nav>
+{% endif %}
