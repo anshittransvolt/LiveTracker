@@ -9,5 +9,5 @@ def profile(request):
 
     profile, created = UserProfile.objects.get_or_create(user=request.user)
 
-    context = {"user": request.user, "title": "Profile - Voltrack"}
+    context = {"user": request.user, "title": "Profile - LiveTracker"}
     return render(request, "dashboard/profile.html", context)

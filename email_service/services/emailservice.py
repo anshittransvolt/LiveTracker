@@ -84,11 +84,11 @@ class CNSEmailService:
         if not recipient:
             return {"success": False, "error": "Recipient email cannot be empty"}
 
-        subject = "Password Reset - VolTrack"
+        subject = "Password Reset - LiveTracker"
         content = f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #dc2626;">Password Reset Request</h2>
-                <p>You have requested to reset your VolTrack account password. Use the OTP below:</p>
+                <p>You have requested to reset your LiveTracker account password. Use the OTP below:</p>
                 <div style="background: #fef2f2; padding: 20px; text-align: center; margin: 20px 0; border: 1px solid #fecaca;">
                     <h1 style="color: #dc2626; font-size: 32px; margin: 0;">{otp_code}</h1>
                 </div>
@@ -119,11 +119,11 @@ class CNSEmailService:
         if not recipient:
             return {"success": False, "error": "Recipient email cannot be empty"}
 
-        subject = "Password Change Verification - VolTrack"
+        subject = "Password Change Verification - LiveTracker"
         content = f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #2563eb;">Password Change Verification</h2>
-                <p>You have requested to change your VolTrack account password. Use the OTP below to proceed:</p>
+                <p>You have requested to change your LiveTracker account password. Use the OTP below to proceed:</p>
                 <div style="background: #eff6ff; padding: 20px; text-align: center; margin: 20px 0; border: 1px solid #bfdbfe;">
                     <h1 style="color: #2563eb; font-size: 32px; margin: 0;">{otp_code}</h1>
                 </div>
@@ -198,7 +198,7 @@ class CNSEmailService:
                 </div>
             """
 
-        subject = f"[Voltrack] New {feedback_instance.get_feedback_type_display()}: {feedback_instance.title}"
+        subject = f"[LiveTracker] New {feedback_instance.get_feedback_type_display()}: {feedback_instance.title}"
         
         content = f"""
             <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px;">
@@ -238,7 +238,7 @@ class CNSEmailService:
                 </div>
 
                 <div style="margin-top: 20px; text-align: center; font-size: 12px; color: #9ca3af;">
-                    <p>This is an automated notification from Voltrack Feedback System</p>
+                    <p>This is an automated notification from LiveTracker Feedback System</p>
                 </div>
             </div>
         """

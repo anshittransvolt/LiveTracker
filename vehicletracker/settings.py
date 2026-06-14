@@ -167,6 +167,7 @@ CONTENT_SECURITY_POLICY = {
             "'self'", "cdn.tailwindcss.com", "cdn.jsdelivr.net",
             "cdnjs.cloudflare.com", "unpkg.com", "code.jquery.com",
             "https://lottie.host", "www.google.com", "www.gstatic.com",
+            "tiles.stadiamaps.com",
         ],
         "frame-src": ["'self'", "www.google.com", "www.gstatic.com"],
         "frame-ancestors": ["'self'"],
@@ -211,6 +212,10 @@ TWINS_MBMT_VENDOR = os.getenv("TWINS_MBMT_VENDOR", "intangles")
 TWINS_MBMT_SPV = os.getenv("TWINS_MBMT_SPV", "MBMT")
 TWINS_NAGPUR_VENDOR = os.getenv("TWINS_NAGPUR_VENDOR", "eka")
 TWINS_NAGPUR_SPV = os.getenv("TWINS_NAGPUR_SPV", "nagpur")
+TWINS_VECV_VENDOR = os.getenv("TWINS_VECV_VENDOR", "intangles")
+TWINS_VECV_SPV = os.getenv("TWINS_VECV_SPV", "VECV")
+TWINS_STAR_CEMENT_VENDOR = os.getenv("TWINS_STAR_CEMENT_VENDOR", "propel")
+TWINS_STAR_CEMENT_SPV = os.getenv("TWINS_STAR_CEMENT_SPV", "STAR_CEMENT")
 
 # Telemetry API
 TELEMETRY_API_URL = os.getenv("TELEMETRY_API_URL")
@@ -233,6 +238,7 @@ VEHICLE_MASTER_TABLE = os.environ.get("VEHICLE_MASTER_TABLE", "Vehicle_Master2")
 # reCAPTCHA
 RECAPTCHA_PUBLIC_KEY = os.getenv("CAPTCHA_SITE_KEY", "")
 RECAPTCHA_PRIVATE_KEY = os.getenv("CAPTCHA_SECRET_KEY", "")
+SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

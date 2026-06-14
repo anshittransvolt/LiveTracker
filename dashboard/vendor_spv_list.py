@@ -4,4 +4,5 @@ VENDOR_SPV_LIST = {
     "MBMT": ["intangles"],
     "UMT": ["intangles"],
     "VECV": ["intangles"],
+    "STAR_CEMENT": ["propel"],
 }

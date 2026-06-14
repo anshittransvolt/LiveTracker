@@ -1,6 +1,6 @@
 {% extends 'dashboard/base/base.html' %}
 
-{% block title %}Profile - Voltrack{% endblock %}
+{% block title %}Profile - LiveTracker{% endblock %}
 
 {% block breadcrumb_block %}
 <nav class="mb-6" aria-label="Breadcrumb">
@@ -106,7 +106,7 @@
                     </div>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {% if user.profile.msal_connected %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
                         {% if user.profile.msal_connected %}
-                            <img src="https://voltrack.transvolt.org/static/assets/images/microsoft-logo.png" alt="Microsoft Logo" class="w-4 h-4 mr-2">
+                            <img src="https://livetracker.transvolt.org/static/assets/images/microsoft-logo.png" alt="Microsoft Logo" class="w-4 h-4 mr-2">
                             Microsoft
                         {% else %}
                             <i data-lucide="key" class="w-3 h-3 mr-1"></i>

@@ -91,4 +91,6 @@ urlpatterns = [
         views.dashboard_report_view,
         name="download_dashboard_report",
     ),
+    path("api/geofences/", views.geofences_list_create, name="geofences_list"),
+    path("api/geofences/<int:pk>/", views.geofence_detail, name="geofence_detail"),
 ]

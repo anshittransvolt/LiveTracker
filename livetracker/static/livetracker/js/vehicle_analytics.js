@@ -62,11 +62,21 @@ export async function loadVehicleAnalytics(registrationNumber, historicalDate = 
     currentVehicle = registrationNumber;
     showAnalyticsLoading(true);
     
-    // Build API URL with optional date parameter
+    // Build API URL with optional date and project parameters
     let apiUrl = `/livetracker/api/analytics/${encodeURIComponent(registrationNumber)}/`;
-    if (historicalDate) {
-      apiUrl += `?date=${encodeURIComponent(historicalDate)}`;
+    // Read SPV from dropdown; fall back to URL path (/<project>/livetracker/...)
+    let spv = document.getElementById('projectSwitcher')?.value || '';
+    if (!spv) {
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2 && parts[1] === 'livetracker') {
+        const slugMap = { ultratech:'ULTRATECH', umt:'UMT', mbmt:'MBMT', nagpur:'NAGPUR', vecv:'VECV', star_cement:'STAR_CEMENT', 'star-cement':'STAR_CEMENT' };
+        spv = slugMap[parts[0].toLowerCase()] || '';
+      }
     }
+    const params = new URLSearchParams();
+    if (historicalDate) params.set('date', historicalDate);
+    if (spv) params.set('spv', spv);
+    if (params.toString()) apiUrl += `?${params.toString()}`;
     
     // console.log('🌐 Fetching analytics from URL:', apiUrl);
     
@@ -166,13 +176,16 @@ function calculateRideSummary(eventSummary, totalDurationMinutes) {
   const moving = eventSummary.moving || 0;
   const stopped = eventSummary.stopped || 0;
   const charging = eventSummary.charging || 0;
-  const total = Math.round((totalDurationMinutes || 0) * 60); // Convert minutes to seconds
-  
+  const total = Math.round((totalDurationMinutes || 0) * 60);
+
+  // Only display a time if it's actually non-zero; avoid misleading 00:00:00
+  const fmtOrDash = (secs) => secs > 0 ? formatDuration(secs) : '—';
+
   return {
-    totalMovingTime: formatDuration(moving),
-    totalStopTime: formatDuration(stopped),
-    totalChargingTime: formatDuration(charging),
-    totalRideTime: formatDuration(total)
+    totalMovingTime: fmtOrDash(moving),
+    totalStopTime: fmtOrDash(stopped),
+    totalChargingTime: fmtOrDash(charging),
+    totalRideTime: total > 0 ? formatDuration(total) : '—'
   };
 }
 
@@ -201,61 +214,96 @@ function formatDuration(seconds) {
  */
 function updateAnalyticsFromAPI(analyticsData) {
   const { current_status, trip_analytics, efficiency_analytics, soc_analytics } = analyticsData;
-  
-  // Helper to format values with fallback to '--'
+
+  const EMPTY = '—';
+
   const fmt = (value, suffix = '') => {
-    if (value === null || value === undefined || value === 'N/A' || value === '') {
-      return '--';
-    }
-    return suffix ? `${value}${suffix}` : value;
+    if (value === null || value === undefined || value === 'N/A' || value === '') return EMPTY;
+    const str = String(value).trim();
+    if (!str || str === 'N/A') return EMPTY;
+    return suffix ? `${str}${suffix}` : str;
   };
-  
-  // Update current status
+
+  // Hide a metric row when its value is empty
+  const setRow = (rowId, elementId, value) => {
+    updateElement(elementId, value);
+    const row = document.getElementById(rowId);
+    if (row) row.classList.toggle('lv-hidden', value === EMPTY || value === '--');
+  };
+
+  // Collapse an entire metric card if all its data rows are hidden
+  const syncCard = (cardId, ...rowIds) => {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    const allHidden = rowIds.every(id => {
+      const row = document.getElementById(id);
+      return row && row.classList.contains('lv-hidden');
+    });
+    card.classList.toggle('lv-empty', allHidden);
+  };
+
+  // ── Current Status ──────────────────────────────────────────────
   if (current_status) {
-    updateElement('vehicleStatus', fmt(current_status.status));
-    updateElement('vehicleBattery', fmt(current_status.soc, '%'));
+    setRow('mc-row-status',  'vehicleStatus',  fmt(current_status.status));
+    setRow('mc-row-battery', 'vehicleBattery', fmt(current_status.soc, '%'));
+    // Last Updated: always show when present, don't hide row
     updateElement('lastUpdate', fmt(current_status.last_update));
     updateElement('driverName', fmt(current_status.driver_name));
   }
-  
-  // Update trip analytics
+  // Current Status card always visible (at minimum shows last update)
+
+  // ── Trip Analytics ──────────────────────────────────────────────
   if (trip_analytics) {
-    updateElement('totalDistance', fmt(trip_analytics.total_distance, ' km'));
-    
-    // Always show duration in hours with two decimals
-    let durationHr = '--';
-    if (typeof trip_analytics.duration_minutes === 'number' && !isNaN(trip_analytics.duration_minutes)) {
-      durationHr = (trip_analytics.duration_minutes / 60).toFixed(2);
+    setRow('mc-row-distance', 'totalDistance', fmt(trip_analytics.total_distance, ' km'));
+
+    let durationVal = EMPTY;
+    if (typeof trip_analytics.duration_minutes === 'number' && !isNaN(trip_analytics.duration_minutes) && trip_analytics.duration_minutes > 0) {
+      durationVal = `${(trip_analytics.duration_minutes / 60).toFixed(2)} hrs`;
     }
-    updateElement('tripDuration', durationHr === '--' ? '--' : `${durationHr} hrs`);
-    
-    updateElement('dataPoints', fmt(trip_analytics.total_points));
-    
-    // Calculate average speed if we have distance and duration
-    if (trip_analytics.total_distance && trip_analytics.duration_minutes) {
-      const avgSpeed = (trip_analytics.total_distance / (trip_analytics.duration_minutes / 60)).toFixed(1);
-      updateElement('avgSpeed', `${avgSpeed} km/h`);
-    } else {
-      updateElement('avgSpeed', '--');
+    setRow('mc-row-duration', 'tripDuration', durationVal);
+
+    // Avg speed: suppress if overall average is too low relative to distance
+    // (indicates high stop time that makes the number misleading).
+    // Use event_summary stopped time to decide: if stops > 40% of trip, don't show.
+    let avgSpeedVal = EMPTY;
+    if (trip_analytics.total_distance && trip_analytics.duration_minutes && trip_analytics.duration_minutes > 0) {
+      const overallAvg = trip_analytics.total_distance / (trip_analytics.duration_minutes / 60);
+      const stopSecs  = analyticsData.event_summary?.stopped || 0;
+      const totalSecs = trip_analytics.duration_minutes * 60;
+      const stopRatio = totalSecs > 0 ? stopSecs / totalSecs : 0;
+      // Only show if we can't detect high stop time OR stop ratio is acceptable
+      if (stopRatio < 0.4 || stopSecs === 0) {
+        avgSpeedVal = `${overallAvg.toFixed(1)} km/h`;
+      }
     }
+    setRow('mc-row-avgspeed', 'avgSpeed', avgSpeedVal);
+
+    const pointsVal = trip_analytics.total_points > 0 ? fmt(trip_analytics.total_points) : EMPTY;
+    setRow('mc-row-points', 'dataPoints', pointsVal);
+
+    syncCard('mc-trip', 'mc-row-distance', 'mc-row-duration', 'mc-row-avgspeed', 'mc-row-points');
   }
-  
-  // Update energy efficiency analytics
+
+  // ── Energy Efficiency ───────────────────────────────────────────
   if (efficiency_analytics) {
-    updateElement('energyConsumed', fmt(efficiency_analytics.energy_kwh));
-    updateElement('energyEfficiency', fmt(efficiency_analytics.eff_kwh_per_km));
-    
-    // Extract SOC drop from soc_discharge string (e.g., "15.5%" -> "15.5%")
-    const socDrop = efficiency_analytics.soc_discharge || null;
-    updateElement('socDrop', fmt(socDrop));
+    setRow('mc-row-energy', 'energyConsumed', fmt(efficiency_analytics.energy_kwh));
+    setRow('mc-row-eff',    'energyEfficiency', fmt(efficiency_analytics.eff_kwh_per_km));
+
+    // Suppress SOC discharge if zero or "0.00%" — data artifact, not real discharge
+    const rawDrop = efficiency_analytics.soc_discharge || null;
+    const dropVal = (rawDrop && rawDrop !== '0.00%' && parseFloat(rawDrop) > 0) ? rawDrop : null;
+    setRow('mc-row-socdrop', 'socDrop', fmt(dropVal));
+
+    syncCard('mc-energy', 'mc-row-energy', 'mc-row-eff', 'mc-row-socdrop');
   }
-  
-  // Update SOC analytics
+
+  // ── Battery Analytics ───────────────────────────────────────────
   if (soc_analytics) {
     updateElement('socStart', fmt(soc_analytics.start_soc, '%'));
-    updateElement('socEnd', fmt(soc_analytics.end_soc, '%'));
-    updateElement('socMax', fmt(soc_analytics.max_soc, '%'));
-    updateElement('socMin', fmt(soc_analytics.min_soc, '%'));
+    updateElement('socEnd',   fmt(soc_analytics.end_soc, '%'));
+    setRow('mc-row-socmax', 'socMax', fmt(soc_analytics.max_soc, '%'));
+    setRow('mc-row-socmin', 'socMin', fmt(soc_analytics.min_soc, '%'));
+    syncCard('mc-battery', 'mc-row-socmax', 'mc-row-socmin');
   }
 }
 
@@ -295,15 +343,24 @@ function showAnalyticsError(message) {
     errorDiv.classList.remove('hidden');
   }
   
-  // Set all fields to '--' on error
+  // Reset all fields on error
   const fields = [
     'vehicleStatus', 'vehicleBattery', 'lastUpdate', 'driverName',
     'totalDistance', 'tripDuration', 'dataPoints', 'avgSpeed',
     'energyConsumed', 'energyEfficiency', 'socDrop',
     'socStart', 'socEnd', 'socMax', 'socMin'
   ];
-  
-  fields.forEach(id => updateElement(id, '--'));
+  fields.forEach(id => updateElement(id, '—'));
+
+  // Restore card/row visibility on error reset
+  ['mc-row-status','mc-row-battery','mc-row-distance','mc-row-duration',
+   'mc-row-avgspeed','mc-row-points','mc-row-energy','mc-row-eff',
+   'mc-row-socdrop','mc-row-socmax','mc-row-socmin'].forEach(id => {
+    document.getElementById(id)?.classList.remove('lv-hidden');
+  });
+  ['mc-trip','mc-energy','mc-battery'].forEach(id => {
+    document.getElementById(id)?.classList.remove('lv-empty');
+  });
 }
 
 // ===================================================
@@ -335,15 +392,22 @@ function renderSocChart(socTimeSeries) {
     window.socChartInstance.destroy();
   }
 
-  // Reverse array so earliest is first
-  const reversedSeries = Array.isArray(socTimeSeries) ? [...socTimeSeries].reverse() : [];
+  // Sort ascending by timestamp so oldest is left, newest is right
+  const reversedSeries = Array.isArray(socTimeSeries)
+    ? [...socTimeSeries].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    : [];
 
-  // Prepare data
-  // Show only time (HH:mm) for compact x-axis labels
+  // Theme-aware palette
+  const isDark = document.body.classList.contains('dark-theme');
+  const gridCol = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
+  const tickCol = isDark ? '#7a8699' : '#5c687e';
+  const connCol = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+  const fillCol = isDark ? 'rgba(56,225,196,0.05)' : 'rgba(13,148,136,0.05)';
+
+  // Prepare data — time (HH:mm) labels for compact x-axis
   const labels = reversedSeries.map(point => {
     if (!point.timestamp) return '';
     try {
-      // Extract time part (HH:mm) from ISO string
       const t = point.timestamp.split('T')[1];
       return t ? t.slice(0, 5) : '';
     } catch (e) {
@@ -352,13 +416,14 @@ function renderSocChart(socTimeSeries) {
   });
   const data = reversedSeries.map(point => point.soc ?? null);
 
-  // Theme colors for segments
-    const segmentColors = reversedSeries.map(point => {
-    if (point.soc < 30) return 'rgba(255,117,24,0.8)'; // Red for SOC < 30%
-    if (point.status && point.status.toLowerCase() === 'charging') return 'rgba(59, 130, 246, 0.7)'; // Green for charging
-    if (point.status && point.status.toLowerCase() === 'moving') return 'rgba(80, 200, 120, 0.7)'; // Green for moving
-    if (point.status && point.status.toLowerCase() === 'stop') return 'rgb(105,105,105)'; // Gray for stopped
-    return 'rgba(80, 200, 120, 0.7)'; // Blue for discharging/other
+  // Segment colors keyed by vehicle state
+  const segmentColors = reversedSeries.map(point => {
+    const st = (point.status || '').toLowerCase();
+    if (point.soc < 30)        return 'rgba(255,117,24,0.9)';   // orange — low battery
+    if (st === 'charging')     return 'rgba(90,162,255,0.85)';  // blue — charging
+    if (st === 'moving')       return 'rgba(61,220,132,0.85)';  // green — moving
+    if (st === 'stop' || st === 'stopped') return isDark ? 'rgba(140,150,168,0.7)' : 'rgba(100,110,130,0.65)'; // muted — stopped
+    return 'rgba(61,220,132,0.75)'; // default green
   });
 
   // Show message if no data
@@ -380,21 +445,33 @@ function renderSocChart(socTimeSeries) {
     canvas.style.display = 'block';
   }
 
+  // Plugin: clear the canvas before each draw so CSS transparent background shows through
+  const clearBgPlugin = {
+    id: 'clearBg',
+    beforeDraw(chart) {
+      chart.ctx.clearRect(0, 0, chart.width, chart.height);
+    }
+  };
+
   window.socChartInstance = new Chart(ctx, {
     type: 'line',
+    plugins: [clearBgPlugin],
     data: {
       labels: labels,
       datasets: [{
         label: 'SOC (%)',
         data: data,
-        borderColor: 'rgba(200, 200, 200, 0.5)',
-        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderColor: connCol,
+        backgroundColor: 'transparent',
         pointBackgroundColor: segmentColors,
-        pointRadius: data.length > 50 ? 0 : 2,
+        pointBorderColor: 'transparent',
+        pointRadius: data.length > 50 ? 0 : 2.5,
+        pointHoverRadius: 4,
+        borderWidth: 1.8,
         segment: {
           borderColor: ctx => {
             const idx = ctx.p0DataIndex;
-            return (idx >= 0 && idx < segmentColors.length) ? segmentColors[idx] : 'rgba(59, 130, 246, 0.7)';
+            return (idx >= 0 && idx < segmentColors.length) ? segmentColors[idx] : segmentColors[segmentColors.length - 1];
           }
         },
         fill: false,
@@ -405,39 +482,50 @@ function renderSocChart(socTimeSeries) {
       responsive: true,
       maintainAspectRatio: false,
       aspectRatio: 2.5,
-      layout: {
-        padding: {
-          left: 8,
-          right: 8,
-          top: 4,
-          bottom: 4
-        }
-      },
+      layout: { padding: { left: 8, right: 8, top: 4, bottom: 4 } },
       plugins: {
         legend: { display: false },
         tooltip: {
           enabled: true,
+          backgroundColor: isDark ? '#0b0f17' : '#ffffff',
+          borderColor: isDark ? '#161c28' : '#e3e7ee',
+          borderWidth: 1,
+          titleColor: isDark ? '#e6edf6' : '#0d1220',
+          bodyColor: isDark ? '#aab4c4' : '#3f4a61',
+          padding: 8,
           callbacks: {
             label: function(context) {
-              const pt = socTimeSeries[context.dataIndex];
+              const pt = reversedSeries[context.dataIndex];
               const status = pt?.status || 'Unknown';
-              return `SOC: ${context.parsed.y}% (${status})`;
+              return `SOC: ${context.parsed.y}% · ${status}`;
             }
           }
         }
       },
       scales: {
         x: {
-          title: { display: true, text: 'Time', font: { size: 13 } },
-          ticks: { maxTicksLimit: 16, font: { size: 12 }, autoSkip: true },
-          grid: { display: true, color: 'rgba(200,200,200,0.15)' }
+          title: { display: false },
+          ticks: {
+            color: tickCol,
+            font: { size: 10, family: "'JetBrains Mono', monospace" },
+            maxRotation: 0,
+            autoSkip: false,
+            callback: function(val, idx) {
+              const n = labels.length;
+              if (n <= 6) return labels[idx] || '';
+              const step = Math.max(1, Math.floor(n / 5));
+              if (idx === 0 || idx === n - 1 || idx % step === 0) return labels[idx] || '';
+              return '';
+            }
+          },
+          grid: { display: true, color: gridCol }
         },
         y: {
-          title: { display: true, text: 'SOC (%)', font: { size: 13 } },
+          title: { display: false },
           min: 0,
           max: 100,
-          ticks: { stepSize: 20, font: { size: 12 } },
-          grid: { display: true, color: 'rgba(200,200,200,0.15)' }
+          ticks: { stepSize: 20, color: tickCol, font: { size: 10, family: "'JetBrains Mono', monospace" } },
+          grid: { display: true, color: gridCol }
         }
       }
     }
@@ -467,8 +555,10 @@ function renderSocChartZoom() {
     window.socChartZoomInstance.destroy();
   }
 
-  // Reverse array so earliest is first
-  const reversedSeries = Array.isArray(socTimeSeries) ? [...socTimeSeries].reverse() : [];
+  // Sort ascending by timestamp so oldest is left, newest is right
+  const reversedSeries = Array.isArray(socTimeSeries)
+    ? [...socTimeSeries].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    : [];
 
   // Prepare data with full timestamps for zoom view
   const labels = reversedSeries.map(point => {
@@ -485,14 +575,21 @@ function renderSocChartZoom() {
   });
   const data = reversedSeries.map(point => point.soc ?? null);
 
-  // Enhanced colors for zoom view
-    const segmentColors = reversedSeries.map(point => {
-    if (point.soc < 30) return 'rgba(255,117,24,0.8)'; // Red for SOC < 30%
-    if (point.status && point.status.toLowerCase() === 'charging') return 'rgba(59, 130, 246, 0.7)'; // Blue for charging
-    if (point.status && point.status.toLowerCase() === 'moving') return 'rgba(80, 200, 120, 0.7)'; // Green for moving
-    if (point.status && point.status.toLowerCase() === 'stop') return '	rgb(105,105,105)'; // gray for stopped
-    return 'rgba(80, 200, 120, 0.7)'; // Blue for discharging/other
+  // Theme-aware colors for zoom view
+  const isDarkZ = document.body.classList.contains('dark-theme');
+  const gridColZ = isDarkZ ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
+  const tickColZ = isDarkZ ? '#7a8699' : '#5c687e';
+  const connColZ = isDarkZ ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)';
+
+  const segmentColors = reversedSeries.map(point => {
+    const st = (point.status || '').toLowerCase();
+    if (point.soc < 30)                         return 'rgba(255,117,24,0.9)';
+    if (st === 'charging')                       return 'rgba(90,162,255,0.9)';
+    if (st === 'moving')                         return 'rgba(61,220,132,0.9)';
+    if (st === 'stop' || st === 'stopped')       return isDarkZ ? 'rgba(140,150,168,0.75)' : 'rgba(100,110,130,0.7)';
+    return 'rgba(61,220,132,0.85)';
   });
+
   // Show message if no data
   const chartContainer = canvas.parentElement;
   if (data.length === 0 || data.every(v => v === null)) {
@@ -506,28 +603,36 @@ function renderSocChartZoom() {
 
   canvas.style.display = 'block';
 
+  const clearBgPluginZ = {
+    id: 'clearBgZ',
+    beforeDraw(chart) {
+      chart.ctx.clearRect(0, 0, chart.width, chart.height);
+    }
+  };
+
   window.socChartZoomInstance = new Chart(ctx, {
     type: 'line',
+    plugins: [clearBgPluginZ],
     data: {
       labels: labels,
       datasets: [{
         label: 'SOC (%)',
         data: data,
-        borderColor: 'rgba(100, 100, 100, 0.3)',
-        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderColor: connColZ,
+        backgroundColor: 'transparent',
         pointBackgroundColor: segmentColors,
-        pointBorderColor: segmentColors,
-        pointRadius: 4, // Larger points for zoom view
-        pointHoverRadius: 6,
-        pointBorderWidth: 2,
+        pointBorderColor: 'transparent',
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        borderWidth: 2,
         segment: {
           borderColor: ctx => {
             const idx = ctx.p0DataIndex;
-            return (idx >= 0 && idx < segmentColors.length) ? segmentColors[idx] : 'rgba(59, 130, 246, 0.8)';
+            return (idx >= 0 && idx < segmentColors.length) ? segmentColors[idx] : segmentColors[segmentColors.length - 1];
           },
-          borderWidth: 3 // Thicker lines
+          borderWidth: 2.5,
         },
-        fill: true,
+        fill: false,
         tension: 0.3,
       }]
     },
@@ -545,11 +650,15 @@ function renderSocChartZoom() {
         },
         tooltip: {
           enabled: true,
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          titleFont: { size: 14, weight: 'bold' },
-          bodyFont: { size: 13 },
-          padding: 12,
-          cornerRadius: 8,
+          backgroundColor: isDarkZ ? '#0b0f17' : '#ffffff',
+          borderColor: isDarkZ ? '#161c28' : '#e3e7ee',
+          borderWidth: 1,
+          titleColor: isDarkZ ? '#e6edf6' : '#0d1220',
+          bodyColor: isDarkZ ? '#aab4c4' : '#3f4a61',
+          titleFont: { size: 12, weight: '600', family: "'Space Grotesk',sans-serif" },
+          bodyFont: { size: 12, family: "'JetBrains Mono',monospace" },
+          padding: 10,
+          cornerRadius: 6,
           displayColors: true,
           callbacks: {
             title: function(context) {
@@ -558,9 +667,7 @@ function renderSocChartZoom() {
             label: function(context) {
               const pt = reversedSeries[context.dataIndex];
               const status = pt?.status || 'Unknown';
-              const statusEmoji = status.toLowerCase() === 'charging' ? '' : 
-                                 pt?.soc < 30 ? '' : '';
-              return `${statusEmoji} SOC: ${context.parsed.y}% (${status})`;
+              return `SOC: ${context.parsed.y}% · ${status}`;
             }
           }
         },
@@ -591,50 +698,40 @@ function renderSocChartZoom() {
       },
       scales: {
         x: {
-          title: { 
-            display: true, 
-            text: 'Timestamp', 
-            font: { size: 15, weight: 'bold' },
-            color: '#475569'
+          title: { display: false },
+          ticks: {
+            color: tickColZ,
+            font: { size: 11, family: "'JetBrains Mono', monospace" },
+            maxRotation: 0,
+            autoSkip: false,
+            callback: function(val, idx) {
+              const n = labels.length;
+              if (n <= 8) return labels[idx] || '';
+              const step = Math.max(1, Math.floor(n / 7));
+              if (idx === 0 || idx === n - 1 || idx % step === 0) return labels[idx] || '';
+              return '';
+            }
           },
-          ticks: { 
-            maxRotation: 45,
-            minRotation: 45,
-            font: { size: 11 },
-            color: '#64748b',
-            maxTicksLimit: 20
-          },
-          grid: { 
-            display: true, 
-            color: 'rgba(148, 163, 184, 0.15)',
-            drawBorder: true,
-            borderColor: '#cbd5e1',
-            borderWidth: 2
-          }
+          grid: { display: true, color: gridColZ }
         },
         y: {
-          title: { 
-            display: true, 
-            text: 'State of Charge (%)', 
-            font: { size: 15, weight: 'bold' },
-            color: '#475569'
+          title: {
+            display: true,
+            text: 'State of Charge (%)',
+            font: { size: 13, weight: '600', family: "'Space Grotesk',sans-serif" },
+            color: tickColZ
           },
           min: 0,
           max: 100,
-          ticks: { 
-            stepSize: 10, // More granular steps
-            font: { size: 12 },
-            color: '#64748b',
-            callback: function(value) {
-              return value + '%';
-            }
+          ticks: {
+            stepSize: 10,
+            font: { size: 11, family: "'JetBrains Mono', monospace" },
+            color: tickColZ,
+            callback: function(value) { return value + '%'; }
           },
-          grid: { 
-            display: true, 
-            color: 'rgba(148, 163, 184, 0.15)',
-            drawBorder: true,
-            borderColor: '#cbd5e1',
-            borderWidth: 2
+          grid: {
+            display: true,
+            color: gridColZ
           }
         }
       }

@@ -18,7 +18,31 @@ let addressCache = {};
 let currentVehicleNumber = null; // For fetching vehicle-specific alerts
 
 let stoppageHeatmapLayer = null;
-let heatmapVisible = true; // Default to ON
+let heatmapVisible = false; // Default to OFF
+
+// ===================================================
+// TILE LAYER SWITCHING (dark ↔ light theme)
+// ===================================================
+let _vehicleTileLayer = null;
+
+function _getVehicleTileUrl() {
+  return document.body.classList.contains('dark-theme')
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+}
+
+function switchVehicleTiles() {
+  if (!playbackMap) return;
+  if (_vehicleTileLayer) {
+    try { playbackMap.removeLayer(_vehicleTileLayer); } catch (_) {}
+  }
+  _vehicleTileLayer = L.tileLayer(_getVehicleTileUrl(), {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    subdomains: 'abcd'
+  }).addTo(playbackMap);
+}
+window.switchVehicleTiles = switchVehicleTiles;
 
 // =============================
 // ROUTE CORRIDOR & DEVIATION
@@ -246,6 +270,11 @@ function clearDeviationMarkers() {
 }
 
 async function maybeReportDeviation(point) {
+  // Corridor deviation only applies to Ultratech project
+  const _pp = window.location.pathname.split('/').filter(Boolean);
+  const _isUT = !(_pp.length >= 2 && _pp[1] === 'livetracker') || _pp[0].toLowerCase() === 'ultratech';
+  if (!_isUT) return;
+
   const lat = parseFloat(point.latitude);
   const lon = parseFloat(point.longitude);
   if (isNaN(lat) || isNaN(lon)) return;
@@ -391,8 +420,9 @@ function toggleStoppageHeatmap() {
 }
 
 function addHeatmapToggleButton() {
-  // Add a button to the map (below trip summary on the left)
+  // Skip if the Trip Replay panel in vehicle.html provides its own toggle
   if (!playbackMap) return;
+  if (document.getElementById('tripReplayPanel')) return;
   if (document.getElementById('heatmapToggleBtn')) return;
   const btn = document.createElement('button');
   btn.id = 'heatmapToggleBtn';
@@ -722,7 +752,13 @@ async function createVehicleInfoHeader(registrationNumber, firstPoint) {
     
     const driverName = driverData.driver_name || 'Not Assigned';
     const driverPhone = driverData.driver_phone || '';
-    
+
+    // Populate sidebar rail driver name
+    const railDriverEl = document.getElementById('lv-veh-driver-rail');
+    if (railDriverEl) {
+      railDriverEl.textContent = (driverName && driverName !== 'Not Assigned') ? driverName : 'Unassigned';
+    }
+
     // Update header with actual driver info
     header.innerHTML = `
       <div class="flex items-center gap-2.5 text-base">
@@ -746,6 +782,8 @@ async function createVehicleInfoHeader(registrationNumber, firstPoint) {
     `;
   } catch (error) {
     console.error('Failed to fetch driver info:', error);
+    const railDriverElErr = document.getElementById('lv-veh-driver-rail');
+    if (railDriverElErr) railDriverElErr.textContent = 'Unassigned';
     // Show error state
     header.innerHTML = `
       <div class="flex items-center gap-2.5 text-base">
@@ -806,11 +844,8 @@ function setupVehicleMap() {
     bounceAtZoomLimits: false
   });
 
-  // Add tile layer
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(playbackMap);
+  // Add tile layer (theme-aware)
+  switchVehicleTiles();
 
   // Ensure map dragging is enabled after initialization
   if (playbackMap.dragging) {
@@ -844,15 +879,33 @@ function setupVehicleMap() {
 
   // Add geofences to vehicle map
   addGeofences(playbackMap);
-  // Add corridor toggle button
-  addCorridorToggleButton();
-  // Auto-show corridor overlay on init
-  try { toggleCorridorOverlay(); } catch (_) {}
+
+  // Corridor is Ultratech-specific — only show for that project
+  const _pathParts = window.location.pathname.split('/').filter(Boolean);
+  const _isUltratech = !(_pathParts.length >= 2 && _pathParts[1] === 'livetracker') ||
+                       _pathParts[0].toLowerCase() === 'ultratech';
+  if (_isUltratech) {
+    addCorridorToggleButton();
+    try { toggleCorridorOverlay(); } catch (_) {}
+  }
 }
 
 // ===================================================
 // PLAYBACK CONTROLS SETUP
 // ===================================================
+function _scrubberColors() {
+  const dark = document.body.classList.contains('dark-theme');
+  return {
+    panel:  dark ? '#0b0f17' : '#ffffff',
+    inset:  dark ? '#0e131d' : '#eef1f5',
+    line:   dark ? '#161c28' : '#e3e7ee',
+    ink:    dark ? '#e6edf6' : '#0d1220',
+    ink2:   dark ? '#aab4c4' : '#3f4a61',
+    ink3:   dark ? '#7a8699' : '#5c687e',
+    signal: dark ? '#38e1c4' : '#0d9488',
+  };
+}
+
 function setupPlaybackControls() {
   const controlsContainer = document.getElementById('playbackControls');
   if (!controlsContainer) {
@@ -860,132 +913,144 @@ function setupPlaybackControls() {
     return;
   }
 
-  // console.log('🎮 Setting up playback controls...');
-
-  // Calculate journey start and end times
   const startTime = new Date(playbackData[0].gps_time);
-  const endTime = new Date(playbackData[playbackData.length - 1].gps_time);
+  const endTime   = new Date(playbackData[playbackData.length - 1].gps_time);
   const journeyDurationMs = endTime - startTime;
+  const c = _scrubberColors();
 
   controlsContainer.innerHTML = `
-    <div class="flex flex-col gap-2 w-full">
-      <!-- Top Row: Playback Controls, Speed, Timeline -->
-      <div class="flex items-start w-full gap-2">
-        <!-- Left: Playback Control Buttons + Speed -->
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <div class="flex items-center gap-0.5">
-            <button id="resetBtn" 
-                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-700 transition-all group"
-                    title="Reset to start">
-              <i data-lucide="skip-back" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-            </button>
-            <button id="playBtn" 
-                    class="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-md hover:shadow-lg group"
-                    title="Play">
-              <i data-lucide="play" class="w-5 h-5 ml-0.5 group-hover:scale-110 transition-transform"></i>
-            </button>
-            <button id="pauseBtn" 
-                    class="w-8 h-8 hidden items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-md hover:shadow-lg group"
-                    title="Pause">
-              <i data-lucide="pause" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-            </button>
-            <button id="stopBtn" 
-                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-700 transition-all group"
-                    title="Stop">
-              <i data-lucide="square" class="w-3.5 h-3.5 group-hover:scale-110 transition-transform"></i>
-            </button>
-          </div>
-          <!-- Speed Control -->
-          <div class="flex items-center gap-1.5 pl-1.5 border-l border-slate-300">
-            <select id="speedSelect" 
-                    class="px-2 py-1 border border-slate-300 rounded-lg text-xs font-medium bg-white hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer">
-              <option value="0.5">0.5×</option>
-              <option value="1" selected>1×</option>
-              <option value="2">2×</option>
-              <option value="5">5×</option>
-              <option value="10">10×</option>
-              <option value="50">50×</option>
-            </select>
-          </div>
-        </div>
+<div style="display:flex;flex-direction:column;gap:8px;width:100%;font-family:'Space Grotesk',sans-serif;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <!-- Transport buttons -->
+    <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+      <button id="resetBtn" title="Restart"
+        style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid ${c.line};background:transparent;color:${c.ink2};cursor:pointer;transition:all .15s;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+      </button>
+      <button id="playBtn" title="Play"
+        style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:none;background:${c.signal};color:#fff;cursor:pointer;box-shadow:0 0 12px ${c.signal}55;flex-shrink:0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <button id="pauseBtn" title="Pause"
+        style="width:32px;height:32px;display:none;align-items:center;justify-content:center;border-radius:6px;border:none;background:${c.signal};color:#fff;cursor:pointer;box-shadow:0 0 12px ${c.signal}55;flex-shrink:0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button id="stopBtn" title="Stop"
+        style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid ${c.line};background:transparent;color:${c.ink2};cursor:pointer;transition:all .15s;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+    </div>
 
-        <!-- Center: Timeline -->
-        <div class="flex-1 flex flex-col gap-1.5">
-          <!-- Timeline Bar with Events Container -->
-          <div class="relative w-full">
-            <!-- Slider Input (Invisible but Interactive) -->
-            <input type="range" id="progressSlider" min="0" max="${playbackData.length - 1}" value="0" 
-                   class="absolute inset-0 w-full h-full opacity-0 z-20"
-                   style="cursor: pointer !important;">
-            <!-- Visual Timeline Track - Sleek Modern Design -->
-            <div class="relative h-6 bg-gradient-to-b from-slate-50 via-slate-100 to-slate-150 rounded-lg border border-slate-200 shadow-inner overflow-visible"
-                 style="box-shadow: inset 0 2px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.05);">
-              <!-- Events Container (will be populated dynamically with color-coded events) -->
-              <div id="eventsContainer" class="absolute inset-0 flex items-center rounded-lg overflow-hidden">
-                <!-- Event blocks will be added here dynamically -->
-              </div>
-              <!-- Tick Marks -->
-              <div class="absolute inset-0 flex items-center justify-between px-1 pointer-events-none">
-                ${generateTickMarks(journeyDurationMs)}
-              </div>
-              <!-- Current Position Indicator (Vertical Line with Playhead) - Sleek Design -->
-              <div id="progressIndicator" 
-                   class="absolute w-0.5 bg-gradient-to-b from-blue-600 to-blue-700 pointer-events-none z-30"
-                   style="left: 0%; top: 12%; bottom: 12%; box-shadow: 0 0 6px rgba(59, 130, 246, 0.5), 0 0 2px rgba(59, 130, 246, 0.8);">
-                <!-- Playhead circle at top - Enhanced with gradient and glow -->
-                <div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full border-2 border-white shadow-lg"
-                     style="box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.1);"></div>
-              
-              </div>
-            </div>
-          </div>
-          <!-- Timestamp Labels - Sleek Typography -->
-          <div class="relative h-4 flex items-center justify-between px-1 text-xs text-slate-500 font-medium w-full">
-            ${generateTimeLabels(startTime, endTime, journeyDurationMs)}
-          </div>
-          <!-- Current Time Display below timeline removed as requested -->
-        </div>
+    <!-- Divider -->
+    <div style="width:1px;height:22px;background:${c.line};flex-shrink:0;"></div>
+
+    <!-- Custom speed dropdown -->
+    <div id="_speedDropWrap" style="position:relative;flex-shrink:0;">
+      <button id="_speedDropBtn" title="Playback speed"
+        style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;border:1px solid ${c.line};background:transparent;color:${c.ink};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+        <span id="_speedDropLabel">3×</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="${c.ink3}" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="_speedDropMenu" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;min-width:68px;background:${c.panel};border:1px solid ${c.line};border-radius:6px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.22);z-index:9999;">
+        ${['0.5','1','2','3','5','10','50'].map(v =>
+          `<button data-spd="${v}"
+            style="display:block;width:100%;padding:5px 12px;text-align:left;background:transparent;border:none;color:${c.ink2};font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;"
+            onmouseover="this.style.background='${c.inset}'" onmouseout="this.style.background='transparent'"
+            onclick="window._vaSetSpeed(${v})">${v}×</button>`
+        ).join('')}
       </div>
     </div>
+
+    <!-- Spacer -->
+    <div style="flex:1;min-width:0;"></div>
+
+    <!-- Scrubber readout -->
+    <div id="scrubberReadout"
+      style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${c.ink3};white-space:nowrap;text-align:right;flex-shrink:0;letter-spacing:0.01em;">
+      — · — · —
+    </div>
+  </div>
+
+  <!-- Timeline bar -->
+  <div style="position:relative;width:100%;">
+    <input type="range" id="progressSlider" min="0" max="${playbackData.length - 1}" value="0"
+      style="position:absolute;inset:0;width:100%;height:100%;opacity:0;z-index:20;cursor:pointer;margin:0;padding:0;">
+    <div id="_timelineTrack" style="position:relative;height:22px;background:${c.inset};border-radius:5px;border:1px solid ${c.line};overflow:visible;">
+      <div id="eventsContainer" style="position:absolute;inset:0;border-radius:5px;overflow:hidden;display:flex;align-items:center;"></div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;pointer-events:none;">
+        ${generateTickMarks(journeyDurationMs)}
+      </div>
+      <div id="progressIndicator"
+        style="position:absolute;width:2px;background:${c.signal};top:8%;bottom:8%;left:0%;pointer-events:none;z-index:30;box-shadow:0 0 6px ${c.signal}cc;transition:none;">
+        <div style="position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:${c.signal};border:2px solid ${c.panel};box-shadow:0 0 10px ${c.signal};"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time labels -->
+  <div style="position:relative;height:14px;display:flex;align-items:center;width:100%;">
+    ${generateTimeLabels(startTime, endTime, journeyDurationMs)}
+  </div>
+</div>
   `;
 
-  // Initialize Lucide icons
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
+  // Speed dropdown logic
+  const speedDropBtn  = document.getElementById('_speedDropBtn');
+  const speedDropMenu = document.getElementById('_speedDropMenu');
+  speedDropBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    speedDropMenu.style.display = speedDropMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', () => { if (speedDropMenu) speedDropMenu.style.display = 'none'; }, true);
+  window._vaSetSpeed = function(v) {
+    playbackSpeed = parseFloat(v);
+    const lbl = document.getElementById('_speedDropLabel');
+    if (lbl) lbl.textContent = `${v}×`;
+    if (speedDropMenu) speedDropMenu.style.display = 'none';
+  };
+  // Also expose legacy speedSelect shim for any external code
+  window.speedSelect = { value: '3', onchange: null };
+
+  // Hover readout on slider
+  const slider = document.getElementById('progressSlider');
+  if (slider) {
+    slider.addEventListener('mousemove', e => {
+      const r = slider.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      updateScrubberReadout(Math.round(ratio * (playbackData.length - 1)));
+    });
+    slider.addEventListener('mouseleave', () => updateScrubberReadout(currentIndex));
   }
 
-  // Make sure the container is visible with sleek styling
-  controlsContainer.style.display = 'block';
-  controlsContainer.style.zIndex = '9999';
+  controlsContainer.style.display  = 'block';
+  controlsContainer.style.zIndex   = '9999';
   controlsContainer.style.position = 'fixed';
-  controlsContainer.style.backdropFilter = 'blur(12px)';
-  controlsContainer.style.WebkitBackdropFilter = 'blur(12px)';
-  
-  // console.log('✅ Playback controls HTML set up and should be visible');
-  // console.log('✅ rideSummaryPanel element added to DOM');
+  controlsContainer.style.backdropFilter = 'blur(14px)';
+  controlsContainer.style.WebkitBackdropFilter = 'blur(14px)';
 
-  // Bind event listeners
-  const playBtn = document.getElementById('playBtn');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const speedSelect = document.getElementById('speedSelect');
-  
-  if (playBtn) playBtn.onclick = playPlayback;
-  if (pauseBtn) pauseBtn.onclick = pausePlayback;
-  if (stopBtn) stopBtn.onclick = stopPlayback;
-  if (resetBtn) resetBtn.onclick = resetPlayback;
-  if (speedSelect) {
-    speedSelect.onchange = (e) => {
-      playbackSpeed = parseFloat(e.target.value);
-      // console.log('🏃 Playback speed changed to:', playbackSpeed + 'x');
-    };
-  }
-  
-  // Setup slider interaction handlers
+  // Button handlers
+  document.getElementById('playBtn')?.addEventListener('click',  playPlayback);
+  document.getElementById('pauseBtn')?.addEventListener('click', pausePlayback);
+  document.getElementById('stopBtn')?.addEventListener('click',  stopPlayback);
+  document.getElementById('resetBtn')?.addEventListener('click', resetPlayback);
+
   setTimeout(setupSliderInteraction, 100);
-  
-  // console.log('✅ Event listeners bound to playback controls');
+
+  // Expose a refresh hook for theme toggle
+  window.refreshScrubberTheme = function() {
+    const fresh = _scrubberColors();
+    const ind = document.getElementById('progressIndicator');
+    if (ind) {
+      ind.style.background   = fresh.signal;
+      ind.style.boxShadow    = `0 0 6px ${fresh.signal}cc`;
+      const dot = ind.firstElementChild;
+      if (dot) { dot.style.background = fresh.signal; dot.style.border = `2px solid ${fresh.panel}`; dot.style.boxShadow = `0 0 10px ${fresh.signal}`; }
+    }
+    const pb = document.getElementById('playBtn');
+    if (pb) { pb.style.background = fresh.signal; pb.style.boxShadow = `0 0 12px ${fresh.signal}55`; }
+    const pau = document.getElementById('pauseBtn');
+    if (pau) { pau.style.background = fresh.signal; pau.style.boxShadow = `0 0 12px ${fresh.signal}55`; }
+  };
 }
 
 /**
@@ -1071,7 +1136,7 @@ function generateTickMarks(journeyDurationMs) {
   
   for (let i = 0; i <= tickCount; i++) {
     const position = (i / tickCount) * 100;
-    ticks += `<div class="absolute bg-slate-400 opacity-40" style="left: ${position}%; width: 1px; height: 55%; top: 22.5%; transform: translateX(-0.5px); box-shadow: 0 0 1px rgba(0,0,0,0.1);"></div>`;
+    ticks += `<div style="position:absolute;left:${position}%;width:1px;height:55%;top:22.5%;transform:translateX(-0.5px);background:rgba(140,150,170,0.4);"></div>`;
   }
   return ticks;
 }
@@ -1152,10 +1217,12 @@ function generateTimeLabels(startTime, endTime, journeyDurationMs) {
     });
   }
   
+  const isDark = document.body.classList.contains('dark-theme');
+  const labelColor = isDark ? '#7a8699' : '#5c687e';
   // Generate HTML for labels
   return labels.map(label => `
-    <div class="absolute" style="left: ${label.position}%; transform: translateX(-50%);">
-      <span class="whitespace-nowrap text-[10.5px] font-semibold text-slate-600 tracking-tight">${formatTime(label.time)}</span>
+    <div style="position:absolute;left:${label.position}%;transform:translateX(-50%);">
+      <span style="white-space:nowrap;font-size:10.5px;font-weight:600;color:${labelColor};letter-spacing:-0.01em;font-family:'Space Grotesk',sans-serif;">${formatTime(label.time)}</span>
     </div>
   `).join('');
 }
@@ -1389,123 +1456,64 @@ function drawPlaybackPath() {
 
   // Clear existing layers
   if (playbackPolyline) {
-    playbackMap.removeLayer(playbackPolyline);
+    try { playbackMap.removeLayer(playbackPolyline); } catch (_) {}
     playbackPolyline = null;
   }
-  
-  // Clear existing segments
-  playbackPolylineSegments.forEach(segment => {
-    if (segment.polyline) {
-      playbackMap.removeLayer(segment.polyline);
-    }
+  playbackPolylineSegments.forEach(seg => {
+    if (seg.polyline) { try { playbackMap.removeLayer(seg.polyline); } catch (_) {} }
+    if (seg.dot)      { try { playbackMap.removeLayer(seg.dot); }     catch (_) {} }
   });
   playbackPolylineSegments = [];
-  // Clear deviation markers on redraw
   clearDeviationMarkers();
-  
   if (playbackMarker) {
-    playbackMap.removeLayer(playbackMarker);
+    try { playbackMap.removeLayer(playbackMarker); } catch (_) {}
   }
 
-  // Industry-standard polyline colors (matching timeline and conventions)
-  const eventPolylineColors = {
-    'charging': INDUSTRY_COLORS.CHARGING,      // Blue for charging
-    'moving': INDUSTRY_COLORS.MOVING,          // Green for normal movement
-    'unplanned_stop': INDUSTRY_COLORS.STOPPED, // Red for unplanned stops
-    'stopped': INDUSTRY_COLORS.STOPPED,        // Red for brief stops
-    'idling': INDUSTRY_COLORS.IDLING,          // Orange for idling
-    'idle': INDUSTRY_COLORS.IDLING,            // Orange for idle/slow
-    'maintenance': '#a855f7'                   // Purple for maintenance
-  };
+  // Collect all valid latlngs
+  const latlngs = playbackData
+    .map(p => [parseFloat(p.latitude), parseFloat(p.longitude)])
+    .filter(c => !isNaN(c[0]) && !isNaN(c[1]));
 
-  // Draw color-coded segments if events detected
-  if (detectedEvents && detectedEvents.length > 0) {
-    // console.log('🎨 Drawing color-coded route segments...');
-    
-    detectedEvents.forEach(event => {
-      if (!event.points || event.points.length === 0) return;
-      
-      const latlngs = event.points.map(point => [
-        parseFloat(point.latitude),
-        parseFloat(point.longitude)
-      ]).filter(coords => !isNaN(coords[0]) && !isNaN(coords[1]));
-      
-      if (latlngs.length < 2) return; // Need at least 2 points for a line
-      
-      const color = eventPolylineColors[event.type] || '#6b7280'; // Default gray
-      
-      const segment = L.polyline(latlngs, {
-        color: color,
-        weight: 5,
-        opacity: 0.8,
-        lineJoin: 'round',
-        lineCap: 'round'
-      }).addTo(playbackMap);
-      
-      // Add popup with event info
-      segment.bindPopup(`
-        <div class="font-sans">
-          <div class="font-semibold text-sm">${event.label}</div>
-          <div class="text-xs text-gray-600 mt-1">
-            ${formatTime(new Date(event.startTime))} - ${formatTime(new Date(event.endTime))}
-          </div>
-          <div class="text-xs text-gray-500 mt-1">
-            Duration: ${Math.round(event.duration / 60)} minutes
-          </div>
-        </div>
-      `);
-      
-      playbackPolylineSegments.push({
-        event: event,
-        polyline: segment
-      });
-    });
-    
-    // console.log(`✅ Drew ${playbackPolylineSegments.length} color-coded route segments`);
-    
-    // Fit map to all segments
-    if (playbackPolylineSegments.length > 0) {
-      const group = L.featureGroup(playbackPolylineSegments.map(s => s.polyline));
-      playbackMap.fitBounds(group.getBounds(), { padding: [20, 20] });
-    }
-    
-  } else {
-    // Fallback: Draw single blue polyline if no events detected
-    // console.log('📍 Drawing single-color route (no events detected)');
-    
-    const latlngs = playbackData.map(point => [
-      parseFloat(point.latitude),
-      parseFloat(point.longitude)
-    ]).filter(coords => !isNaN(coords[0]) && !isNaN(coords[1]));
+  if (latlngs.length === 0) return;
 
-    if (latlngs.length === 0) return;
+  // Resolve --va-signal from CSS (with fallback)
+  const sig = getComputedStyle(document.documentElement)
+    .getPropertyValue('--va-signal').trim() || '#38e1c4';
 
-    // Draw the full path
-    playbackPolyline = L.polyline(latlngs, {
-      color: '#3b82f6',
-      weight: 4,
-      opacity: 0.7
-    }).addTo(playbackMap);
+  // 1 — Glow underlay
+  const glowLine = L.polyline(latlngs, {
+    color: sig, weight: 9, opacity: 0.13,
+    lineJoin: 'round', lineCap: 'round', interactive: false
+  }).addTo(playbackMap);
+  playbackPolylineSegments.push({ polyline: glowLine });
 
-    // Fit map to path bounds
-    playbackMap.fitBounds(playbackPolyline.getBounds(), { padding: [20, 20] });
+  // 2 — Main signal path
+  playbackPolyline = L.polyline(latlngs, {
+    color: sig, weight: 2.6, opacity: 0.88,
+    lineJoin: 'round', lineCap: 'round'
+  }).addTo(playbackMap);
+
+  // No path dots — heatmap (toggleStoppageHeatmap) handles stoppage visualization
+
+  // Fit bounds
+  playbackMap.fitBounds(playbackPolyline.getBounds(), { padding: [20, 20] });
+
+  // Vehicle marker at start
+  const sp = playbackData[0];
+  if (sp && sp.latitude && sp.longitude) {
+    const heading = parseFloat(sp.heading) || 0;
+    playbackMarker = L.marker(
+      [parseFloat(sp.latitude), parseFloat(sp.longitude)],
+      { icon: createBusIcon(heading) }
+    ).addTo(playbackMap);
+    playbackMarker.heading = heading;
+    maybeReportDeviation(sp);
   }
 
-  // Create vehicle marker at starting position
-  const startPoint = playbackData[0];
-  if (startPoint && startPoint.latitude && startPoint.longitude) {
-    const startPos = [parseFloat(startPoint.latitude), parseFloat(startPoint.longitude)];
-    const heading = parseFloat(startPoint.heading) || 0;
-    playbackMarker = L.marker(startPos, { icon: createBusIcon(heading) }).addTo(playbackMap);
-    playbackMarker.heading = heading; // Store heading for updates
-    // Evaluate deviation at start point
-    maybeReportDeviation(startPoint);
-  }
-
-  // Update progress slider
+  // Sync slider
   const progressSlider = document.getElementById('progressSlider');
   if (progressSlider) {
-    progressSlider.max = playbackData.length - 1;
+    progressSlider.max   = playbackData.length - 1;
     progressSlider.value = 0;
   }
 
@@ -1527,9 +1535,8 @@ function playPlayback() {
   const playBtn = document.getElementById('playBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   
-  playBtn.classList.add('hidden');
-  pauseBtn.classList.remove('hidden');
-  pauseBtn.classList.add('flex');
+  playBtn.style.display  = 'none';
+  pauseBtn.style.display = 'flex';
 
   let lastUpdateTime = performance.now();
   let accumulatedTime = 0;
@@ -1584,21 +1591,24 @@ function playPlayback() {
         }
       }
       
-      // Update progress indicator smoothly
-      if (playbackData.length > 0) {
+      // Update progress indicator smoothly (time-normalized)
+      if (playbackData.length > 1) {
         const progressSlider = document.getElementById('progressSlider');
         const progressIndicator = document.getElementById('progressIndicator');
-        
-        const smoothIndex = currentIndex + progress;
-        const percentage = (smoothIndex / (playbackData.length - 1)) * 100;
-        
+
         if (progressSlider) {
-          progressSlider.value = smoothIndex;
+          progressSlider.value = currentIndex + progress;
         }
-        
+
         if (progressIndicator) {
+          const startMs  = new Date(playbackData[0].gps_time).getTime();
+          const endMs    = new Date(playbackData[playbackData.length - 1].gps_time).getTime();
+          const currMs   = new Date(currentPoint.gps_time).getTime();
+          const nextMs   = new Date(nextPoint.gps_time).getTime();
+          const interpMs = currMs + (nextMs - currMs) * progress;
+          const t = (endMs > startMs) ? (interpMs - startMs) / (endMs - startMs) : 0;
           progressIndicator.style.transition = 'none';
-          progressIndicator.style.left = `${percentage}%`;
+          progressIndicator.style.left = `${Math.max(0, Math.min(100, t * 100))}%`;
         }
       }
       
@@ -1635,10 +1645,8 @@ function pausePlayback() {
   const playBtn = document.getElementById('playBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   
-  pauseBtn.classList.add('hidden');
-  pauseBtn.classList.remove('flex');
-  playBtn.classList.remove('hidden');
-  playBtn.classList.add('flex');
+  pauseBtn.style.display = 'none';
+  playBtn.style.display  = 'flex';
 }
 
 function stopPlayback() {
@@ -1725,32 +1733,26 @@ function updateMarkerPosition() {
 // REAL-TIME ANALYTICS UPDATE DURING PLAYBACK
 // ===================================================
 function updatePlaybackAnalytics(currentPoint, currentIdx) {
-  // Update current status with playback position data
   if (currentPoint) {
-    updateElement('vehicleStatus', currentPoint.speed > 1 ? 'Moving' : 'Stopped');
-    updateElement('vehicleSpeed', `${currentPoint.speed || 0} km/h`);
-    updateElement('vehicleBattery', `${currentPoint.soc || 'N/A'}%`);
+    const spd   = parseFloat(currentPoint.speed) || 0;
+    const state = currentPoint.vehicle_status || (spd > 1 ? 'Moving' : 'Stopped');
+    // Use colored pill if available
+    if (window._updateStatusPill) {
+      window._updateStatusPill(state);
+    } else {
+      updateElement('vehicleStatus', state);
+    }
+    const soc = parseFloat(currentPoint.soc);
+    updateElement('vehicleBattery', (!isNaN(soc) && soc > 0) ? `${soc.toFixed(0)}%` : null);
     updateElement('lastUpdate', formatDateTime(currentPoint.gps_time));
   }
 
-  // Update trip analytics FROM START (index 0) TO CURRENT POSITION
-  // This shows cumulative distance/time as vehicle moves forward
   const dataFromStartToCurrent = playbackData.slice(0, currentIdx + 1);
-  
   if (dataFromStartToCurrent.length > 1) {
-    const tripMetrics = calculateTripMetrics(dataFromStartToCurrent);
-    updateElement('totalDistance', `${tripMetrics.totalDistance.toFixed(1)} km`);
-    updateElement('tripDuration', formatDurationToHours(tripMetrics.duration));
-    updateElement('avgSpeed', `${tripMetrics.avgSpeed.toFixed(1)} km/h`);
-    updateElement('maxSpeed', `${tripMetrics.maxSpeed} km/h`);
-    updateElement('stopsCount', tripMetrics.stopsCount);
-  } else {
-    // At the very start (index 0), show 0 distance
-    updateElement('totalDistance', '0.0 km');
-    updateElement('tripDuration', '0.0 hrs');
-    updateElement('avgSpeed', '0.0 km/h');
-    updateElement('maxSpeed', '0 km/h');
-    updateElement('stopsCount', 0);
+    const m = calculateTripMetrics(dataFromStartToCurrent);
+    updateElement('totalDistance', m.totalDistance > 0 ? `${m.totalDistance.toFixed(1)} km`  : null);
+    updateElement('tripDuration',  m.duration > 0      ? formatDurationToHours(m.duration)    : null);
+    updateElement('avgSpeed',      m.avgSpeed  > 0     ? `${m.avgSpeed.toFixed(1)} km/h`      : null);
   }
 }
 
@@ -1781,26 +1783,27 @@ function calculateTripMetrics(data) {
       totalDistance += distance;
     }
     
-    // Track speeds
+    // Track speeds — only average over moving points (speed > 1 km/h)
     if (curr.speed) {
       maxSpeed = Math.max(maxSpeed, curr.speed);
-      totalSpeed += curr.speed;
-      speedCount++;
-      
+      if (curr.speed > 1) {
+        totalSpeed += curr.speed;
+        speedCount++;
+      }
       // Count stops (speed < 1 km/h)
       if (curr.speed < 1 && (i === 1 || data[i-1].speed >= 1)) {
         stopsCount++;
       }
     }
   }
-  
+
   // Calculate duration (difference between first and last timestamp)
-  // After reversal: data[0] is START (oldest), data[last] is END (newest)
   const startTime = new Date(data[0].gps_time);
   const endTime = new Date(data[data.length - 1].gps_time);
   const durationMs = endTime - startTime;
   const duration = Math.max(0, Math.round(durationMs / (1000 * 60))); // minutes, ensure positive
-  
+
+  // Moving average (excludes stopped intervals)
   const avgSpeed = speedCount > 0 ? totalSpeed / speedCount : 0;
   
   return {
@@ -1851,19 +1854,36 @@ function formatDurationToHours(minutes) {
   return `${hours.toFixed(1)} hrs`;
 }
 
+function updateScrubberReadout(index) {
+  const readout = document.getElementById('scrubberReadout');
+  if (!readout) return;
+  const point = playbackData[index];
+  if (!point) { readout.textContent = '— · — · —'; return; }
+  const time  = point.gps_time ? new Date(point.gps_time).toLocaleTimeString('en-US', { hour12: false }) : '—';
+  const spd   = parseFloat(point.speed) || 0;
+  const state = point.vehicle_status || (spd > 1 ? 'Moving' : 'Stopped');
+  const spdTxt = spd > 0 ? `${spd.toFixed(1)} km/h` : '—';
+  readout.textContent = `${time} · ${state} · ${spdTxt}`;
+}
+
 function updateProgressDisplay() {
-  const progressSlider = document.getElementById('progressSlider');
+  const progressSlider    = document.getElementById('progressSlider');
   const progressIndicator = document.getElementById('progressIndicator');
 
   if (progressSlider) {
     progressSlider.value = currentIndex;
   }
 
-  if (progressIndicator && playbackData.length > 0) {
-    const percentage = (currentIndex / (playbackData.length - 1)) * 100;
+  if (progressIndicator && playbackData.length > 1) {
+    const startMs = new Date(playbackData[0].gps_time).getTime();
+    const endMs   = new Date(playbackData[playbackData.length - 1].gps_time).getTime();
+    const currMs  = new Date(playbackData[currentIndex].gps_time).getTime();
+    const t = (endMs > startMs) ? (currMs - startMs) / (endMs - startMs) : 0;
     progressIndicator.style.transition = 'none';
-    progressIndicator.style.left = `${percentage}%`;
+    progressIndicator.style.left = `${Math.max(0, Math.min(100, t * 100))}%`;
   }
+
+  updateScrubberReadout(currentIndex);
 }
 
 // ===================================================
@@ -1881,5 +1901,6 @@ function showSpinner(show, message = 'Please wait') {
 // ===================================================
 // GLOBAL ACCESS
 // ===================================================
-window.initializeVehiclePlayback = initializeVehiclePlayback;
-window.seekToPosition = seekToPosition;
+window.initializeVehiclePlayback  = initializeVehiclePlayback;
+window.seekToPosition             = seekToPosition;
+window.toggleStoppageHeatmap      = toggleStoppageHeatmap;

@@ -185,11 +185,41 @@ if (mapEl && !isVehiclePage) {
   // =======================
   // 3️⃣ MAP SETUP
   // =======================
+  const TILE_LAYERS = {
+    day:  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+    }),
+    dark: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20, attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
+    }),
+  };
+
+  let currentMapStyle = localStorage.getItem('mapStyle') || 'dark'; // dark is default
   map = L.map('map').setView([20.59, 78.96], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  TILE_LAYERS[currentMapStyle].addTo(map);
+  document.body.classList.toggle('dark-theme', currentMapStyle === 'dark');
+
+  function _updateStyleBtn(style) {
+    const btn = document.getElementById('mapStyleToggle');
+    if (!btn) return;
+    const sun = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+    const moon = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
+    btn.innerHTML = style === 'dark'
+      ? `${sun}<span class="text-xs font-semibold hidden sm:inline">Light</span>`
+      : `${moon}<span class="text-xs font-semibold hidden sm:inline">Dark</span>`;
+    btn.title = style === 'dark' ? 'Switch to Light Map' : 'Switch to Dark Map';
+  }
+  _updateStyleBtn(currentMapStyle);
+
+  window.toggleMapStyle = function () {
+    const next = currentMapStyle === 'day' ? 'dark' : 'day';
+    map.removeLayer(TILE_LAYERS[currentMapStyle]);
+    TILE_LAYERS[next].addTo(map);
+    currentMapStyle = next;
+    localStorage.setItem('mapStyle', next);
+    document.body.classList.toggle('dark-theme', next === 'dark');
+    _updateStyleBtn(next);
+  };
 
   // Initialize marker cluster group with custom options
   markerClusterGroup = L.markerClusterGroup({
@@ -202,31 +232,11 @@ if (mapEl && !isVehiclePage) {
     iconCreateFunction: function(cluster) {
       const count = cluster.getChildCount();
       let sizeClass = 'small';
-      let size = 40;
-      
-      if (count >= 10) {
-        sizeClass = 'large';
-        size = 50;
-      } else if (count >= 5) {
-        sizeClass = 'medium';
-        size = 45;
-      }
-      
+      let size = 32;
+      if (count >= 50) { sizeClass = 'large'; size = 44; }
+      else if (count >= 10) { sizeClass = 'medium'; size = 38; }
       return L.divIcon({
-        html: `<div style="
-          width: ${size}px; 
-          height: ${size}px; 
-          background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-          border: 3px solid white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: bold;
-          font-size: ${count >= 10 ? '16px' : '14px'};
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        ">${count}</div>`,
+        html: `<div style="width:${size}px;height:${size}px;background:#1d4ed8;border:2px solid rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:11px;box-shadow:0 0 0 4px rgba(29,78,216,0.2);">${count}</div>`,
         className: 'marker-cluster marker-cluster-' + sizeClass,
         iconSize: L.point(size, size)
       });
@@ -340,49 +350,25 @@ if (mapEl && !isVehiclePage) {
   }
 
 
-function createBusIcon(zoom, heading = 0, latitude = 0) {
-  const size = getIconSize(zoom);
-  const color = getArrowColor(heading, latitude);
+function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
+  const lowerStatus = (status || '').toLowerCase();
+  let color, dotSize, shadow, pulseClass;
 
+  if (lowerStatus === 'charging') {
+    color = '#3b82f6'; dotSize = 12; shadow = 'rgba(59,130,246,0.4)'; pulseClass = 'charging-pulse';
+  } else if (lowerStatus === 'moving') {
+    color = '#22c55e'; dotSize = 12; shadow = 'rgba(34,197,94,0.3)'; pulseClass = '';
+  } else {
+    color = '#ef4444'; dotSize = 10; shadow = 'rgba(239,68,68,0.2)'; pulseClass = '';
+  }
+
+  const outer = dotSize + 8;
   return L.divIcon({
-    className: "custom-bus-icon",
-    html: `
-      <div style="
-        width: ${size[0]}px;
-        height: ${size[1]}px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transform: rotate(${heading}deg);
-        transition: transform 0.3s ease;
-        opacity: 0.85;
-        z-index: 400;
-        position: relative;
-      ">
-        <svg width="${size[0]}" height="${size[1]}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          
-          <!-- Classic Arrow with Tail -->
-          <path 
-            d="M12 2 
-               L20 10 
-               H15 
-               V22 
-               H9 
-               V10 
-               H4 
-               Z"
-            fill="${color}"
-            stroke="black"
-            stroke-width="1.6"
-            stroke-linejoin="round"
-          />
-
-        </svg>
-      </div>
-    `,
-    iconSize: size,
-    iconAnchor: [size[0] / 2, size[1] * 0.75], // Shifted down to 75% instead of 50%
-    popupAnchor: [0, -size[1] * 0.75], // Adjusted popup position accordingly
+    className: 'custom-vehicle-dot',
+    html: `<div class="${pulseClass}" style="width:${outer}px;height:${outer}px;display:flex;align-items:center;justify-content:center;"><div style="width:${dotSize}px;height:${dotSize}px;background:${color};border-radius:50%;border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 0 3px ${shadow};"></div></div>`,
+    iconSize: [outer, outer],
+    iconAnchor: [outer / 2, outer / 2],
+    popupAnchor: [0, -(outer / 2)],
   });
 }
 
@@ -393,16 +379,12 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
   geofenceLayerGroup = L.layerGroup();
   addGeofences(map); // This will still add directly to map for now
 
-  // Handle zoom changes to update marker sizes
+  // Handle zoom changes to update marker icons (dot size is fixed, but preserves state)
   map.on('zoomend', () => {
     const currentZoom = map.getZoom();
-
-    // Update all existing markers with new icon size, preserve heading and latitude
     Object.keys(markers).forEach(reg => {
       const marker = markers[reg];
-      const heading = marker.heading || 0;
-      const lat = marker.getLatLng().lat;
-      marker.setIcon(createBusIcon(currentZoom, heading, lat));
+      marker.setIcon(createBusIcon(currentZoom, marker.heading || 0, marker.getLatLng().lat, marker.vehicleState || 'Stopped'));
     });
   });
 
@@ -862,77 +844,48 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
    * Build popup HTML content
    */
   function buildPopupHTML(displayNumber, latest, displayStatus, locationText, lastUpdateTime = null) {
-    // Determine battery color based on SOC (subtle colors)
+    const isDark = document.body.classList.contains('dark-theme');
+    const bg       = isDark ? '#0f1825' : '#ffffff';
+    const border   = isDark ? '#1e2433' : '#e5e7eb';
+    const textMain = isDark ? '#e2e8f0' : '#111827';
+    const textMuted= isDark ? '#475569' : '#6b7280';
+    const textSub  = isDark ? '#94a3b8' : '#374151';
+    const badgeBg  = isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc';
+
     const soc = latest.soc ?? 0;
-    let batteryColor = '#059669'; // Subtle green
-    if (soc < 30) {
-      batteryColor = '#dc2626'; // Subtle red
-    } else if (soc < 60) {
-      batteryColor = '#d97706'; // Subtle amber
-    }
-    
-    // Status badge color (minimal)
-    let statusColor = '#64748b';
-    if (displayStatus.toLowerCase().includes('charging')) {
-      statusColor = '#059669';
-    } else if (displayStatus.toLowerCase().includes('moving')) {
-      statusColor = '#2563eb';
-    } else if (displayStatus.toLowerCase().includes('stopped')) {
-      statusColor = '#dc2626';
-    }
-    
-    return `
-  <div style="min-width: 185px; max-width: 200px; font-family: system-ui, sans-serif; color: #111827; padding: 8px 9px; background: #ffffff; border-radius: 5px; border: 1px solid #e5e7eb;">
-    
-    <!-- Header -->
-    <div style="font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e5e7eb;">
-      ${displayNumber}
-    </div>
+    let batteryColor = isDark ? '#34d399' : '#059669';
+    if (soc < 30) batteryColor = isDark ? '#f87171' : '#dc2626';
+    else if (soc < 60) batteryColor = isDark ? '#fbbf24' : '#d97706';
 
-    <!-- Metrics Row -->
-    <div style="display: flex; gap: 8px; margin-bottom: 6px;">
-      <div style="flex: 1; text-align: center;">
-        <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px;">
-          Battery
-        </div>
-        <div style="font-size: 16px; font-weight: 700; color: ${batteryColor}; line-height: 1;">
-          ${latest.soc ?? 'N/A'}<span style="font-size: 10px; font-weight: 500; color: #6b7280;">%</span>
-        </div>
-      </div>
-      <div style="width: 1px; background: #e5e7eb; margin: 2px 0;"></div>
-      <div style="flex: 1; text-align: center;">
-        <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px;">
-          Speed
-        </div>
-        <div style="font-size: 16px; font-weight: 700; color: #111827; line-height: 1;">
-          ${latest.speed ?? 'N/A'}<span style="font-size: 10px; font-weight: 500; color: #6b7280;">km/h</span>
-        </div>
-      </div>
-    </div>
+    let statusColor = isDark ? '#64748b' : '#64748b';
+    const ds = displayStatus.toLowerCase();
+    if (ds.includes('charging')) statusColor = isDark ? '#34d399' : '#059669';
+    else if (ds.includes('moving')) statusColor = isDark ? '#60a5fa' : '#2563eb';
+    else if (ds.includes('stopped')) statusColor = isDark ? '#f87171' : '#dc2626';
 
-    <!-- Status Badge -->
-    <div style="display: inline-block; font-size: 8.5px; font-weight: 700; color: ${statusColor}; padding: 3px 7px; border-radius: 3px; background: #f8fafc; border-left: 2.5px solid ${statusColor}; margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase;">
-      ${displayStatus}
+    return `<div style="min-width:185px;max-width:200px;font-family:system-ui,sans-serif;color:${textMain};padding:8px 9px;background:${bg};border-radius:6px;border:1px solid ${border};">
+  <div style="font-size:13px;font-weight:700;color:${textMain};margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid ${border};">${displayNumber}</div>
+  <div style="display:flex;gap:8px;margin-bottom:6px;">
+    <div style="flex:1;text-align:center;">
+      <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:2px;letter-spacing:0.3px;">Battery</div>
+      <div style="font-size:16px;font-weight:700;color:${batteryColor};line-height:1;">${latest.soc ?? 'N/A'}<span style="font-size:10px;font-weight:500;color:${textMuted};">%</span></div>
     </div>
-
-    <!-- Location -->
-    <div style="margin-bottom: 5px;">
-      <div style="font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 1px; letter-spacing: 0.2px;">
-        Location
-      </div>
-      <div style="font-size: 10px; color: #374151; font-weight: 500; line-height: 1.25;">
-        ${locationText}
-      </div>
+    <div style="width:1px;background:${border};margin:2px 0;"></div>
+    <div style="flex:1;text-align:center;">
+      <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:2px;letter-spacing:0.3px;">Speed</div>
+      <div style="font-size:16px;font-weight:700;color:${textMain};line-height:1;">${latest.speed ?? 'N/A'}<span style="font-size:10px;font-weight:500;color:${textMuted};">km/h</span></div>
     </div>
-
-    <!-- Last Updated -->
-    <div style="font-size: 8.5px; color: #6b7280; padding-top: 5px; border-top: 1px solid #f1f5f9;">
-      <span style="font-weight: 600; text-transform: uppercase; letter-spacing: 0.2px;">Updated:</span>
-      <span style="color: #111827; font-weight: 500; margin-left: 3px;">${formatTimeAgo(lastUpdateTime || latest.last_connected || latest.gps_time)}</span>
-    </div>
-
   </div>
-`;
+  <div style="display:inline-block;font-size:8.5px;font-weight:700;color:${statusColor};padding:3px 7px;border-radius:3px;background:${badgeBg};border-left:2.5px solid ${statusColor};margin-bottom:6px;letter-spacing:0.3px;text-transform:uppercase;">${displayStatus}</div>
+  <div style="margin-bottom:5px;">
+    <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:1px;letter-spacing:0.2px;">Location</div>
+    <div style="font-size:10px;color:${textSub};font-weight:500;line-height:1.25;">${locationText}</div>
+  </div>
+  <div style="font-size:8.5px;color:${textMuted};padding-top:5px;border-top:1px solid ${border};">
+    <span style="font-weight:600;text-transform:uppercase;letter-spacing:0.2px;">Updated:</span>
+    <span style="color:${textMain};font-weight:500;margin-left:3px;">${formatTimeAgo(lastUpdateTime || latest.last_connected || latest.gps_time)}</span>
+  </div>
+</div>`;
   }
 
   // =======================
@@ -947,7 +900,8 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
     if(messageEl) messageEl.textContent = '';
 
     try {
-      const payload = await fetchAllVehicles();
+      const spv = document.getElementById('projectSwitcher')?.value || '';
+      const payload = await fetchAllVehicles(spv);
       window.lastPayload = payload;
 
       const activeRegs = new Set();
@@ -978,16 +932,19 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
         bounds.push([lat, lng]); // Add to bounds array
 
         // Update or create marker
+        const { state: vehicleState } = getVehicleState(latest);
         if (markers[registration_number]) {
           markers[registration_number].setLatLng([lat, lng]);
           markers[registration_number].heading = heading;
-          markers[registration_number].setIcon(createBusIcon(map.getZoom(), heading, lat));
-          
+          markers[registration_number].vehicleState = vehicleState;
+          markers[registration_number].setIcon(createBusIcon(map.getZoom(), heading, lat, vehicleState));
+
           // Update popup with fresh location data
           updateMarkerPopup(markers[registration_number], displayNumber, latest, lat, lng);
         } else {
-          const marker = L.marker([lat, lng], { icon: createBusIcon(map.getZoom(), heading, lat) });
+          const marker = L.marker([lat, lng], { icon: createBusIcon(map.getZoom(), heading, lat, vehicleState) });
           marker.heading = heading;
+          marker.vehicleState = vehicleState;
 
           // Create initial popup with "Loading address..."
           createMarkerPopup(marker, displayNumber, latest, lat, lng);
@@ -1000,19 +957,18 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
           markerClusterGroup.addLayer(marker); // Add to cluster group instead of map
         }
 
-        // Update or create trail polyline
+        // Update or create trail polyline (shadow + route double layer)
         const latlngs = trail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)]);
         if (polylines[registration_number]) {
-          polylines[registration_number].setLatLngs(latlngs);
+          polylines[registration_number]._shadowLine.setLatLngs(latlngs);
+          polylines[registration_number]._routeLine.setLatLngs(latlngs);
         } else {
-          polylines[registration_number] = L.polyline(latlngs, {
-            color: '#3b82f6', // Blue color (Tailwind blue-500)
-            weight: 6,
-            opacity: 0.8,
-            dashArray: '10, 10',
-            lineCap: 'round',
-            lineJoin: 'round'
-          }).addTo(map);
+          const shadowLine = L.polyline(latlngs, { color: 'rgba(34,197,94,0.12)', weight: 14, opacity: 1, lineCap: 'round', lineJoin: 'round' });
+          const routeLine  = L.polyline(latlngs, { color: '#22c55e', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round', className: 'trail-route-line' });
+          const trailGroup = L.layerGroup([shadowLine, routeLine]).addTo(map);
+          trailGroup._shadowLine = shadowLine;
+          trailGroup._routeLine  = routeLine;
+          polylines[registration_number] = trailGroup;
         }
       }
 
@@ -1107,14 +1063,12 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
     updateElement('countStopped', counts.stopped);
     updateElement('countLowSoc', counts.lowsoc);
 
+    // (map chips and bottom strip removed)
+
     // Show/hide Low SOC filter button based on count
     const lowSocBtn = document.getElementById('filterLowSoc');
     if (lowSocBtn) {
-      if (counts.lowsoc === 0) {
-        lowSocBtn.style.display = 'none';
-      } else {
-        lowSocBtn.style.display = '';
-      }
+      lowSocBtn.classList.toggle('hidden', counts.lowsoc === 0);
     }
 
 
@@ -1210,29 +1164,49 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
     // Map trolley to truck number for display
     const displayNumber = getDisplayVehicleNumber(vehicle.registration_number);
 
+    const driverName = latest.driver_name || latest.driver || '';
+    const socBarColor = soc >= 60 ? '#22c55e' : soc >= 30 ? '#f59e0b' : '#ef4444';
+    // Status pill colors — work on both light and dark backgrounds
+    const stateColors = {
+      Moving:  { pill:'rgba(34,197,94,0.12)',  text:'#16a34a', border:'rgba(34,197,94,0.3)',  textDark:'#4ade80' },
+      Stopped: { pill:'rgba(239,68,68,0.1)',   text:'#dc2626', border:'rgba(239,68,68,0.3)',  textDark:'#f87171' },
+      Charging:{ pill:'rgba(59,130,246,0.1)',  text:'#2563eb', border:'rgba(59,130,246,0.3)', textDark:'#60a5fa' },
+    };
+    const sc = stateColors[state] || stateColors.Stopped;
+    const isDark = document.body.classList.contains('dark-theme');
+    const pillText = isDark ? sc.textDark : sc.text;
+
     return `
-      <div class="vehicle-card bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all duration-200" 
+      <div class="vehicle-card lv-card cursor-pointer rounded-lg"
            data-vehicle="${vehicle.registration_number}"
            data-soc="${soc}"
+           data-status="${state}"
+           style="border-left:3px solid ${pillText};padding:10px 12px;border-radius:8px;"
            onclick="showQuickAnalyticsFromList('${vehicle.registration_number}', ${JSON.stringify(latest).replace(/"/g, '&quot;')})">
-        <div class="p-2.5">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-bold text-sm text-slate-900 truncate pr-2">${displayNumber}</h3>
-            <span class="text-xs px-2 py-0.5 rounded-full border ${stateClass} font-semibold flex items-center gap-1 whitespace-nowrap">
-              <i data-lucide="${stateIcon}" class="w-3 h-3"></i>
-              ${state}
-            </span>
+
+        <!-- Top row: vehicle ID + status pill -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+          <div>
+            <div class="lv-vehicle-id" style="font-size:12px;font-weight:700;line-height:1;">${displayNumber}</div>
+            ${driverName ? `<div class="lv-driver-name" style="font-size:10px;margin-top:2px;letter-spacing:0.01em;">${driverName}</div>` : ''}
           </div>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            ${primary}
-            <span data-soc="${soc}">${secondary}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;background:${sc.pill};color:${pillText};border:1px solid ${sc.border};letter-spacing:0.04em;">${state}</span>
+            <span class="lv-timestamp" style="font-size:9px;letter-spacing:0.01em;">${lastUpdate}</span>
           </div>
-          <div class="mt-2 pt-2 border-t border-slate-100">
-            <div class="flex items-center gap-1.5 text-xs text-slate-500">
-              <i data-lucide="clock" class="w-3 h-3"></i>
-              <span class="truncate">${lastUpdate}</span>
-            </div>
+        </div>
+
+        <!-- Metrics row -->
+        <div class="lv-metric-text" style="display:flex;gap:12px;margin-bottom:8px;font-size:11px;">
+          ${primary}
+        </div>
+
+        <!-- SOC bar with gradient fill -->
+        <div style="display:flex;align-items:center;gap:7px;">
+          <div class="lv-soc-track" style="flex:1;height:4px;border-radius:9999px;overflow:hidden;">
+            <div style="width:${soc}%;height:100%;background:linear-gradient(90deg,${socBarColor}cc,${socBarColor});border-radius:9999px;transition:width 0.5s ease;"></div>
           </div>
+          <span style="font-size:9px;font-weight:700;color:${socBarColor};min-width:26px;text-align:right;">${soc}%</span>
         </div>
       </div>
     `;
@@ -1433,21 +1407,20 @@ function createBusIcon(zoom, heading = 0, latitude = 0) {
       selectedCard.classList.add('ring-2', 'ring-blue-500', 'border-blue-500', 'bg-blue-50');
     }
 
-    // Zoom map to selected vehicle marker
+    // Pan/zoom map to selected vehicle — avoid a big zoom jump that forces tile reload
     const marker = markers[registrationNumber];
     if (marker) {
       const latLng = marker.getLatLng();
-      map.setView(latLng, 15, {
-        animate: true,
-        duration: 0.8,
-        easeLinearity: 0.25
-      });
-      
-      // Open marker popup briefly to confirm selection
+      const currentZoom = map.getZoom();
+      // Keep existing zoom if already reasonably close, otherwise go to 13
+      const targetZoom = currentZoom >= 12 ? currentZoom : 13;
+      map.flyTo(latLng, targetZoom, { animate: true, duration: 0.45, easeLinearity: 0.5, noMoveStart: true });
+
+      // Open marker popup briefly after pan settles
       setTimeout(() => {
         marker.openPopup();
         setTimeout(() => marker.closePopup(), 2000);
-      }, 500);
+      }, 600);
     }
 
     selectedVehicleName.textContent = displayNumber;  // Use display number

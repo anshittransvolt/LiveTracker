@@ -1,5 +1,5 @@
 """
-OTP Service for VolTrack Dashboard
+OTP Service for LiveTracker Dashboard
 
 This service handles all OTP-related operations including:
 - OTP generation

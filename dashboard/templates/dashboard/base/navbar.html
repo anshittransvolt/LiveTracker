@@ -9,7 +9,7 @@
             </button>
             <a href="{% url 'dashboard:dashboard' %}" class="flex items-center space-x-1 sm:space-x-2 hover:opacity-80 transition-opacity">
                 <img src="https://transvolt.in/Images/Logo/black.svg" alt="Transvolt Logo" class="h-3 sm:h-4">
-                <span class="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">Voltrack</span>
+                <span class="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">LiveTracker</span>
             </a>
         </div>
 
@@ -62,6 +62,13 @@
                     </ul>
                 </div>
             </div>
+
+            <!-- Dark Mode Toggle -->
+            <button id="db-dark-toggle" onclick="dbToggleDark()"
+                class="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                title="Toggle dark/light mode">
+                <i id="db-dark-icon" data-lucide="moon" class="w-5 h-5 text-gray-600"></i>
+            </button>
 
             <!-- User Profile -->
             <div class="relative">
@@ -253,4 +260,25 @@
             return cookieValue;
         }
     })();
+
+    // Dark mode toggle — shares same localStorage key as livetracker ('mapStyle': 'dark'|'day')
+    function dbToggleDark() {
+        var isDark = document.body.classList.toggle('dark-theme');
+        localStorage.setItem('mapStyle', isDark ? 'dark' : 'day');
+        var icon = document.getElementById('db-dark-icon');
+        if (icon) {
+            icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    // Sync icon to current theme on load
+    document.addEventListener('DOMContentLoaded', function () {
+        var icon = document.getElementById('db-dark-icon');
+        if (icon) {
+            var isDark = document.body.classList.contains('dark-theme');
+            icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
 </script>

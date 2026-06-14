@@ -170,9 +170,10 @@ function setupPlaybackUI() {
 
   // Initialize playback map
   playbackMap = L.map(mapDiv).setView([20.59, 78.96], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd'
   }).addTo(playbackMap);
 
   // ✅ Add geofences overlay

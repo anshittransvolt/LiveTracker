@@ -100,16 +100,41 @@ export async function fetchVehicleDayStoppageHeatmap(reg_no, date) {
 // Django backend proxies handle all external API authentication
 // No API keys or credentials exposed to client-side code
 
+// Reads the active project key from the dropdown, or falls back to the URL
+// path slug (/<project>/livetracker/...) so vehicle-specific pages also work.
+function getSPVFromContext() {
+  const switcher = document.getElementById('projectSwitcher');
+  if (switcher && switcher.value) return switcher.value;
+
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (parts.length >= 2 && parts[1] === 'livetracker') {
+    const slugMap = {
+      ultratech: 'ULTRATECH', umt: 'UMT', mbmt: 'MBMT',
+      nagpur: 'NAGPUR', vecv: 'VECV',
+      star_cement: 'STAR_CEMENT', 'star-cement': 'STAR_CEMENT',
+    };
+    return slugMap[parts[0].toLowerCase()] || '';
+  }
+  return '';
+}
+
 /**
  * API endpoints using multiple backends
  */
 const API = {
-  ALL: `/livetracker/api/twins/latest-points/`,  // Local Django proxy (avoids CSP issues) — limit controlled by TWINS_LIMIT in .env
-  ONE_DAY: reg => `/livetracker/api/twins/24hr-route/?registration_number=${encodeURIComponent(reg)}&vendor=intangles&spv=ultratech`,  // Django proxy for TWINS full 24hr route
-  // Django API endpoint for historical data - uses Telemetry API with start_date and end_date
+  ALL: (spv) => spv
+    ? `/livetracker/api/twins/latest-points/?spv=${encodeURIComponent(spv)}`
+    : `/livetracker/api/twins/latest-points/`,
+  ONE_DAY: (reg) => {
+    const spv = getSPVFromContext();
+    const base = `/livetracker/api/twins/24hr-route/?registration_number=${encodeURIComponent(reg)}`;
+    return spv ? `${base}&spv=${encodeURIComponent(spv)}` : base;
+  },
   HISTORICAL: (date, vehicleNo) => {
-    // For a single date, use Telemetry API with that date as both start and end date
-    return `/livetracker/api/vehicle/${encodeURIComponent(vehicleNo)}/historical/?start_date=${date}&end_date=${date}`;
+    const spv = getSPVFromContext();
+    let url = `/livetracker/api/vehicle/${encodeURIComponent(vehicleNo)}/historical/?start_date=${date}&end_date=${date}`;
+    if (spv) url += `&spv=${encodeURIComponent(spv)}`;
+    return url;
   },
 };
 
@@ -443,8 +468,8 @@ function calculateVectorHeading(points) {
  * - Skips invalid rows but processes valid ones
  * - Validates GPS coordinates before including points
  */
-export async function fetchAllVehicles() {
-  const url = API.ALL;
+export async function fetchAllVehicles(spv = '') {
+  const url = API.ALL(spv);
   
   try {
     // Django proxy endpoint handles authentication server-side

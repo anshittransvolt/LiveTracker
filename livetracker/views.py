@@ -1,5 +1,5 @@
 # livetracker/views.py
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -8,12 +8,13 @@ from django.utils import timezone
 from datetime import timedelta, datetime
 from django.conf import settings
 from django.core.cache import cache
+import json
 import requests
 import logging
 import os
 import time
 import pandas as pd
-from .models import TimeBoxDailyAvgDelay
+from .models import TimeBoxDailyAvgDelay, Geofence
 from .analytics.analytics_service import format_analytics_response
 from .analytics.charging_sessions import aggregate_charging_sessions, charging_sessions_to_dataframe
 from .analytics.stoppage_sessions import aggregate_stoppage_sessions, stoppage_sessions_to_dataframe
@@ -294,8 +295,7 @@ def vehicle_analytics_api(request, registration_number):
                 twins_token = settings.TWINS_API_TOKEN
                 
                 if twins_url and twins_token:
-                    _vendor = getattr(settings, 'TWINS_VENDOR', 'intangles')
-                    _spv = getattr(settings, 'TWINS_SPV', 'ultratech')
+                    _vendor, _spv = _resolve_twins_project(request.GET.get('spv', ''))
                     # Use TWINS fetch_points endpoint for 24hr data
                     api_url = f"{twins_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000&registration_number={registration_number}"
                     response = requests.get(
@@ -322,7 +322,8 @@ def vehicle_analytics_api(request, registration_number):
                                 continue
                             
                             # Get SOC and ensure it's a valid positive number
-                            soc = int(point.get('soc', 0)) if point.get('soc') else 0
+                            _raw_soc = point.get('soc')
+                            soc = int(float(_raw_soc)) if _raw_soc is not None else 0
                             
                             # Get speed safely
                             speed = float(point.get('speed', 0)) if point.get('speed') is not None else 0
@@ -421,8 +422,7 @@ def api_vehicle_historical_data(request, registration_number):
         
         start_date = request.GET.get('start_date')
         end_date = request.GET.get('end_date')
-        spv = request.GET.get('spv', getattr(settings, 'TELEMETRY_SPV', 'ULTRATECH'))
-        vendor = request.GET.get('vendor', 'intangles')
+        vendor, spv = _resolve_twins_project(request.GET.get('spv', ''))
         
         if not start_date or not end_date:
             return JsonResponse({
@@ -612,7 +612,7 @@ def reverse_geocode(request):
         # Nominatim requires a User-Agent header as per their usage policy
         headers = {
             'Accept': 'application/json',
-            'User-Agent': 'Voltrack'
+            'User-Agent': 'LiveTracker'
         }
         
         # logger.info(f"🌐 Geocoding request: lat={lat_float}, lon={lon_float}")
@@ -1307,8 +1307,7 @@ def timeline_table_view(request):
 
                     def _warm_fc_cache():
                         try:
-                            _vendor = getattr(settings, 'TWINS_VENDOR', 'intangles')
-                            _spv = getattr(settings, 'TWINS_SPV', 'ultratech')
+                            _vendor, _spv = _resolve_twins_project('')
                             resp = requests.get(
                                 f"{_tw_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000",
                                 headers={'Authorization': f'Bearer {_tw_tok}'},
@@ -3055,10 +3054,30 @@ def smartfastapi_proxy(request):
         
         # Return raw data directly (JavaScript expects array, not wrapped object)
         return JsonResponse(data, safe=False)
-        
+
     except requests.Timeout:
         logger.error("SmartFastAPI proxy timeout")
         return JsonResponse({'error': 'Request timeout'}, status=504)
+
+
+def _resolve_twins_project(spv_param):
+    """Map a frontend project key to the correct TWINS vendor+spv pair."""
+    mapping = {
+        'ULTRATECH': (getattr(settings, 'TWINS_VENDOR',        'intangles'),
+                      getattr(settings, 'TWINS_SPV',           'ultratech')),
+        'UMT':       (getattr(settings, 'TWINS_UMT_VENDOR',    'intangles'),
+                      getattr(settings, 'TWINS_UMT_SPV',       'UMT')),
+        'MBMT':      (getattr(settings, 'TWINS_MBMT_VENDOR',   'intangles'),
+                      getattr(settings, 'TWINS_MBMT_SPV',      'MBMT')),
+        'NAGPUR':      (getattr(settings, 'TWINS_NAGPUR_VENDOR',      'eka'),
+                        getattr(settings, 'TWINS_NAGPUR_SPV',         'nagpur')),
+        'VECV':        (getattr(settings, 'TWINS_VECV_VENDOR',        'intangles'),
+                        getattr(settings, 'TWINS_VECV_SPV',           'VECV')),
+        'STAR_CEMENT': (getattr(settings, 'TWINS_STAR_CEMENT_VENDOR', 'propel'),
+                        getattr(settings, 'TWINS_STAR_CEMENT_SPV',    'STAR_CEMENT')),
+    }
+    key = (spv_param or '').strip().upper() or 'ULTRATECH'
+    return mapping.get(key, mapping['ULTRATECH'])
 
 
 @login_required
@@ -3094,11 +3113,9 @@ def twins_api_proxy(request):
                 status=500
             )
         
-        # Build URL using configured vendor/spv from settings
-        vendor = getattr(settings, 'TWINS_VENDOR', 'intangles')
-        spv = getattr(settings, 'TWINS_SPV', 'ultratech')
+        vendor, spv = _resolve_twins_project(request.GET.get('spv', ''))
         api_url = f"{twins_url}latest_points_combined?vendor={vendor}&spv={spv}&limit={limit}"
-        
+
         logger.info(f"🔄 Proxying TWINS API request: vendor={vendor}, spv={spv}, limit={limit}")
         
         # Make request to TWINS API with token
@@ -3110,10 +3127,14 @@ def twins_api_proxy(request):
             timeout=20  # 20 second timeout
         )
         
+        if response.status_code == 400:
+            logger.warning(f"⚠️ TWINS API returned 400 for vendor={vendor} spv={spv} — project may not be available")
+            return JsonResponse({'total_vehicles': 0, 'vehicles': {}, 'vendor_filter': vendor}, safe=True)
+
         response.raise_for_status()
-        
+
         data = response.json()
-        logger.info(f"✅ TWINS API response: {data.get('total_vehicles', '?')} vehicles (spv=ultratech)")
+        logger.info(f"✅ TWINS API response: {data.get('total_vehicles', '?')} vehicles (spv={spv})")
 
         # Normalize gps_time in every point to IST ISO string so the
         # frontend hover card and sidebar show the same time as playback.
@@ -3128,6 +3149,17 @@ def twins_api_proxy(request):
                 if isinstance(raw_gps, int):
                     pt['gps_time'] = datetime.fromtimestamp(raw_gps, tz=_ist_tz).strftime('%Y-%m-%dT%H:%M:%S')
                 pt['last_connected'] = pt.get('gps_time') or pt.get('event_datetime')
+                # Infer vehicle_status for vendors that don't set it (e.g. Star Cement / propel)
+                if not pt.get('vehicle_status'):
+                    spd = float(pt.get('speed') or 0)
+                    if pt.get('charging_status') == 1:
+                        pt['vehicle_status'] = 'Charging'
+                    elif spd > 1:
+                        pt['vehicle_status'] = 'Moving'
+                    elif pt.get('ignition_status') == 1:
+                        pt['vehicle_status'] = 'Idling'
+                    else:
+                        pt['vehicle_status'] = 'Stopped'
 
         return JsonResponse(data, safe=True)
         
@@ -3152,12 +3184,6 @@ def twins_api_proxy(request):
             {'error': 'Internal server error'},
             status=500
         )
-    except requests.RequestException as e:
-        logger.error(f"SmartFastAPI proxy error: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
-    except Exception as e:
-        logger.error(f"SmartFastAPI proxy unexpected error: {str(e)}")
-        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
 @login_required
@@ -3193,8 +3219,7 @@ def twins_24hr_route_proxy(request):
                 status=500
             )
         
-        _vendor = getattr(settings, 'TWINS_VENDOR', 'intangles')
-        _spv = getattr(settings, 'TWINS_SPV', 'ultratech')
+        _vendor, _spv = _resolve_twins_project(request.GET.get('spv', ''))
         # Build URL for 24hr full route data with vendor and spv filters
         api_url = f"{twins_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000&registration_number={registration_number}"
         
@@ -3279,7 +3304,7 @@ def twins_24hr_route_proxy(request):
                 'gps_heading': float(point.get('head', 0)) if point.get('head') else None,
                 'speed': float(point.get('speed', 0)) if point.get('speed') is not None else 0,
                 'gps_speed': float(point.get('speed', 0)) if point.get('speed') is not None else 0,
-                'soc': int(point['soc']) if point.get('soc') is not None else (int(point['battery_soc']) if point.get('battery_soc') is not None else None),
+                'soc': (int(float(point['soc'])) if point.get('soc') is not None else (int(float(point['battery_soc'])) if point.get('battery_soc') is not None else None)),
                 'odometer': float(point.get('vcu_odometer') or point.get('odometer') or 0) or None,
                 'altitude': float(point.get('altitude', 0)) if point.get('altitude') else None,
                 'satellites': point.get('satellites'),
@@ -3589,4 +3614,100 @@ def timebox_phase_breakdown_api(request):
             'start_date': start_date.strftime('%Y-%m-%d'),
             'end_date': end_date.strftime('%Y-%m-%d')
         }
+    })
+
+# ======================
+# GEOFENCE ENDPOINTS
+# ======================
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def geofences_list_create(request):
+    if request.method == 'GET':
+        spv_filter = request.GET.get('spv', '').strip()
+        qs = Geofence.objects.all()
+        if spv_filter:
+            qs = qs.filter(spv=spv_filter)
+        data = [
+            {
+                'id': g.id,
+                'name': g.name,
+                'geometry': g.geometry,
+                'spv': g.spv,
+                'color': g.color,
+                'created_at': g.created_at.isoformat(),
+            }
+            for g in qs
+        ]
+        return JsonResponse({'geofences': data})
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    name = str(body.get('name', '')).strip()
+    geometry = body.get('geometry')
+    spv = str(body.get('spv', '')).strip()[:50]
+    color = str(body.get('color', '#3b82f6')).strip()[:20]
+
+    if not name:
+        return JsonResponse({'error': 'name is required'}, status=400)
+    if not geometry or not isinstance(geometry, dict):
+        return JsonResponse({'error': 'geometry (GeoJSON) is required'}, status=400)
+
+    geofence = Geofence.objects.create(
+        name=name,
+        geometry=geometry,
+        spv=spv,
+        color=color,
+        created_by=request.user,
+    )
+    return JsonResponse({
+        'id': geofence.id,
+        'name': geofence.name,
+        'geometry': geofence.geometry,
+        'spv': geofence.spv,
+        'color': geofence.color,
+        'created_at': geofence.created_at.isoformat(),
+    }, status=201)
+
+
+@login_required
+@require_http_methods(["GET", "PUT", "DELETE"])
+def geofence_detail(request, pk):
+    geofence = get_object_or_404(Geofence, pk=pk)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'id': geofence.id,
+            'name': geofence.name,
+            'geometry': geofence.geometry,
+            'spv': geofence.spv,
+            'color': geofence.color,
+            'created_at': geofence.created_at.isoformat(),
+        })
+
+    if request.method == 'DELETE':
+        geofence.delete()
+        return JsonResponse({'deleted': True})
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if 'name' in body:
+        geofence.name = str(body['name']).strip()
+    if 'color' in body:
+        geofence.color = str(body['color']).strip()[:20]
+    if 'spv' in body:
+        geofence.spv = str(body['spv']).strip()[:50]
+    geofence.save()
+    return JsonResponse({
+        'id': geofence.id,
+        'name': geofence.name,
+        'geometry': geofence.geometry,
+        'spv': geofence.spv,
+        'color': geofence.color,
     })

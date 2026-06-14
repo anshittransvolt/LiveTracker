@@ -6,7 +6,6 @@ from django.conf.urls.static import static
 project_prefixed_urlpatterns = [
     path("", include("dashboard.urls")),
     path("livetracker/", include("livetracker.urls")),
-    path("globaltracker/", include("globaltracker.urls")),
     path("roster/", include("roster.urls")),
     path("mis/", include("mis.urls")),
     path("livenotif/", include("livenotif.urls")),
@@ -17,7 +16,6 @@ urlpatterns = [
     path("", include("dashboard.urls")),
     path("accounts/", include(("dashboard.urls", "accounts"), namespace="accounts")),
     path("livetracker/", include("livetracker.urls")),
-    path("globaltracker/", include("globaltracker.urls")),
     path("roster/", include("roster.urls")),
     path("mis/", include("mis.urls")),
     path("livenotif/", include("livenotif.urls")),

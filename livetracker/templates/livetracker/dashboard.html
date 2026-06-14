@@ -3,149 +3,389 @@
 {% load static %}
 {% block title %}LiveTracker — All Vehicles{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+{% endblock %}
+
+{% block topbar_project_switcher %}
+<div class="relative" id="lv-project-dropdown">
+  <!-- Hidden select kept for JS compatibility -->
+  <select id="projectSwitcher" class="sr-only" aria-hidden="true">
+    <option value="ULTRATECH">Ultratech</option>
+    <option value="UMT">UMT</option>
+    <option value="MBMT">MBMT</option>
+    <option value="NAGPUR">Nagpur (EKA)</option>
+    <option value="VECV">VECV</option>
+    <option value="STAR_CEMENT">Star Cement</option>
+  </select>
+  <button id="lv-project-trigger" class="lv-project-trigger flex items-center gap-2 px-3 py-1.5 rounded-lg"
+    onclick="window.toggleProjectDropdown()">
+    <span id="lv-project-label">Ultratech</span>
+    <svg class="lv-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div id="lv-project-menu" class="lv-project-menu hidden absolute left-0 mt-1 w-44 z-[100004]">
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="ULTRATECH" data-label="Ultratech" onclick="window.selectProject(this)">Ultratech</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="UMT" data-label="UMT" onclick="window.selectProject(this)">UMT</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="VECV" data-label="VECV" onclick="window.selectProject(this)">VECV</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="NAGPUR" data-label="EKA" onclick="window.selectProject(this)">Nagpur (EKA)</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="MBMT" data-label="MBMT" onclick="window.selectProject(this)">MBMT</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="STAR_CEMENT" data-label="Star" onclick="window.selectProject(this)">Star Cement</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block topbar_geofence_btn %}
+<a href="{% url 'roster:assignment_page' %}"
+  class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150"
+  title="Roster">
+  <i data-lucide="users" class="w-3.5 h-3.5 text-violet-400"></i>
+  <span class="text-[11px] font-semibold hidden sm:inline">Roster</span>
+</a>
+<button id="openGeofencePanel"
+  class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150"
+  title="Manage Geofences">
+  <i data-lucide="pentagon" class="w-3.5 h-3.5 text-emerald-500"></i>
+  <span class="text-[11px] font-semibold hidden sm:inline">Geofences</span>
+</button>
+{% endblock %}
+
+{% block topbar_map_style_toggle %}
+<button id="mapStyleToggle"
+  onclick="window.toggleMapStyle()"
+  title="Switch to Dark Map"
+  class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+  <span class="text-[11px] font-semibold hidden sm:inline">Theme</span>
+</button>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+// ── Geofence Manager (runs after Leaflet.Draw and map.js are ready) ──────────
+(function () {
+  const GEOFENCES_API = '/livetracker/api/geofences/';
+
+  function waitForMap(cb) {
+    if (window.map) { cb(); return; }
+    const t = setInterval(() => { if (window.map) { clearInterval(t); cb(); } }, 200);
+  }
+
+  waitForMap(initGeofenceManager);
+
+  function initGeofenceManager() {
+    const lmap = window.map;
+    let drawnLayers = {};
+    let pendingLayer = null;
+    const currentSPV = () => document.getElementById('projectSwitcher')?.value || '';
+
+    const drawnItems = new L.FeatureGroup().addTo(lmap);
+    let drawHandler = null;
+
+    function startDraw(type) {
+      if (drawHandler) { try { drawHandler.disable(); } catch(e){} }
+      const opts = { shapeOptions: { color: '#ef4444', fillOpacity: 0.15 } };
+      if (type === 'polygon')        drawHandler = new L.Draw.Polygon(lmap, opts);
+      else if (type === 'rectangle') drawHandler = new L.Draw.Rectangle(lmap, opts);
+      else if (type === 'circle')    drawHandler = new L.Draw.Circle(lmap, opts);
+      if (drawHandler) drawHandler.enable();
+    }
+
+    lmap.on(L.Draw.Event.CREATED, function (e) {
+      if (pendingLayer) drawnItems.removeLayer(pendingLayer);
+      pendingLayer = e.layer;
+      drawnItems.addLayer(pendingLayer);
+      document.getElementById('geofenceSaveForm').classList.remove('hidden');
+      document.getElementById('geofenceName').focus();
+    });
+
+    document.getElementById('openGeofencePanel').addEventListener('click', () => {
+      document.getElementById('geofencePanel').classList.remove('hidden');
+      document.getElementById('openGeofencePanel').classList.add('hidden');
+    });
+    document.getElementById('closeGeofencePanel').addEventListener('click', () => {
+      document.getElementById('geofencePanel').classList.add('hidden');
+      document.getElementById('openGeofencePanel').classList.remove('hidden');
+      cancelDraw();
+    });
+
+    document.getElementById('drawPolygon').addEventListener('click',   () => startDraw('polygon'));
+    document.getElementById('drawRectangle').addEventListener('click', () => startDraw('rectangle'));
+    document.getElementById('drawCircle').addEventListener('click',    () => startDraw('circle'));
+
+    document.getElementById('cancelGeofenceBtn').addEventListener('click', cancelDraw);
+    function cancelDraw() {
+      if (drawHandler) { try { drawHandler.disable(); } catch(e){} drawHandler = null; }
+      if (pendingLayer) { drawnItems.removeLayer(pendingLayer); pendingLayer = null; }
+      document.getElementById('geofenceSaveForm').classList.add('hidden');
+      document.getElementById('geofenceName').value = '';
+    }
+
+    document.getElementById('saveGeofenceBtn').addEventListener('click', async () => {
+      const name = document.getElementById('geofenceName').value.trim();
+      if (!name) { alert('Please enter a geofence name.'); return; }
+      if (!pendingLayer) return;
+      const geometry = layerToGeoJSON(pendingLayer);
+      const spv = currentSPV();
+      try {
+        const resp = await fetch(GEOFENCES_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ name, geometry, spv, color: '#ef4444' }),
+        });
+        if (!resp.ok) throw new Error('Save failed');
+        const saved = await resp.json();
+        drawnItems.removeLayer(pendingLayer);
+        pendingLayer = null;
+        document.getElementById('geofenceSaveForm').classList.add('hidden');
+        document.getElementById('geofenceName').value = '';
+        addGeofenceToMap(saved);
+        addGeofenceToList(saved);
+      } catch (err) { alert('Failed to save: ' + err.message); }
+    });
+
+    function layerToGeoJSON(layer) {
+      if (layer instanceof L.Circle) {
+        return { type: 'circle', center: { lat: layer.getLatLng().lat, lng: layer.getLatLng().lng }, radius: layer.getRadius() };
+      }
+      return layer.toGeoJSON().geometry;
+    }
+
+    function addGeofenceToMap(g) {
+      const style = { color: g.color || '#3b82f6', fillOpacity: 0.12, weight: 2 };
+      let layer;
+      if (g.geometry.type === 'circle') {
+        layer = L.circle([g.geometry.center.lat, g.geometry.center.lng], { radius: g.geometry.radius, ...style });
+      } else {
+        layer = L.geoJSON({ type: 'Feature', geometry: g.geometry }, { style: () => style });
+      }
+      layer.bindTooltip(g.name, { permanent: false, sticky: true });
+      layer.addTo(lmap);
+      drawnLayers[g.id] = layer;
+    }
+
+    function addGeofenceToList(g) {
+      const list = document.getElementById('geofenceList');
+      const placeholder = list.querySelector('p.text-slate-400');
+      if (placeholder) placeholder.remove();
+      const el = document.createElement('div');
+      el.id = `gf-item-${g.id}`;
+      el.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200';
+      el.innerHTML = `
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:${g.color || '#3b82f6'}"></span>
+          <span class="text-xs text-slate-700 truncate font-medium">${g.name}</span>
+        </div>
+        <div class="flex gap-1 flex-shrink-0">
+          <button title="Zoom to" onclick="window.gfZoom(${g.id})" class="p-1 hover:bg-blue-100 rounded text-blue-600"><i data-lucide="zoom-in" class="w-3.5 h-3.5"></i></button>
+          <button title="Delete" onclick="window.gfDelete(${g.id})" class="p-1 hover:bg-red-100 rounded text-red-500"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>`;
+      list.appendChild(el);
+      lucide.createIcons({ nodes: [el] });
+    }
+
+    window.gfZoom = function (id) {
+      const layer = drawnLayers[id];
+      if (!layer) return;
+      try { layer.getBounds ? lmap.fitBounds(layer.getBounds()) : lmap.setView(layer.getLatLng(), 14); } catch(e){}
+    };
+
+    window.gfDelete = async function (id) {
+      if (!confirm('Delete this geofence?')) return;
+      try {
+        const resp = await fetch(`${GEOFENCES_API}${id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+        if (!resp.ok) throw new Error('Delete failed');
+        if (drawnLayers[id]) { lmap.removeLayer(drawnLayers[id]); delete drawnLayers[id]; }
+        document.getElementById(`gf-item-${id}`)?.remove();
+        if (!document.getElementById('geofenceList').children.length)
+          document.getElementById('geofenceList').innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No geofences yet</p>';
+      } catch (err) { alert('Failed to delete: ' + err.message); }
+    };
+
+    async function loadGeofences() {
+      try {
+        const spv = currentSPV();
+        const url = spv ? `${GEOFENCES_API}?spv=${encodeURIComponent(spv)}` : GEOFENCES_API;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        document.getElementById('geofenceList').innerHTML = '';
+        data.geofences.forEach(g => { addGeofenceToMap(g); addGeofenceToList(g); });
+        if (!data.geofences.length)
+          document.getElementById('geofenceList').innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No geofences yet</p>';
+      } catch (e) { console.warn('Could not load geofences:', e); }
+    }
+
+    loadGeofences();
+
+    document.getElementById('projectSwitcher')?.addEventListener('change', () => {
+      Object.values(drawnLayers).forEach(l => lmap.removeLayer(l));
+      drawnLayers = {};
+      document.getElementById('geofenceList').innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No geofences yet</p>';
+      loadGeofences();
+    });
+  }
+
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+  }
+})();
+</script>
+
+<script>
+// Project switcher: pre-select from URL slug, then navigate on change
+(function () {
+  const KEY_TO_SLUG = {
+    ULTRATECH: 'ultratech', UMT: 'umt', MBMT: 'mbmt',
+    NAGPUR: 'nagpur', VECV: 'vecv', STAR_CEMENT: 'star_cement',
+  };
+  const KEY_TO_LABEL = {
+    ULTRATECH: 'Ultratech', UMT: 'UMT', MBMT: 'MBMT',
+    NAGPUR: 'EKA', VECV: 'VECV', STAR_CEMENT: 'Star',
+  };
+  const SLUG_TO_KEY = {};
+  Object.entries(KEY_TO_SLUG).forEach(([k, v]) => { SLUG_TO_KEY[v] = k; SLUG_TO_KEY[v.replace('_','-')] = k; });
+
+  function getProjectFromPath() {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    if (parts.length >= 2 && parts[1] === 'livetracker') return SLUG_TO_KEY[parts[0].toLowerCase()] || null;
+    return null;
+  }
+
+  const switcher = document.getElementById('projectSwitcher');
+  if (!switcher) return;
+
+  // Pre-select based on URL
+  const detected = getProjectFromPath();
+  if (detected) switcher.value = detected;
+
+  // On change: navigate to the project-specific URL
+  switcher.addEventListener('change', function () {
+    const slug = KEY_TO_SLUG[this.value] || this.value.toLowerCase();
+    window.location.href = '/' + slug + '/livetracker/';
+  });
+
+  // Update dropdown label and active state
+  function syncDropdownUI() {
+    const active = switcher.value;
+    const labelEl = document.getElementById('lv-project-label');
+    if (labelEl) labelEl.textContent = KEY_TO_LABEL[active] || active;
+    document.querySelectorAll('.lv-project-option').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.project === active);
+    });
+  }
+  syncDropdownUI();
+
+  // Dropdown toggle
+  window.toggleProjectDropdown = function() {
+    const menu = document.getElementById('lv-project-menu');
+    const trigger = document.getElementById('lv-project-trigger');
+    if (!menu) return;
+    const isOpen = !menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', isOpen);
+    if (trigger) trigger.classList.toggle('open', !isOpen);
+  };
+
+  // Select a project from the dropdown
+  window.selectProject = function(btn) {
+    const key = btn.dataset.project;
+    switcher.value = key;
+    switcher.dispatchEvent(new Event('change'));
+    const menu = document.getElementById('lv-project-menu');
+    if (menu) menu.classList.add('hidden');
+    const trigger = document.getElementById('lv-project-trigger');
+    if (trigger) trigger.classList.remove('open');
+  };
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('lv-project-dropdown');
+    if (dropdown && !dropdown.contains(e.target)) {
+      const menu = document.getElementById('lv-project-menu');
+      const trigger = document.getElementById('lv-project-trigger');
+      if (menu) menu.classList.add('hidden');
+      if (trigger) trigger.classList.remove('open');
+    }
+  });
+})();
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="flex h-full">
   <!-- Sidebar (Hidden on mobile) -->
-  <aside
-    class="hidden md:flex w-[280px] md:w-[300px] lg:w-[320px] xl:w-[340px] bg-white border-r border-slate-200 shadow-sm flex-col overflow-hidden">
-    
+  <aside class="hidden md:flex w-[280px] md:w-[300px] lg:w-[320px] xl:w-[340px] border-r flex-col overflow-hidden">
 
-    <!-- Compact Action Buttons -->
-    <div class="p-2.5 border-b border-slate-200 bg-gradient-to-r from-gray-50 to-white">
-      <div class="flex items-stretch justify-center gap-2">
-        <!-- Back to Dashboard -->
-        <a href="{% url 'dashboard:dashboard' %}" target="_blank"
-           class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-300 transition-all duration-200 group flex-1"
-           title="Back to Dashboard">
-          <i data-lucide="arrow-left" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-          <span class="text-[9px] font-medium leading-tight text-center">Dashboard</span>
-        </a>
-        
-        <!-- Route Timebox -->
-        <a href="/livetracker/timebox/" target="_blank"
-           class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-300 transition-all duration-200 group flex-1"
-           title="Route Timebox">
-          <i data-lucide="route" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-          <span class="text-[9px] font-medium leading-tight text-center">Timebox</span>
-        </a>
-
-        <!-- Download Report -->
-        <a href="/livetracker/api/download_dashboard_report/"
-           class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg border border-blue-500 hover:border-blue-600 transition-all duration-200 group flex-1"
-           title="Download Dashboard Report"
-           download>
-          <i data-lucide="download" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-          <span class="text-[9px] font-medium leading-tight text-center">Download</span>
-        </a>
-      </div>                                                          
+    <!-- Search -->
+    <div class="px-3 pt-3 pb-2 border-b lv-sidebar-section">
+      <div class="lv-search-wrap flex items-center gap-2 border rounded-lg px-3 py-2">
+        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+        <input type="text" id="sidebarSearchInput" placeholder="Search vehicles..."
+          class="flex-1 text-xs focus:outline-none"/>
+        <button id="clearSearchBtn" class="text-slate-400 hover:text-slate-600 hidden transition-colors">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
     </div>
 
-    <!-- Header with Search -->
-    <div class="p-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white">
-      <!-- Search Input with Clear Button -->
-       <!-- Search Input with Clear Button (Left Side) -->
-<div class="mb-3">
- <div class="flex items-center gap-2 w-full border border-slate-300 rounded-lg px-3 py-2 bg-white">
+    <!-- 2×2 Stat Grid -->
+    <div class="grid grid-cols-2 gap-2 p-3 border-b lv-sidebar-section">
+      <button id="filterMoving" data-filter="moving" class="lv-stat-card group cursor-pointer" title="Moving">
+        <span id="countMoving" class="lv-stat-val text-emerald-400">0</span>
+        <span class="lv-stat-lbl">Moving</span>
+      </button>
+      <button id="filterStopped" data-filter="stopped" class="lv-stat-card group cursor-pointer" title="Stopped">
+        <span id="countStopped" class="lv-stat-val text-red-400">0</span>
+        <span class="lv-stat-lbl">Stopped</span>
+      </button>
+      <button id="filterCharging" data-filter="charging" class="lv-stat-card group cursor-pointer" title="Charging">
+        <span id="countCharging" class="lv-stat-val text-blue-400">0</span>
+        <span class="lv-stat-lbl">Charging</span>
+      </button>
+      <button id="filterAll" data-filter="all" class="lv-stat-card group cursor-pointer" title="All">
+        <span id="countAll" class="lv-stat-val text-amber-400">0</span>
+        <span class="lv-stat-lbl">Total</span>
+      </button>
+    </div>
 
-    <!-- Clear Button (hidden until typing) -->
-      <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
-   
-
-    <!-- Input -->
-    <input 
-      type="text" 
-      id="sidebarSearchInput" 
-      placeholder="Search vehicles..."
-      class="flex-1 text-sm focus:outline-none"
-    />
-
-    <!-- Search Icon (Right) -->
-   
-     <button 
-      id="clearSearchBtn"
-      class="text-slate-400 hover:text-slate-600 hidden"
-      title="Clear search"
-    >
-      <i data-lucide="x" class="w-4 h-4"></i>
-    </button>
-  </div>
-
-</div>
-
-<!-- Filter Buttons Grid -->
-<div class="grid grid-cols-3 gap-2 mb-3">
-
-  <!-- All -->
-  <button id="filterAll"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-slate-100 text-slate-700 
-           border border-slate-300 hover:bg-slate-200 transition-all duration-200"
-    data-filter="all" title="All Vehicles">
-      <i data-lucide="receipt-text" class="w-5 h-5"></i>
-      <span id="countAll" class="text-[14px] font-semibold text-slate-700">(0)</span>
-  </button>
-
-   <!-- Moving -->
-  <button id="filterMoving"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-blue-600 
-           border border-blue-200 hover:bg-blue-50 transition-all duration-200"
-    data-filter="moving" title="Moving">
-      <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#2563eb"><path d="M273.33-160q-50 0-83-35.67-33-35.66-29.66-85h-100l14.66-66.66h112.34q15.66-18.34 37.66-28.84 22-10.5 48-10.5t48 10.5q22 10.5 37.67 28.84h187.67l89.33-386H184.67l3.33-14.34q5.33-23.33 23.17-37.83Q229-800 252.67-800h466.66L681-633.33h122.33l116 154.66-39.33 198h-80q3.33 49.34-30 85Q736.67-160 686.67-160t-83-35.67q-33-35.66-29.67-85H386.67q3.33 49.34-30 85Q323.33-160 273.33-160ZM635-433.33h207.67l5.33-29-78-104.34H665.67L635-433.33Zm-5.67-273 6.67-27-89.33 386 6-26.34 34-146 42.66-186.66Zm-608 272.66L38-500.33h220l-16.67 66.66h-220Zm80-146L118-646.33h260l-16.67 66.66h-260Zm172 353q19.67 0 33.17-13.83t13.5-32.83q0-19.67-13.5-33.17T273.33-320q-19 0-32.83 13.5-13.83 13.5-13.83 33.17 0 19 13.83 32.83 13.83 13.83 32.83 13.83Zm413.34 0q19.66 0 33.16-13.83 13.5-13.83 13.5-32.83 0-19.67-13.5-33.17T686.67-320q-19 0-32.84 13.5Q640-293 640-273.33q0 19 13.83 32.83 13.84 13.83 32.84 13.83Z"/></svg>
-      <span id="countMoving" class="text-[14px] font-semibold text-blue-700">(0)</span>
-  </button>
-
-   <!-- Stopped -->
-  <button id="filterStopped"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-red-600 
-           border border-red-200 hover:bg-red-50 transition-all duration-200"
-    data-filter="stopped" title="Stopped">
-      <i data-lucide="octagon-minus" class="w-5 h-5"></i>
-      <span id="countStopped" class="text-[14px] font-semibold text-red-700">(0)</span>
-  </button>
-
-  <!-- Charging -->
-  <button id="filterCharging"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-green-600 
-           border border-green-200 hover:bg-green-50 transition-all duration-200"
-    data-filter="charging" title="Charging">
-     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#16a34a"><path d="M338-209.33 430-356h-55.33v-110l-91.34 146.67H338v110ZM226.67-554.67H486v-218.66H226.67v218.66Zm0 368H486V-488H226.67v301.33ZM160-120v-653.33q0-27 19.83-46.84Q199.67-840 226.67-840H486q27 0 46.83 19.83 19.84 19.84 19.84 46.84V-488h60q23.47 0 40.07 16.59 16.59 16.6 16.59 40.08v207.66q0 20.34 16.34 34.67Q702-174.67 723-174.67q21.33 0 39.17-14.33Q780-203.33 780-223.67v-383h-13.33q-14.17 0-23.75-9.58-9.59-9.58-9.59-23.75v-86.67h20V-780h33.34v53.33h40V-780H860v53.33h20V-640q0 14.17-9.58 23.75-9.59 9.58-23.75 9.58h-13.34v382.8q0 42.87-32.83 73.37-32.83 30.5-77.62 30.5-43.77 0-75.33-30.5Q616-181 616-223.67v-207.66q0-1.67-.83-2.5-.84-.84-2.5-.84h-60V-120H160Zm326-66.67H226.67 486Z"/></svg>
-      <span id="countCharging" class="text-[14px] font-semibold text-green-700">(0)</span>
-  </button>
-
-  <!-- Low SOC -->
-  <button id="filterLowSoc"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-white text-orange-600 
-           border border-orange-200 hover:bg-orange-50 transition-all duration-200"
-    data-filter="lowsoc" title="Low SOC (<30%)">
-      <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#ea580c"><path d="M839.88-306.67q-14.21 0-23.71-9.61-9.5-9.62-9.5-23.84 0-14.21 9.61-23.71 9.62-9.5 23.84-9.5 14.21 0 23.71 9.61 9.5 9.62 9.5 23.84 0 14.21-9.61 23.71-9.62 9.5-23.84 9.5Zm-33.21-126.66v-240h66.66v240h-66.66ZM810.34-240H140q-41.67 0-70.83-29.17Q40-298.33 40-340v-280q0-41.67 29.17-70.83Q98.33-720 140-720h600v66.67H140q-14.17 0-23.75 9.58T106.67-620v280q0 14.17 9.58 23.75t23.75 9.58h603.33q6 25 24.5 43.17t42.51 23.5Zm-703.67-66.67V-653.33v346.66Z"/></svg>
-      <span id="countLowSoc" class="text-[14px] font-semibold text-orange-700">(0)</span>
-  </button>
-
-  <!-- Refresh -->
-  <button id="refreshBtn"
-    class="flex items-center justify-center gap-1.5 p-2 rounded-lg text-slate-700 
-          transition-all duration-200"
-    title="Refresh">
-      <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-  </button>
-
-</div>
-
-
-</div>
+    <!-- Filter row (Low SOC + Refresh) -->
+    <div class="flex items-center justify-between px-3 py-2 border-b lv-sidebar-section">
+      <button id="filterLowSoc" data-filter="lowsoc" title="Low SOC (<30%)"
+        class="hidden lv-lowsoc-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all">
+        <i data-lucide="battery-low" class="w-3 h-3"></i>
+        Low SOC <span id="countLowSoc" class="font-bold ml-0.5">0</span>
+      </button>
+      <div></div>
+      <button id="refreshBtn" class="lv-refresh-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all" title="Refresh">
+        <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
+      </button>
+    </div>
 
     <!-- Vehicle List -->
-    <div class="flex-1 overflow-y-auto bg-slate-50">
-      <div id="vehicleList" class="p-3 space-y-2">
-        <!-- Compact vehicle cards will be populated by JS -->
-      </div>
-      <div id="vehicle-list-message" class="p-4 text-center text-slate-500"></div>
+    <div class="lv-vehicle-list-bg flex-1 overflow-y-auto">
+      <div id="vehicleList" class="p-2 space-y-1.5"></div>
+      <div id="vehicle-list-message" class="p-4 text-center text-xs" style="color:var(--text-muted)"></div>
     </div>
-
   </aside>
 
   <!-- Map area -->
   <main class="flex-1 relative">
     <div id="map" class="absolute inset-0"></div>
+
+    <!-- Latest alert card (bottom-right) -->
+    <div id="lv-alert-card" class="absolute bottom-16 right-4 z-[800] w-[260px]" style="display:none;">
+      <div class="text-[9px] font-semibold text-red-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span> Latest Alert
+      </div>
+      <div id="lv-alert-vehicle" class="text-xs font-bold text-white mb-0.5"></div>
+      <div id="lv-alert-desc" class="text-[10px] text-slate-400 mb-2 leading-snug"></div>
+      <div class="flex gap-2">
+        <button onclick="document.getElementById('lv-alert-card').style.display='none'"
+          class="flex-1 text-[10px] font-semibold py-1 rounded bg-[#1a2035] border border-[#1e2433] text-slate-300 hover:bg-[#243050] transition-all">Dismiss</button>
+        <button onclick="toggleLiveAlerts()"
+          class="flex-1 text-[10px] font-semibold py-1 rounded bg-red-900/60 border border-red-800/40 text-red-300 hover:bg-red-900 transition-all">View All</button>
+      </div>
+    </div>
 
     <!-- Mobile Sidebar Overlay -->
     <div id="mobileSidebar" class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998] hidden">
@@ -164,14 +404,6 @@
         <!-- Compact Action Buttons (Mobile) -->
         <div class="p-2.5 border-b border-slate-200 bg-gradient-to-r from-gray-50 to-white">
           <div class="flex items-stretch justify-center gap-2">
-            <!-- Back to Dashboard -->
-            <a href="{% url 'dashboard:dashboard' %}" 
-               class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-300 transition-all duration-200 group flex-1"
-               title="Back to Dashboard">
-              <i data-lucide="arrow-left" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-              <span class="text-[9px] font-medium leading-tight text-center">Dashboard</span>
-            </a>
-            
             <!-- Route Timebox -->
             <a href="/livetracker/timebox/" target="_blank"
                class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-300 transition-all duration-200 group flex-1"
@@ -220,7 +452,7 @@
       </button>
 
       <!-- Mobile Route Filters (Compact Icons) -->
-      <div class="lg:hidden flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+      <div class="route-filter-legend lg:hidden flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
         <div class="flex items-center gap-1 px-2 py-2">
           <!-- Dhar to Dhule (Mobile) -->
           <button data-route-filter="dhar-dhule" class="route-filter-btn flex items-center justify-center p-2 rounded-lg bg-white hover:bg-blue-50 
@@ -254,7 +486,7 @@
       </div>
 
       <!-- Direction Legend (Horizontal) - Now Interactive Filters (Desktop) -->
-      <div class="hidden lg:flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+      <div class="route-filter-legend hidden lg:flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
         <!-- Legend Items Horizontal -->
         <div class="flex items-center gap-1 px-2 py-1.5">
           
@@ -480,6 +712,62 @@
     </div>
   </div>
 
+  <!-- Geofence Draw Panel -->
+  <div id="geofencePanel" class="hidden fixed top-16 right-4 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1001] flex flex-col max-h-[calc(100vh-5rem)] overflow-hidden">
+    <div class="flex items-center justify-between p-3 border-b border-slate-200 bg-gradient-to-r from-green-50 to-white">
+      <div class="flex items-center gap-2">
+        <i data-lucide="pentagon" class="w-4 h-4 text-green-700"></i>
+        <span class="text-sm font-semibold text-slate-800">Geofences</span>
+      </div>
+      <button id="closeGeofencePanel" class="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+        <i data-lucide="x" class="w-4 h-4 text-slate-500"></i>
+      </button>
+    </div>
+
+    <!-- Draw Controls -->
+    <div class="p-3 border-b border-slate-200 space-y-2">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Draw Shape</p>
+      <div class="flex gap-2">
+        <button id="drawPolygon" title="Draw Polygon"
+          class="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg border border-slate-200 hover:bg-green-50 hover:border-green-300 text-xs text-slate-600 transition-all">
+          <i data-lucide="pentagon" class="w-4 h-4"></i><span>Polygon</span>
+        </button>
+        <button id="drawRectangle" title="Draw Rectangle"
+          class="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg border border-slate-200 hover:bg-green-50 hover:border-green-300 text-xs text-slate-600 transition-all">
+          <i data-lucide="square" class="w-4 h-4"></i><span>Rectangle</span>
+        </button>
+        <button id="drawCircle" title="Draw Circle"
+          class="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg border border-slate-200 hover:bg-green-50 hover:border-green-300 text-xs text-slate-600 transition-all">
+          <i data-lucide="circle" class="w-4 h-4"></i><span>Circle</span>
+        </button>
+      </div>
+
+      <!-- Save form (shown after drawing) -->
+      <div id="geofenceSaveForm" class="hidden space-y-2">
+        <input id="geofenceName" type="text" placeholder="Geofence name..."
+          class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+        <div class="flex gap-2">
+          <button id="saveGeofenceBtn"
+            class="flex-1 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
+            Save
+          </button>
+          <button id="cancelGeofenceBtn"
+            class="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Geofence List -->
+    <div class="flex-1 overflow-y-auto p-3 space-y-2">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Saved Geofences</p>
+      <div id="geofenceList" class="space-y-1.5">
+        <p class="text-xs text-slate-400 text-center py-4">No geofences yet</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Driver Assignment Modal -->
   <div id="driverAssignmentModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10002] hidden items-center justify-center">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all">
@@ -578,11 +866,12 @@
     input.focus();
   });
 
-  
+
   // Initialize icons for sidebar elements
   document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   });
 </script>
+
 </div>
 {% endblock %}
