@@ -25,6 +25,11 @@
 // ===================================================
 // MODULE STATE
 // ===================================================
+// Global chart font
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+}
+
 let currentVehicle = null;
 let currentSocTimeSeries = null; // Store for zoom modal
 
@@ -399,10 +404,12 @@ function renderSocChart(socTimeSeries) {
 
   // Theme-aware palette
   const isDark = document.body.classList.contains('dark-theme');
-  const gridCol = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-  const tickCol = isDark ? '#7a8699' : '#5c687e';
-  const connCol = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
-  const fillCol = isDark ? 'rgba(56,225,196,0.05)' : 'rgba(13,148,136,0.05)';
+  const gridCol   = isDark ? '#0f1829'              : '#e2e8f0';
+  const tickCol   = isDark ? '#334155'              : '#334155';
+  const tooltipBg = isDark ? '#0c1221'              : '#0f172a';
+  const tooltipBorder = isDark ? '#1a2540'          : 'rgba(0,0,0,0)';
+  const tooltipTitle  = isDark ? '#94a3b8'          : '#94a3b8';
+  const tooltipBody   = isDark ? '#e2e8f0'          : '#f1f5f9';
 
   // Prepare data — time (HH:mm) labels for compact x-axis
   const labels = reversedSeries.map(point => {
@@ -459,40 +466,40 @@ function renderSocChart(socTimeSeries) {
     data: {
       labels: labels,
       datasets: [{
-        label: 'SOC (%)',
+        label: 'SOC',
         data: data,
-        borderColor: connCol,
-        backgroundColor: 'transparent',
-        pointBackgroundColor: segmentColors,
-        pointBorderColor: 'transparent',
-        pointRadius: data.length > 50 ? 0 : 2.5,
+        borderColor: '#22c55e',
+        borderWidth: 2,
+        pointRadius: 0,
         pointHoverRadius: 4,
-        borderWidth: 1.8,
+        pointHoverBackgroundColor: '#22c55e',
+        tension: 0.35,
+        fill: true,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height || 200);
+          g.addColorStop(0, 'rgba(34,197,94,0.25)');
+          g.addColorStop(1, 'rgba(34,197,94,0.00)');
+          return g;
+        },
         segment: {
           borderColor: ctx => {
             const idx = ctx.p0DataIndex;
             return (idx >= 0 && idx < segmentColors.length) ? segmentColors[idx] : segmentColors[segmentColors.length - 1];
           }
         },
-        fill: false,
-        tension: 0.3,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      aspectRatio: 2.5,
       layout: { padding: { left: 8, right: 8, top: 4, bottom: 4 } },
       plugins: {
-        legend: { display: false },
+        legend: { labels: { color: '#475569', font: { size: 10 }, boxWidth: 8, boxHeight: 8, borderRadius: 4, padding: 12, usePointStyle: true, pointStyleWidth: 8 } },
         tooltip: {
-          enabled: true,
-          backgroundColor: isDark ? '#0b0f17' : '#ffffff',
-          borderColor: isDark ? '#161c28' : '#e3e7ee',
-          borderWidth: 1,
-          titleColor: isDark ? '#e6edf6' : '#0d1220',
-          bodyColor: isDark ? '#aab4c4' : '#3f4a61',
-          padding: 8,
+          backgroundColor: tooltipBg, borderColor: tooltipBorder, borderWidth: 1,
+          titleColor: tooltipTitle, bodyColor: tooltipBody,
+          titleFont: { size: 10 }, bodyFont: { size: 11, weight: '600' },
+          padding: 8, cornerRadius: 6,
           callbacks: {
             label: function(context) {
               const pt = reversedSeries[context.dataIndex];
@@ -504,10 +511,11 @@ function renderSocChart(socTimeSeries) {
       },
       scales: {
         x: {
-          title: { display: false },
+          grid: { color: 'rgba(0,0,0,0)', drawBorder: false },
           ticks: {
             color: tickCol,
-            font: { size: 10, family: "'JetBrains Mono', monospace" },
+            font: { size: 9 },
+            maxTicksLimit: 6,
             maxRotation: 0,
             autoSkip: false,
             callback: function(val, idx) {
@@ -518,14 +526,13 @@ function renderSocChart(socTimeSeries) {
               return '';
             }
           },
-          grid: { display: true, color: gridCol }
+          border: { display: false }
         },
         y: {
-          title: { display: false },
-          min: 0,
-          max: 100,
-          ticks: { stepSize: 20, color: tickCol, font: { size: 10, family: "'JetBrains Mono', monospace" } },
-          grid: { display: true, color: gridCol }
+          min: 0, max: 100,
+          grid: { color: gridCol, lineWidth: 1, drawBorder: false },
+          ticks: { color: tickCol, font: { size: 9 }, stepSize: 20, callback: v => v + '%' },
+          border: { display: false }
         }
       }
     }
@@ -577,9 +584,12 @@ function renderSocChartZoom() {
 
   // Theme-aware colors for zoom view
   const isDarkZ = document.body.classList.contains('dark-theme');
-  const gridColZ = isDarkZ ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-  const tickColZ = isDarkZ ? '#7a8699' : '#5c687e';
-  const connColZ = isDarkZ ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)';
+  const gridColZ   = isDarkZ ? '#0f1829'     : '#e2e8f0';
+  const tickColZ   = isDarkZ ? '#334155'     : '#334155';
+  const tooltipBgZ = isDarkZ ? '#0c1221'     : '#0f172a';
+  const tooltipBorderZ = isDarkZ ? '#1a2540' : 'rgba(0,0,0,0)';
+  const tooltipTitleZ  = isDarkZ ? '#94a3b8' : '#94a3b8';
+  const tooltipBodyZ   = isDarkZ ? '#e2e8f0' : '#f1f5f9';
 
   const segmentColors = reversedSeries.map(point => {
     const st = (point.status || '').toLowerCase();
@@ -616,15 +626,21 @@ function renderSocChartZoom() {
     data: {
       labels: labels,
       datasets: [{
-        label: 'SOC (%)',
+        label: 'SOC',
         data: data,
-        borderColor: connColZ,
-        backgroundColor: 'transparent',
-        pointBackgroundColor: segmentColors,
-        pointBorderColor: 'transparent',
-        pointRadius: 3,
-        pointHoverRadius: 5,
+        borderColor: '#22c55e',
         borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#22c55e',
+        tension: 0.35,
+        fill: true,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height || 200);
+          g.addColorStop(0, 'rgba(34,197,94,0.25)');
+          g.addColorStop(1, 'rgba(34,197,94,0.00)');
+          return g;
+        },
         segment: {
           borderColor: ctx => {
             const idx = ctx.p0DataIndex;
@@ -632,8 +648,6 @@ function renderSocChartZoom() {
           },
           borderWidth: 2.5,
         },
-        fill: false,
-        tension: 0.3,
       }]
     },
     options: {
@@ -645,21 +659,12 @@ function renderSocChartZoom() {
         intersect: false,
       },
       plugins: {
-        legend: { 
-          display: false 
-        },
+        legend: { labels: { color: '#475569', font: { size: 10 }, boxWidth: 8, boxHeight: 8, borderRadius: 4, padding: 12, usePointStyle: true, pointStyleWidth: 8 } },
         tooltip: {
-          enabled: true,
-          backgroundColor: isDarkZ ? '#0b0f17' : '#ffffff',
-          borderColor: isDarkZ ? '#161c28' : '#e3e7ee',
-          borderWidth: 1,
-          titleColor: isDarkZ ? '#e6edf6' : '#0d1220',
-          bodyColor: isDarkZ ? '#aab4c4' : '#3f4a61',
-          titleFont: { size: 12, weight: '600', family: "'Space Grotesk',sans-serif" },
-          bodyFont: { size: 12, family: "'JetBrains Mono',monospace" },
-          padding: 10,
-          cornerRadius: 6,
-          displayColors: true,
+          backgroundColor: tooltipBgZ, borderColor: tooltipBorderZ, borderWidth: 1,
+          titleColor: tooltipTitleZ, bodyColor: tooltipBodyZ,
+          titleFont: { size: 10 }, bodyFont: { size: 11, weight: '600' },
+          padding: 8, cornerRadius: 6,
           callbacks: {
             title: function(context) {
               return labels[context[0].dataIndex] || '';
@@ -698,10 +703,11 @@ function renderSocChartZoom() {
       },
       scales: {
         x: {
-          title: { display: false },
+          grid: { color: 'rgba(0,0,0,0)', drawBorder: false },
           ticks: {
             color: tickColZ,
-            font: { size: 11, family: "'JetBrains Mono', monospace" },
+            font: { size: 9 },
+            maxTicksLimit: 6,
             maxRotation: 0,
             autoSkip: false,
             callback: function(val, idx) {
@@ -712,27 +718,13 @@ function renderSocChartZoom() {
               return '';
             }
           },
-          grid: { display: true, color: gridColZ }
+          border: { display: false }
         },
         y: {
-          title: {
-            display: true,
-            text: 'State of Charge (%)',
-            font: { size: 13, weight: '600', family: "'Space Grotesk',sans-serif" },
-            color: tickColZ
-          },
-          min: 0,
-          max: 100,
-          ticks: {
-            stepSize: 10,
-            font: { size: 11, family: "'JetBrains Mono', monospace" },
-            color: tickColZ,
-            callback: function(value) { return value + '%'; }
-          },
-          grid: {
-            display: true,
-            color: gridColZ
-          }
+          min: 0, max: 100,
+          grid: { color: gridColZ, lineWidth: 1, drawBorder: false },
+          ticks: { color: tickColZ, font: { size: 9 }, stepSize: 20, callback: v => v + '%' },
+          border: { display: false }
         }
       }
     }

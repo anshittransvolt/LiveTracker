@@ -183,19 +183,40 @@ if (mapEl && !isVehiclePage) {
   sidebarSearchInput = document.getElementById('sidebarSearchInput');
 
   // =======================
+  // POPUP STYLE HELPERS
+  // =======================
+  const statusBg = {
+    moving:   'rgba(34,197,94,0.12)',
+    stopped:  'rgba(239,68,68,0.12)',
+    charging: 'rgba(59,130,246,0.12)',
+    idling:   'rgba(245,158,11,0.12)',
+  };
+  const statusColor = {
+    moving:   '#4ade80',
+    stopped:  '#f87171',
+    charging: '#60a5fa',
+    idling:   '#fbbf24',
+  };
+  const getSocColor = (soc) =>
+    soc > 60 ? '#22c55e' : soc > 30 ? '#f59e0b' : '#ef4444';
+
+  // =======================
   // 3️⃣ MAP SETUP
   // =======================
   const TILE_LAYERS = {
-    day:  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20, attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+    day: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20,
+      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiler.com/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }),
     dark: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20, attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
+      maxZoom: 20,
+      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiler.com/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }),
   };
 
   let currentMapStyle = localStorage.getItem('mapStyle') || 'dark'; // dark is default
   map = L.map('map').setView([20.59, 78.96], 5);
+  window.map = map;
   TILE_LAYERS[currentMapStyle].addTo(map);
   document.body.classList.toggle('dark-theme', currentMapStyle === 'dark');
 
@@ -231,14 +252,12 @@ if (mapEl && !isVehiclePage) {
     // Only create cluster if 5 or more markers in the area
     iconCreateFunction: function(cluster) {
       const count = cluster.getChildCount();
-      let sizeClass = 'small';
-      let size = 32;
-      if (count >= 50) { sizeClass = 'large'; size = 44; }
-      else if (count >= 10) { sizeClass = 'medium'; size = 38; }
+      const size = count < 10 ? 34 : count < 50 ? 40 : 48;
       return L.divIcon({
-        html: `<div style="width:${size}px;height:${size}px;background:#1d4ed8;border:2px solid rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:11px;box-shadow:0 0 0 4px rgba(29,78,216,0.2);">${count}</div>`,
-        className: 'marker-cluster marker-cluster-' + sizeClass,
-        iconSize: L.point(size, size)
+        html: `<div style="width:${size}px;height:${size}px;background:#1d3a8a;border:1.5px solid #2563eb;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${size > 38 ? 13 : 11}px;font-weight:700;box-shadow:0 0 0 5px rgba(37,99,235,.18);font-family:Inter,system-ui,sans-serif;">${count}</div>`,
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size/2, size/2]
       });
     }
   });
@@ -246,6 +265,45 @@ if (mapEl && !isVehiclePage) {
   map.addLayer(markerClusterGroup);
   console.log('✅ Marker clustering enabled (5+ vehicles)');
 
+  // ── Vehicle truck icon ───────────────────────────────────────────────
+  function getVehicleIcon(status, heading = 0) {
+    const s = (status || '').toLowerCase();
+    const colors = {
+      moving:   { body: '#1a2f50', front: '#1e3a6e', stroke: '#2563eb', bolt: '#22c55e' },
+      stopped:  { body: '#2a0d0d', front: '#3a1010', stroke: '#7f1d1d', bolt: '#ef4444' },
+      charging: { body: '#0d1f3c', front: '#112347', stroke: '#1d4ed8', bolt: '#3b82f6' },
+      idling:   { body: '#251800', front: '#2e1f00', stroke: '#92400e', bolt: '#f59e0b' },
+    };
+    const c = colors[s] || colors.stopped;
+    const pingHTML = (s === 'moving' || s === 'charging') ? `
+      <div style="position:absolute;inset:-4px;border-radius:50%;border:1.5px solid ${c.bolt};opacity:.5;animation:pingRing 2s infinite;pointer-events:none"></div>
+      <div style="position:absolute;inset:-12px;border-radius:50%;border:1px solid ${c.bolt};opacity:.2;animation:pingRing 2s .6s infinite;pointer-events:none"></div>` : '';
+    const truckSVG = `<svg width="38" height="62" viewBox="0 0 38 62" fill="none" overflow="visible">
+      <g transform="rotate(${heading},19,31)">
+        <rect x="6" y="4" width="26" height="54" rx="5" fill="${c.body}" stroke="${c.stroke}" stroke-width="1.5"/>
+        <rect x="8" y="4" width="22" height="10" rx="4" fill="${c.front}"/>
+        <rect x="10" y="5.5" width="18" height="6" rx="2" fill="${c.stroke}" opacity=".4"/>
+        <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+        <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+        <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+        <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+        <rect x="8" y="19" width="22" height="1" rx=".5" fill="${c.stroke}" opacity=".2"/>
+        <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="${c.bolt}" opacity=".95"/>
+      </g>
+    </svg>`;
+    if (!document.getElementById('pingRingStyle')) {
+      const st = document.createElement('style'); st.id = 'pingRingStyle';
+      st.textContent = `@keyframes pingRing{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.5);opacity:0}}`;
+      document.head.appendChild(st);
+    }
+    return L.divIcon({
+      html: `<div style="position:relative;width:74px;height:74px;display:flex;align-items:center;justify-content:center">${pingHTML}${truckSVG}</div>`,
+      className: '',
+      iconSize: [74, 74],
+      iconAnchor: [37, 37],
+      popupAnchor: [0, -42]
+    });
+  }
 
   // Add organization watermark - Constrained to map area only (excluding sidebar)
   const watermarkControl = L.Control.extend({
@@ -375,16 +433,21 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
 
 
 
-  // Add geofences to the map with layer group for easy toggle
-  geofenceLayerGroup = L.layerGroup();
-  addGeofences(map); // This will still add directly to map for now
+  // Add geofences to the map — project-specific
+  let geofenceCleanup = null;
+  function loadHardcodedGeofences(spv) {
+    if (geofenceCleanup) geofenceCleanup();
+    geofenceCleanup = addGeofences(map, spv);
+  }
+  const initialSpv = document.getElementById('projectSwitcher')?.value || 'ULTRATECH';
+  loadHardcodedGeofences(initialSpv);
+  window.refreshHardcodedGeofences = loadHardcodedGeofences;
 
-  // Handle zoom changes to update marker icons (dot size is fixed, but preserves state)
+  // Handle zoom changes to update marker icons
   map.on('zoomend', () => {
-    const currentZoom = map.getZoom();
     Object.keys(markers).forEach(reg => {
       const marker = markers[reg];
-      marker.setIcon(createBusIcon(currentZoom, marker.heading || 0, marker.getLatLng().lat, marker.vehicleState || 'Stopped'));
+      marker.setIcon(getVehicleIcon(marker.vehicleState || 'Stopped', marker.heading || 0));
     });
   });
 
@@ -721,7 +784,7 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       closeOnClick: false,
       closeButton: false, 
       maxWidth: 260,
-      className: 'simple-vehicle-popup',
+      className: 'tv-popup',
       autoPan: false, // Prevent map from panning when popup opens
       offset: [0, -10] // Closer to marker, easier to reach with mouse
     });
@@ -845,45 +908,46 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
    */
   function buildPopupHTML(displayNumber, latest, displayStatus, locationText, lastUpdateTime = null) {
     const isDark = document.body.classList.contains('dark-theme');
-    const bg       = isDark ? '#0f1825' : '#ffffff';
-    const border   = isDark ? '#1e2433' : '#e5e7eb';
-    const textMain = isDark ? '#e2e8f0' : '#111827';
-    const textMuted= isDark ? '#475569' : '#6b7280';
-    const textSub  = isDark ? '#94a3b8' : '#374151';
-    const badgeBg  = isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc';
+    const border   = isDark ? '#1a2540' : '#e2e8f0';
+    const textMuted= isDark ? '#475569' : '#64748b';
+    const textSub  = isDark ? '#94a3b8' : '#334155';
 
     const soc = latest.soc ?? 0;
-    let batteryColor = isDark ? '#34d399' : '#059669';
-    if (soc < 30) batteryColor = isDark ? '#f87171' : '#dc2626';
-    else if (soc < 60) batteryColor = isDark ? '#fbbf24' : '#d97706';
+    const socCol = getSocColor(soc);
 
-    let statusColor = isDark ? '#64748b' : '#64748b';
-    const ds = displayStatus.toLowerCase();
-    if (ds.includes('charging')) statusColor = isDark ? '#34d399' : '#059669';
-    else if (ds.includes('moving')) statusColor = isDark ? '#60a5fa' : '#2563eb';
-    else if (ds.includes('stopped')) statusColor = isDark ? '#f87171' : '#dc2626';
+    const ds = displayStatus.toLowerCase().replace(/\s+/g, '');
+    const sKey = ds.includes('moving') ? 'moving'
+               : ds.includes('charg') ? 'charging'
+               : ds.includes('idl') ? 'idling'
+               : 'stopped';
+    const sBg  = statusBg[sKey]    || statusBg.stopped;
+    const sCol = statusColor[sKey] || statusColor.stopped;
 
-    return `<div style="min-width:185px;max-width:200px;font-family:system-ui,sans-serif;color:${textMain};padding:8px 9px;background:${bg};border-radius:6px;border:1px solid ${border};">
-  <div style="font-size:13px;font-weight:700;color:${textMain};margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid ${border};">${displayNumber}</div>
-  <div style="display:flex;gap:8px;margin-bottom:6px;">
-    <div style="flex:1;text-align:center;">
-      <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:2px;letter-spacing:0.3px;">Battery</div>
-      <div style="font-size:16px;font-weight:700;color:${batteryColor};line-height:1;">${latest.soc ?? 'N/A'}<span style="font-size:10px;font-weight:500;color:${textMuted};">%</span></div>
+    return `<div style="min-width:160px;font-family:Inter,system-ui,sans-serif;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid ${border};">
+    <span style="font-size:12px;font-weight:600">${displayNumber}</span>
+    <span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:8px;background:${sBg};color:${sCol}">${displayStatus}</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Updated</span>
+      <span style="font-size:10px;color:${textSub}">${formatTimeAgo(lastUpdateTime || latest.last_connected || latest.gps_time)}</span>
     </div>
-    <div style="width:1px;background:${border};margin:2px 0;"></div>
-    <div style="flex:1;text-align:center;">
-      <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:2px;letter-spacing:0.3px;">Speed</div>
-      <div style="font-size:16px;font-weight:700;color:${textMain};line-height:1;">${latest.speed ?? 'N/A'}<span style="font-size:10px;font-weight:500;color:${textMuted};">km/h</span></div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Speed</span>
+      <span style="font-size:10px;color:${textSub}">${latest.speed ?? 'N/A'} km/h</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Battery</span>
+      <span style="font-size:10px;font-weight:600;color:${socCol}">${soc}%</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Location</span>
+      <span style="font-size:10px;color:${textSub};max-width:130px;text-align:right;line-height:1.3">${locationText}</span>
     </div>
   </div>
-  <div style="display:inline-block;font-size:8.5px;font-weight:700;color:${statusColor};padding:3px 7px;border-radius:3px;background:${badgeBg};border-left:2.5px solid ${statusColor};margin-bottom:6px;letter-spacing:0.3px;text-transform:uppercase;">${displayStatus}</div>
-  <div style="margin-bottom:5px;">
-    <div style="font-size:8.5px;color:${textMuted};font-weight:600;text-transform:uppercase;margin-bottom:1px;letter-spacing:0.2px;">Location</div>
-    <div style="font-size:10px;color:${textSub};font-weight:500;line-height:1.25;">${locationText}</div>
-  </div>
-  <div style="font-size:8.5px;color:${textMuted};padding-top:5px;border-top:1px solid ${border};">
-    <span style="font-weight:600;text-transform:uppercase;letter-spacing:0.2px;">Updated:</span>
-    <span style="color:${textMain};font-weight:500;margin-left:3px;">${formatTimeAgo(lastUpdateTime || latest.last_connected || latest.gps_time)}</span>
+  <div style="margin-top:8px;height:3px;border-radius:2px;background:${isDark ? '#0f1829' : '#e2e8f0'};overflow:hidden">
+    <div style="width:${Math.min(soc,100)}%;height:100%;border-radius:2px;background:${socCol}"></div>
   </div>
 </div>`;
   }
@@ -937,12 +1001,12 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
           markers[registration_number].setLatLng([lat, lng]);
           markers[registration_number].heading = heading;
           markers[registration_number].vehicleState = vehicleState;
-          markers[registration_number].setIcon(createBusIcon(map.getZoom(), heading, lat, vehicleState));
+          markers[registration_number].setIcon(getVehicleIcon(vehicleState, heading));
 
           // Update popup with fresh location data
           updateMarkerPopup(markers[registration_number], displayNumber, latest, lat, lng);
         } else {
-          const marker = L.marker([lat, lng], { icon: createBusIcon(map.getZoom(), heading, lat, vehicleState) });
+          const marker = L.marker([lat, lng], { icon: getVehicleIcon(vehicleState, heading) });
           marker.heading = heading;
           marker.vehicleState = vehicleState;
 
@@ -963,8 +1027,8 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
           polylines[registration_number]._shadowLine.setLatLngs(latlngs);
           polylines[registration_number]._routeLine.setLatLngs(latlngs);
         } else {
-          const shadowLine = L.polyline(latlngs, { color: 'rgba(34,197,94,0.12)', weight: 14, opacity: 1, lineCap: 'round', lineJoin: 'round' });
-          const routeLine  = L.polyline(latlngs, { color: '#22c55e', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round', className: 'trail-route-line' });
+          const shadowLine = L.polyline(latlngs, { color: 'rgba(34,197,94,0.10)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false });
+          const routeLine  = L.polyline(latlngs, { color: '#22c55e', weight: 3, lineCap: 'round', lineJoin: 'round', opacity: 0.92, className: 'trail-route-line' });
           const trailGroup = L.layerGroup([shadowLine, routeLine]).addTo(map);
           trailGroup._shadowLine = shadowLine;
           trailGroup._routeLine  = routeLine;
@@ -1176,6 +1240,27 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     const isDark = document.body.classList.contains('dark-theme');
     const pillText = isDark ? sc.textDark : sc.text;
 
+    const truckColors = {
+      Moving:   { body: '#1a2f50', front: '#1e3a6e', stroke: '#2563eb', bolt: '#22c55e' },
+      Stopped:  { body: '#2a0d0d', front: '#3a1010', stroke: '#7f1d1d', bolt: '#ef4444' },
+      Charging: { body: '#0d1f3c', front: '#112347', stroke: '#1d4ed8', bolt: '#3b82f6' },
+      Idling:   { body: '#251800', front: '#2e1f00', stroke: '#92400e', bolt: '#f59e0b' },
+    };
+    const tc = truckColors[state] || truckColors.Stopped;
+    const statusLabel = { Moving: 'Moving', Stopped: 'Stopped', Charging: 'Charging', Idling: 'Idling' };
+
+    const truckBadge = `<svg width="24" height="38" viewBox="0 0 38 62" fill="none">
+      <rect x="6" y="4" width="26" height="54" rx="5" fill="${tc.body}" stroke="${tc.stroke}" stroke-width="1.5"/>
+      <rect x="8" y="4" width="22" height="10" rx="4" fill="${tc.front}"/>
+      <rect x="10" y="5.5" width="18" height="6" rx="2" fill="${tc.stroke}" opacity=".4"/>
+      <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="8" y="19" width="22" height="1" rx=".5" fill="${tc.stroke}" opacity=".2"/>
+      <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="${tc.bolt}" opacity=".95"/>
+    </svg>`;
+
     return `
       <div class="vehicle-card lv-card cursor-pointer rounded-lg"
            data-vehicle="${vehicle.registration_number}"
@@ -1184,15 +1269,18 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
            style="border-left:3px solid ${pillText};padding:10px 12px;border-radius:8px;"
            onclick="showQuickAnalyticsFromList('${vehicle.registration_number}', ${JSON.stringify(latest).replace(/"/g, '&quot;')})">
 
-        <!-- Top row: vehicle ID + status pill -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
-          <div>
-            <div class="lv-vehicle-id" style="font-size:12px;font-weight:700;line-height:1;">${displayNumber}</div>
-            ${driverName ? `<div class="lv-driver-name" style="font-size:10px;margin-top:2px;letter-spacing:0.01em;">${driverName}</div>` : ''}
+        <!-- Top row: truck badge + vehicle info -->
+        <div style="display:flex;align-items:flex-start;gap:9px;margin-bottom:8px;">
+          <div style="flex-shrink:0;width:32px;height:44px;border-radius:8px;background:${sc.pill};border:1px solid ${sc.border};display:flex;align-items:center;justify-content:center;">
+            ${truckBadge}
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-            <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;background:${sc.pill};color:${pillText};border:1px solid ${sc.border};letter-spacing:0.04em;">${state}</span>
-            <span class="lv-timestamp" style="font-size:9px;letter-spacing:0.01em;">${lastUpdate}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
+              <div class="lv-vehicle-id" style="font-size:12px;font-weight:700;line-height:1.1;">${displayNumber}</div>
+              <span class="lv-timestamp" style="font-size:9px;letter-spacing:0.01em;flex-shrink:0;">${lastUpdate}</span>
+            </div>
+            ${driverName ? `<div class="lv-driver-name" style="font-size:10px;margin-top:2px;letter-spacing:0.01em;">${driverName}</div>` : ''}
+            <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;background:${sc.pill};color:${pillText};border:1px solid ${sc.border};letter-spacing:0.04em;">${statusLabel[state] || state}</span>
           </div>
         </div>
 

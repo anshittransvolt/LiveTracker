@@ -18,7 +18,7 @@ let addressCache = {};
 let currentVehicleNumber = null; // For fetching vehicle-specific alerts
 
 let stoppageHeatmapLayer = null;
-let heatmapVisible = false; // Default to OFF
+let heatmapVisible = true; // Default to ON
 
 // ===================================================
 // TILE LAYER SWITCHING (dark ↔ light theme)
@@ -361,33 +361,46 @@ function showStoppageHeatmap() {
     playbackMap.removeLayer(stoppageHeatmapLayer);
     stoppageHeatmapLayer = null;
   }
-  // Only use red for heatmap
   const points = pointsMeta.map(p => [p.lat, p.lng, 1]);
   stoppageHeatmapLayer = L.heatLayer(points, {
-    radius: 25,
-    blur: 18,
-    maxZoom: 17,
-    minOpacity: 0.4,
-    gradient: {0.4: 'red', 0.7: 'red', 1: 'red'}
-  });
-  stoppageHeatmapLayer.addTo(playbackMap);
+    radius: 25, blur: 18, minOpacity: 0.3,
+    gradient: {
+      0.0:  'rgba(0,0,0,0)',
+      0.25: '#1e3a5f',
+      0.5:  '#2563eb',
+      0.7:  '#7c3aed',
+      0.85: '#db2777',
+      1.0:  '#f43f5e'
+    }
+  }).addTo(playbackMap);
   // Add markers for each stoppage with duration popup
   pointsMeta.forEach(meta => {
-    const marker = L.circleMarker([meta.lat, meta.lng], {
-      radius: 8,
-      color: '#b91c1c',
-      fillColor: '#ef4444',
-      fillOpacity: 0.85,
-      weight: 2
+    const marker = L.marker([meta.lat, meta.lng], {
+      icon: L.divIcon({
+        html: `<div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #060a12;box-shadow:0 0 0 3px rgba(239,68,68,.25)"></div>`,
+        className: '',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+      })
     }).addTo(playbackMap);
-    let popupContent = `<b>Stoppage</b><br/>`;
-    if (meta.duration !== null) {
-      popupContent += `Duration: <b>${meta.duration} min</b><br/>`;
-    }
-    if (meta.point && meta.point.gps_time) {
-      popupContent += `Start: ${meta.point.gps_time}`;
-    }
-    marker.bindPopup(popupContent);
+    const isDark = document.body.classList.contains('dark-theme');
+    const border = isDark ? '#1a2540' : '#e2e8f0';
+    const textMuted = isDark ? '#475569' : '#64748b';
+    const textSub   = isDark ? '#94a3b8' : '#334155';
+    const stoppageHTML = `<div style="min-width:140px;font-family:Inter,system-ui,sans-serif;">
+      <div style="font-size:11px;font-weight:600;color:#f87171;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid ${border}">Stoppage</div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${meta.duration !== null ? `<div style="display:flex;justify-content:space-between">
+          <span style="font-size:10px;color:${textMuted}">Duration</span>
+          <span style="font-size:10px;font-weight:600;color:#f87171">${meta.duration} min</span>
+        </div>` : ''}
+        ${meta.point?.gps_time ? `<div style="display:flex;justify-content:space-between">
+          <span style="font-size:10px;color:${textMuted}">Time</span>
+          <span style="font-size:10px;color:${textSub}">${new Date(meta.point.gps_time).toLocaleTimeString()}</span>
+        </div>` : ''}
+      </div>
+    </div>`;
+    marker.bindPopup(stoppageHTML, { className: 'tv-popup', maxWidth: 200, autoPan: false });
     marker.on('mouseover', function() { marker.openPopup(); });
     marker.on('mouseout', function() { marker.closePopup(); });
     // Store marker for later removal if needed
@@ -487,53 +500,80 @@ function updateHeatmapButtonState() {
   }
 }
 
+function buildPlaybackPopupHTML(displayNumber, timeStr, speed, soc, location) {
+  const isDark = document.body.classList.contains('dark-theme');
+  const border   = isDark ? '#1a2540' : '#e2e8f0';
+  const textMuted = isDark ? '#475569' : '#64748b';
+  const textSub   = isDark ? '#94a3b8' : '#334155';
+  const socCol    = soc > 60 ? '#22c55e' : soc > 30 ? '#f59e0b' : '#ef4444';
+  const loc = location || '';
+  return `<div style="min-width:170px;font-family:Inter,system-ui,sans-serif;">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid ${border}">${displayNumber}</div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;justify-content:space-between;gap:12px">
+      <span style="font-size:10px;color:${textMuted};flex-shrink:0">Time</span>
+      <span style="font-size:10px;color:${textSub};text-align:right">${timeStr}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Speed</span>
+      <span style="font-size:10px;color:${textSub}">${speed} km/h</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:10px;color:${textMuted}">Battery</span>
+      <span style="font-size:10px;font-weight:600;color:${socCol}">${soc}%</span>
+    </div>
+    ${loc ? `<div style="display:flex;justify-content:space-between;gap:8px">
+      <span style="font-size:10px;color:${textMuted};flex-shrink:0">Location</span>
+      <span style="font-size:10px;color:${textSub};text-align:right;line-height:1.3">${loc}</span>
+    </div>` : ''}
+  </div>
+  <div style="margin-top:8px;height:3px;border-radius:2px;background:${isDark ? '#0f1829' : '#e2e8f0'};overflow:hidden">
+    <div style="width:${Math.min(soc,100)}%;height:100%;border-radius:2px;background:${socCol}"></div>
+  </div>
+</div>`;
+}
+
 /**
- * Create arrow icon for vehicle marker (matching map.js style)
+ * Vehicle truck icon for playback (status-aware, heading-aware)
+ */
+function getVehicleIcon(status, heading = 0) {
+  const s = (status || 'moving').toLowerCase();
+  const colors = {
+    moving:   { body: '#1a2f50', front: '#1e3a6e', stroke: '#2563eb', bolt: '#22c55e' },
+    stopped:  { body: '#2a0d0d', front: '#3a1010', stroke: '#7f1d1d', bolt: '#ef4444' },
+    charging: { body: '#0d1f3c', front: '#112347', stroke: '#1d4ed8', bolt: '#3b82f6' },
+    idling:   { body: '#251800', front: '#2e1f00', stroke: '#92400e', bolt: '#f59e0b' },
+  };
+  const c = colors[s] || colors.moving;
+  const truckSVG = `<svg width="38" height="62" viewBox="0 0 38 62" fill="none" overflow="visible">
+    <g transform="rotate(${heading},19,31)">
+      <rect x="6" y="4" width="26" height="54" rx="5" fill="${c.body}" stroke="${c.stroke}" stroke-width="1.5"/>
+      <rect x="8" y="4" width="22" height="10" rx="4" fill="${c.front}"/>
+      <rect x="10" y="5.5" width="18" height="6" rx="2" fill="${c.stroke}" opacity=".4"/>
+      <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
+      <rect x="8" y="19" width="22" height="1" rx=".5" fill="${c.stroke}" opacity=".2"/>
+      <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="${c.bolt}" opacity=".95"/>
+    </g>
+  </svg>`;
+  return L.divIcon({
+    html: `<div style="position:relative;width:74px;height:74px;display:flex;align-items:center;justify-content:center">${truckSVG}</div>`,
+    className: '',
+    iconSize: [74, 74],
+    iconAnchor: [37, 37],
+    popupAnchor: [0, -42]
+  });
+}
+
+/**
+ * Create arrow icon for vehicle marker (kept for compatibility)
  * @param {number} heading - Vehicle heading in degrees (0 = North)
- * @returns {L.DivIcon} Leaflet div icon with arrow
+ * @returns {L.DivIcon} Leaflet div icon
  */
 function createBusIcon(heading = 0) {
-  const size = 45; // Fixed size for playback
-  const color = '#3b82f6'; // Blue color for playback
-
-  return L.divIcon({
-    className: "custom-bus-icon",
-    html: `
-      <div style="
-        width: ${size}px;
-        height: ${size}px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transform: rotate(${heading}deg);
-        transition: transform 0.3s ease;
-        opacity: 0.85;
-        z-index: 400;
-        position: relative;
-      ">
-        <svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <!-- Classic Arrow with Tail -->
-          <path 
-            d="M12 2 
-               L20 10 
-               H15 
-               V22 
-               H9 
-               V10 
-               H4 
-               Z"
-            fill="${color}"
-            stroke="black"
-            stroke-width="1.6"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-    `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size * 0.75],
-    popupAnchor: [0, -size * 0.75],
-  });
+  return getVehicleIcon('moving', heading);
 }
 
 /**
@@ -1476,21 +1516,15 @@ function drawPlaybackPath() {
 
   if (latlngs.length === 0) return;
 
-  // Resolve --va-signal from CSS (with fallback)
-  const sig = getComputedStyle(document.documentElement)
-    .getPropertyValue('--va-signal').trim() || '#38e1c4';
-
-  // 1 — Glow underlay
+  // 1 — Shadow glow underlay
   const glowLine = L.polyline(latlngs, {
-    color: sig, weight: 9, opacity: 0.13,
-    lineJoin: 'round', lineCap: 'round', interactive: false
+    color: 'rgba(34,197,94,0.10)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false
   }).addTo(playbackMap);
   playbackPolylineSegments.push({ polyline: glowLine });
 
-  // 2 — Main signal path
+  // 2 — Main route path
   playbackPolyline = L.polyline(latlngs, {
-    color: sig, weight: 2.6, opacity: 0.88,
-    lineJoin: 'round', lineCap: 'round'
+    color: '#22c55e', weight: 3, lineCap: 'round', lineJoin: 'round', opacity: 0.92
   }).addTo(playbackMap);
 
   // No path dots — heatmap (toggleStoppageHeatmap) handles stoppage visualization
@@ -1504,7 +1538,7 @@ function drawPlaybackPath() {
     const heading = parseFloat(sp.heading) || 0;
     playbackMarker = L.marker(
       [parseFloat(sp.latitude), parseFloat(sp.longitude)],
-      { icon: createBusIcon(heading) }
+      { icon: getVehicleIcon('moving', heading) }
     ).addTo(playbackMap);
     playbackMarker.heading = heading;
     maybeReportDeviation(sp);
@@ -1579,13 +1613,13 @@ function playPlayback() {
         const displayNumber = getDisplayVehicleNumber(currentPoint.registration_number || 'Vehicle');
         const interpSpeed = currentPoint.speed + (nextPoint.speed - currentPoint.speed) * progress;
         
-        const popupContent = `
-          <strong>${displayNumber}</strong><br/>
-          <strong>Time:</strong> ${new Date(currentPoint.gps_time).toLocaleString()}<br/>
-          <strong>Speed:</strong> ${interpSpeed.toFixed(1) || 0} km/h<br/>
-          <strong>Battery:</strong> ${currentPoint.soc || 'N/A'}%
-        `;
-        
+        const popupContent = buildPlaybackPopupHTML(
+          displayNumber,
+          new Date(currentPoint.gps_time).toLocaleString(),
+          interpSpeed.toFixed(1) || 0,
+          currentPoint.soc || 0,
+          ''
+        );
         if (playbackMarker.getPopup()) {
           playbackMarker.getPopup().setContent(popupContent);
         }
@@ -1700,28 +1734,18 @@ function updateMarkerPosition() {
   
   const displayNumber = getDisplayVehicleNumber(point.registration_number || 'Vehicle');
 
-  const initialPopup = `
-    <strong>${displayNumber}</strong><br/>
-    <strong>Time:</strong> ${new Date(point.gps_time).toLocaleString()}<br/>
-    <strong>Speed:</strong> ${point.speed || 0} km/h<br/>
-    <strong>Battery:</strong> ${point.soc || 'N/A'}%<br/>
-    <strong>Location:</strong> Loading address...
-  `;
-  
-  playbackMarker.bindPopup(initialPopup).openPopup();
-  
+  const popupOpts = { className: 'tv-popup', maxWidth: 240, autoPan: false };
+  playbackMarker.bindPopup(
+    buildPlaybackPopupHTML(displayNumber, new Date(point.gps_time).toLocaleString(), point.speed || 0, point.soc || 0, 'Loading…'),
+    popupOpts
+  ).openPopup();
+
   getAddressFromCoords(lat, lng).then(address => {
-    const updatedPopup = `
-      <strong>${displayNumber}</strong><br/>
-      <strong>Time:</strong> ${new Date(point.gps_time).toLocaleString()}<br/>
-      <strong>Speed:</strong> ${point.speed || 0} km/h<br/>
-      <strong>Battery:</strong> ${point.soc || 'N/A'}%<br/>
-      <strong>Location:</strong> ${address}
-    `;
-    playbackMarker.bindPopup(updatedPopup);
-    if (playbackMarker.isPopupOpen()) {
-      playbackMarker.getPopup().setContent(updatedPopup);
-    }
+    const updated = buildPlaybackPopupHTML(
+      displayNumber, new Date(point.gps_time).toLocaleString(), point.speed || 0, point.soc || 0, address
+    );
+    playbackMarker.bindPopup(updated, popupOpts);
+    if (playbackMarker.isPopupOpen()) playbackMarker.getPopup().setContent(updated);
   });
 
   updatePlaybackAnalytics(point, currentIndex);

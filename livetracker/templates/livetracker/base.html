@@ -43,35 +43,11 @@
       margin: 0;
     }
 
-    /* CSS Variables for responsive sidebar widths */
+    /* CSS Variables for sidebar width — single value kept in sync with the aside element */
     :root {
-      --sidebar-width: 280px;
+      --sidebar-width: 360px;
       --sidebar-gap: 0.75rem;
-      --analytics-width: 280px;
-    }
-
-    @media (min-width: 768px) {
-      :root {
-        --sidebar-width: 300px;
-        --analytics-width: 300px;
-        --sidebar-gap: 1rem;
-      }
-    }
-
-    @media (min-width: 1024px) {
-      :root {
-        --sidebar-width: 320px;
-        --analytics-width: 320px;
-        --sidebar-gap: 1.25rem;
-      }
-    }
-
-    @media (min-width: 1280px) {
-      :root {
-        --sidebar-width: 340px;
-        --analytics-width: 340px;
-        --sidebar-gap: 1.5rem;
-      }
+      --analytics-width: 360px;
     }
 
     /* Quick Analytics Panel - Responsive positioning */
@@ -123,39 +99,56 @@
       background: #6b7280;
     }
 
-    /* Simple Vehicle Popup Styles */
-    .simple-vehicle-popup .leaflet-popup-content-wrapper {
-      padding: 14px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      background: white;
+    /* Vehicle Popup Styles */
+    .tv-popup .leaflet-popup-content-wrapper {
+      background: #0c1221 !important;
+      border: 1px solid #1a2540 !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+      padding: 0 !important;
+      color: #e2e8f0 !important;
     }
-
-    .simple-vehicle-popup .leaflet-popup-content {
-      margin: 0;
-      line-height: 1.5;
+    .tv-popup .leaflet-popup-content {
+      margin: 10px 12px !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      font-size: 11px !important;
+      line-height: 1.6 !important;
+      color: #e2e8f0 !important;
+      min-width: 160px !important;
     }
-
-    .simple-vehicle-popup .leaflet-popup-tip {
-      background: white;
+    .tv-popup .leaflet-popup-tip-container { display: none !important; }
+    .tv-popup .leaflet-popup-close-button {
+      color: #475569 !important;
+      font-size: 16px !important;
+      top: 6px !important;
+      right: 8px !important;
     }
-
-    .simple-vehicle-popup .leaflet-popup-close-button {
-      color: #9ca3af !important;
-      font-size: 18px !important;
-      padding: 6px 10px !important;
-      font-weight: 400 !important;
-      transition: color 0.2s;
+    .tv-popup .leaflet-popup-close-button:hover {
+      color: #94a3b8 !important;
+      background: transparent !important;
     }
-
-    .simple-vehicle-popup .leaflet-popup-close-button:hover {
-      color: #1f2937 !important;
+    body:not(.dark-theme) .tv-popup .leaflet-popup-content-wrapper {
+      background: #ffffff !important;
+      border: 1px solid #d1daf5 !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+      color: #0f172a !important;
+    }
+    body:not(.dark-theme) .tv-popup .leaflet-popup-content {
+      color: #0f172a !important;
     }
 
     /* Custom bus icon - ensure no background */
     .custom-bus-icon {
       background: transparent !important;
       border: none !important;
+    }
+
+    /* Leaflet panes — allow marker SVGs and ping rings to overflow the pane bounds */
+    .leaflet-pane,
+    .leaflet-marker-pane,
+    .leaflet-shadow-pane,
+    .leaflet-overlay-pane {
+      overflow: visible !important;
     }
 
     /* Geofence icon styling - ensure proper alignment */
@@ -177,7 +170,16 @@
       width: 100%;
       height: 100%;
       object-fit: contain;
+      opacity: 0.6;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+      transition: opacity 0.2s ease;
+    }
+
+    .geofence-charging-icon:hover img,
+    .geofence-unloading-icon:hover img,
+    .geofence-border-icon:hover img,
+    .geofence-general-icon:hover img {
+      opacity: 1;
     }
 
     /* Ensure map controls don't overlap with custom buttons */
@@ -428,18 +430,7 @@
     body.dark-theme .leaflet-control-attribution a {
       color: #475569 !important;
     }
-    /* Leaflet popup dark overrides */
-    body.dark-theme .leaflet-popup-content-wrapper {
-      background: transparent !important;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
-      padding: 0 !important;
-    }
-    body.dark-theme .leaflet-popup-content {
-      margin: 0 !important;
-    }
-    body.dark-theme .leaflet-popup-tip {
-      background: #0f1825 !important;
-    }
+    /* Leaflet popup dark overrides — handled by .tv-popup above */
     /* Map overlay floating chips */
     body.dark-theme .map-stat-chip {
       background: rgba(13,17,23,0.85) !important;
@@ -499,96 +490,52 @@
 
     /* ── CSS custom properties (light = default, dark = .dark-theme) ──── */
     :root {
-      --nav-bg: rgba(255,255,255,0.97);
-      --nav-border: #e2e8f0;
-      --nav-shadow: 0 1px 10px rgba(0,0,0,0.07);
-      --nav-text: #1e293b;
-      --nav-text-muted: #64748b;
-      --nav-btn-bg: #f1f5f9;
-      --nav-btn-border: #e2e8f0;
-      --nav-btn-text: #475569;
-      --nav-btn-hover: #e2e8f0;
-      --sidebar-bg: #f1f5f9;
-      --sidebar-border: #e2e8f0;
-      --sidebar-shadow: 2px 0 8px rgba(0,0,0,0.05);
-      --card-bg: #ffffff;
-      --card-bg-hover: #f8fafc;
-      --card-border: #e2e8f0;
-      --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
-      --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
-      --input-bg: #ffffff;
-      --input-border: #e2e8f0;
-      --stat-bg: #ffffff;
-      --stat-border: #e2e8f0;
-      --stat-hover: #f8fafc;
-      --text-primary: #1e293b;
-      --text-secondary: #475569;
-      --text-muted: #94a3b8;
-      --veh-list-bg: #f8fafc;
+      --bg-base: #f4f6fb; --bg-surface: #ffffff; --bg-card: #ffffff; --bg-sidebar: #f0f4ff;
+      --border: #d1daf5; --border-mid: #c7d2e8;
+      --text-primary: #0f172a; --text-secondary: #334155; --text-muted: #64748b; --text-faint: #94a3b8;
+      --c-moving: #22c55e; --c-stopped: #ef4444; --c-charging: #3b82f6; --c-idling: #f59e0b;
+      --c-moving-bg: #dcfce7; --c-stopped-bg: #fee2e2; --c-charging-bg: #dbeafe; --c-idling-bg: #fef3c7;
+      --nav-bg: #ffffff; --nav-border: #d1daf5; --nav-shadow: 0 1px 0 #d1daf5;
+      --nav-text: #0f172a; --nav-text-muted: #64748b;
+      --nav-btn-bg: #f1f5f9; --nav-btn-border: #d1daf5; --nav-btn-text: #334155; --nav-btn-hover: #e2e8f0;
+      --sidebar-bg: #f0f4ff; --sidebar-border: #d1daf5; --sidebar-shadow: none;
+      --card-bg: #ffffff; --card-bg-hover: #f8faff; --card-border: #e2e8f0;
+      --card-shadow: 0 1px 2px rgba(0,0,0,0.04); --card-shadow-hover: 0 2px 8px rgba(0,0,0,0.08);
+      --input-bg: #ffffff; --input-border: #d1daf5;
+      --stat-bg: #ffffff; --stat-border: #e2e8f0; --stat-hover: #f8faff;
+      --veh-list-bg: #f4f6fb;
       --logo-filter: none;
-      --live-wrap-bg: #ecfdf5;
-      --live-wrap-border: #a7f3d0;
-      --live-text: #059669;
-      --dropdown-bg: #ffffff;
-      --dropdown-border: #e2e8f0;
-      --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.1);
-      --project-text: #334155;
-      --project-hover: #f1f5f9;
-      --project-active-bg: #eff6ff;
-      --project-active-text: #2563eb;
+      --live-wrap-bg: #dcfce7; --live-wrap-border: #bbf7d0; --live-text: #166534;
+      --dropdown-bg: #ffffff; --dropdown-border: #d1daf5; --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      --project-text: #334155; --project-hover: #f1f5f9;
+      --project-active-bg: #eff6ff; --project-active-text: #1d4ed8;
       --soc-track: #e2e8f0;
-      --alert-btn-bg: rgba(254,202,202,0.4);
-      --alert-btn-border: rgba(252,165,165,0.5);
-      --alert-btn-text: #dc2626;
-      --avatar-bg: #eff6ff;
-      --avatar-border: rgba(37,99,235,0.25);
-      --avatar-text: #2563eb;
+      --alert-btn-bg: var(--nav-btn-bg); --alert-btn-border: var(--nav-btn-border); --alert-btn-text: #dc2626;
+      --avatar-bg: #eff6ff; --avatar-border: rgba(37,99,235,0.25); --avatar-text: #2563eb;
     }
     body.dark-theme {
-      --nav-bg: rgba(7,11,20,0.95);
-      --nav-border: #1e2433;
-      --nav-shadow: 0 2px 16px rgba(0,0,0,0.4);
-      --nav-text: #e2e8f0;
-      --nav-text-muted: #94a3b8;
-      --nav-btn-bg: #0d1117;
-      --nav-btn-border: #1e2433;
-      --nav-btn-text: #94a3b8;
-      --nav-btn-hover: #1a2035;
-      --sidebar-bg: #070b14;
-      --sidebar-border: #1e2433;
-      --sidebar-shadow: 2px 0 16px rgba(0,0,0,0.3);
-      --card-bg: #0c1221;
-      --card-bg-hover: #131929;
-      --card-border: #1e2433;
-      --card-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.5);
-      --input-bg: #0c1221;
-      --input-border: #1e2433;
-      --stat-bg: #0c1221;
-      --stat-border: #1e2433;
-      --stat-hover: #131929;
-      --text-primary: #e2e8f0;
-      --text-secondary: #94a3b8;
-      --text-muted: #475569;
+      --bg-base: #060a12; --bg-surface: #080c18; --bg-card: #0c1221; --bg-hover: #101829;
+      --border: #0f1829; --border-mid: #1a2540;
+      --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #475569; --text-faint: #1e293b;
+      --c-moving-bg: rgba(34,197,94,0.12); --c-stopped-bg: rgba(239,68,68,0.12);
+      --c-charging-bg: rgba(59,130,246,0.12); --c-idling-bg: rgba(245,158,11,0.12);
+      --nav-bg: #080c18; --nav-border: #0f1829; --nav-shadow: 0 1px 0 #0f1829;
+      --nav-text: #e2e8f0; --nav-text-muted: #475569;
+      --nav-btn-bg: #0c1221; --nav-btn-border: #0f1829; --nav-btn-text: #94a3b8; --nav-btn-hover: #101829;
+      --sidebar-bg: #07090f; --sidebar-border: #0f1829; --sidebar-shadow: none;
+      --card-bg: #0c1221; --card-bg-hover: #101829; --card-border: #0f1829;
+      --card-shadow: none; --card-shadow-hover: none;
+      --input-bg: #0c1221; --input-border: #0f1829;
+      --stat-bg: #0c1221; --stat-border: #0f1829; --stat-hover: #101829;
       --veh-list-bg: #060a12;
       --logo-filter: invert(1) brightness(10);
-      --live-wrap-bg: #0d2218;
-      --live-wrap-border: #16432c;
-      --live-text: #4ade80;
-      --dropdown-bg: #0c1221;
-      --dropdown-border: #1e2433;
-      --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      --project-text: #cbd5e1;
-      --project-hover: #1a2035;
-      --project-active-bg: #1e3a5f;
-      --project-active-text: #60a5fa;
-      --soc-track: #1e2433;
-      --alert-btn-bg: rgba(127,29,29,0.4);
-      --alert-btn-border: rgba(153,27,27,0.5);
-      --alert-btn-text: #f87171;
-      --avatar-bg: #1e3a5f;
-      --avatar-border: rgba(37,99,235,0.25);
-      --avatar-text: #60a5fa;
+      --live-wrap-bg: rgba(34,197,94,0.08); --live-wrap-border: rgba(34,197,94,0.2); --live-text: #22c55e;
+      --dropdown-bg: #0c1221; --dropdown-border: #0f1829; --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      --project-text: #94a3b8; --project-hover: #101829;
+      --project-active-bg: #0c1f3a; --project-active-text: #60a5fa;
+      --soc-track: #0f1829;
+      --alert-btn-bg: var(--nav-btn-bg); --alert-btn-border: var(--nav-btn-border); --alert-btn-text: #f87171;
+      --avatar-bg: #0c1221; --avatar-border: rgba(37,99,235,0.3); --avatar-text: #60a5fa;
     }
 
     /* ── Navbar ───────────────────────────────────────────────────── */
@@ -608,13 +555,9 @@
     .lv-live-dot {
       display: inline-block; width: 7px; height: 7px;
       background: #22c55e; border-radius: 50%;
-      animation: live-ping 1.4s cubic-bezier(0.66,0,0,1) infinite;
+      animation: lv-pulse 2s infinite;
     }
-    @keyframes live-ping {
-      0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
-      70%  { box-shadow: 0 0 0 7px rgba(34,197,94,0); }
-      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
-    }
+    @keyframes lv-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     /* Nav action buttons */
     .lv-nav-btn {
       background: var(--nav-btn-bg) !important;
@@ -642,7 +585,7 @@
       border-color: var(--alert-btn-border) !important;
       color: var(--alert-btn-text) !important;
     }
-    .lv-alert-btn:hover { filter: brightness(1.1); }
+    .lv-alert-btn:hover { background: var(--nav-btn-hover) !important; }
     /* User avatar */
     .lv-avatar {
       background: var(--avatar-bg) !important;
@@ -685,6 +628,7 @@
     }
 
     /* ── Sidebar ───────────────────────────────────────────────────── */
+    aside { width: 360px !important; }
     aside {
       background: var(--sidebar-bg) !important;
       border-right-color: var(--sidebar-border) !important;
@@ -708,49 +652,118 @@
     /* ── Sidebar stat cards ───────────────────────────────────────── */
     .lv-stat-card {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 12px 8px; border-radius: 8px;
+      padding: 8px 6px; gap: 4px; border-radius: 8px;
       background: var(--stat-bg) !important;
       border: 1px solid var(--stat-border) !important;
-      box-shadow: var(--card-shadow);
-      transition: all 0.15s ease; cursor: pointer;
+      transition: background 0.15s ease; cursor: pointer;
     }
-    .lv-stat-card:hover { background: var(--stat-hover) !important; box-shadow: var(--card-shadow-hover); }
-    .lv-stat-val { font-size: 24px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+    .lv-stat-card:hover { background: var(--stat-hover) !important; }
+    .lv-stat-icon { display: flex; align-items: center; justify-content: center; }
+    .lv-stat-val { font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
     .lv-stat-lbl {
-      font-size: 9px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--text-muted); margin-top: 4px;
+      font-size: 8px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--text-muted);
     }
 
     /* ── Vehicle cards ────────────────────────────────────────────── */
     .lv-card {
       background: var(--card-bg) !important;
-      border-color: var(--card-border) !important;
-      box-shadow: var(--card-shadow);
-      transition: all 0.15s ease;
+      border: 1px solid var(--card-border) !important;
+      border-left-width: 3px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 5px;
+      transition: background 0.15s ease;
+      cursor: pointer;
     }
-    .lv-card:hover {
-      background: var(--card-bg-hover) !important;
-      box-shadow: var(--card-shadow-hover);
-      transform: translateY(-1px);
-    }
+    .lv-card:hover { background: var(--card-bg-hover) !important; }
     .lv-card .lv-vehicle-id { color: var(--text-primary); }
     .lv-card .lv-driver-name { color: var(--text-muted); }
     .lv-card .lv-timestamp { color: var(--text-secondary); }
     .lv-card .lv-metric-text { color: var(--text-secondary); }
     .lv-card .lv-soc-track { background: var(--soc-track) !important; }
-    /* Left border status accents — high specificity to win over dark-theme rules */
-    .lv-card[data-status="Moving"]  { border-left-color: #4ade80 !important; }
-    .lv-card[data-status="Stopped"] { border-left-color: #f87171 !important; }
-    .lv-card[data-status="Charging"]{ border-left-color: #60a5fa !important; }
+    /* Left border status accents */
+    .lv-card[data-status="Moving"]   { border-left-color: #22c55e !important; }
+    .lv-card[data-status="Stopped"]  { border-left-color: #ef4444 !important; }
+    .lv-card[data-status="Charging"] { border-left-color: #3b82f6 !important; }
+    .lv-card[data-status="Idling"]   { border-left-color: #f59e0b !important; }
 
     /* ── Alert card (map overlay) ─────────────────────────────────── */
     #lv-alert-card {
       position: absolute; bottom: 16px; right: 16px; z-index: 800;
-      width: 260px; background: var(--card-bg); border: 1px solid var(--card-border);
-      border-left: 3px solid #ef4444; border-radius: 8px;
-      box-shadow: var(--dropdown-shadow); padding: 10px 12px;
+      max-width: 220px;
+      background: var(--card-bg);
+      border: 1px solid rgba(239,68,68,0.35);
+      border-radius: 10px;
+      padding: 10px 12px;
       display: none;
+      animation: alertSlideIn .25s ease;
     }
+    body:not(.dark-theme) #lv-alert-card { border-color: #fca5a5; background: #fef2f2; }
+    @keyframes alertSlideIn { from{transform:translateY(8px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+    /* ── Toastr dark mode overrides ──────────────────────────────────── */
+    body.dark-theme #toast-container .toast {
+      background: #0c1221 !important;
+      border: 1px solid #1a2540 !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+      color: #e2e8f0 !important;
+      opacity: 1 !important;
+    }
+    body.dark-theme #toast-container .toast-title { color: #e2e8f0 !important; font-weight: 600; }
+    body.dark-theme #toast-container .toast-message { color: #94a3b8 !important; }
+    body.dark-theme #toast-container .toast-success { border-color: rgba(34,197,94,0.4) !important; }
+    body.dark-theme #toast-container .toast-success .toast-title { color: #4ade80 !important; }
+    body.dark-theme #toast-container .toast-warning { border-color: rgba(245,158,11,0.4) !important; }
+    body.dark-theme #toast-container .toast-warning .toast-title { color: #fbbf24 !important; }
+    body.dark-theme #toast-container .toast-error { border-color: rgba(239,68,68,0.4) !important; }
+    body.dark-theme #toast-container .toast-error .toast-title { color: #f87171 !important; }
+    body.dark-theme #toast-container .toast-info { border-color: rgba(59,130,246,0.4) !important; }
+    body.dark-theme #toast-container .toast-info .toast-title { color: #60a5fa !important; }
+
+    /* ── No Data Modal ───────────────────────────────────────────────── */
+    #noDataModal .ndm-card {
+      border-radius: 16px;
+      border: 1px solid;
+      max-width: 28rem;
+      width: 100%;
+      overflow: hidden;
+    }
+    body.dark-theme #noDataModal .ndm-card { background: #0c1221; border-color: #1a2540; box-shadow: 0 20px 60px rgba(0,0,0,0.7); }
+    body:not(.dark-theme) #noDataModal .ndm-card { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
+    body.dark-theme #noDataModal .ndm-header { background: #080c18; border-color: #0f1829; }
+    body:not(.dark-theme) #noDataModal .ndm-header { background: linear-gradient(135deg, #fef2f2, #fff7ed); border-color: #fecaca; }
+    body.dark-theme #noDataModal .ndm-icon-wrap { background: rgba(239,68,68,0.12); }
+    body:not(.dark-theme) #noDataModal .ndm-icon-wrap { background: #fee2e2; }
+    body.dark-theme #noDataModal .ndm-icon { color: #f87171; }
+    body:not(.dark-theme) #noDataModal .ndm-icon { color: #dc2626; }
+    body.dark-theme #noDataModal .ndm-title { color: #e2e8f0; }
+    body:not(.dark-theme) #noDataModal .ndm-title { color: #1e293b; }
+    body.dark-theme #noDataModal .ndm-close { color: #475569; }
+    body.dark-theme #noDataModal .ndm-close:hover { background: rgba(255,255,255,0.06); color: #94a3b8; }
+    body:not(.dark-theme) #noDataModal .ndm-close { color: #64748b; }
+    body:not(.dark-theme) #noDataModal .ndm-close:hover { background: #fee2e2; }
+    body.dark-theme #noDataModal .ndm-body { color: #94a3b8; }
+    body:not(.dark-theme) #noDataModal .ndm-body { color: #475569; }
+    body.dark-theme #noDataModal .ndm-info-box { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.3); }
+    body:not(.dark-theme) #noDataModal .ndm-info-box { background: #eff6ff; border-color: #bfdbfe; }
+    body.dark-theme #noDataModal .ndm-info-icon { color: #60a5fa; }
+    body:not(.dark-theme) #noDataModal .ndm-info-icon { color: #2563eb; }
+    body.dark-theme #noDataModal .ndm-info-title { color: #93c5fd; }
+    body:not(.dark-theme) #noDataModal .ndm-info-title { color: #1e40af; }
+    body.dark-theme #noDataModal .ndm-info-list li { color: #60a5fa; }
+    body:not(.dark-theme) #noDataModal .ndm-info-list li { color: #3b82f6; }
+    body.dark-theme #noDataModal .ndm-footer { background: #07090f; border-color: #0f1829; }
+    body:not(.dark-theme) #noDataModal .ndm-footer { background: #f8faff; border-color: #e2e8f0; }
+    body.dark-theme #noDataModal .ndm-btn-close { background: #0c1221; border: 1px solid #1a2540; color: #94a3b8; }
+    body.dark-theme #noDataModal .ndm-btn-close:hover { background: #101829; color: #e2e8f0; }
+    body:not(.dark-theme) #noDataModal .ndm-btn-close { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; }
+    body:not(.dark-theme) #noDataModal .ndm-btn-close:hover { background: #e2e8f0; }
+    body.dark-theme #noDataModal .ndm-btn-view { background: #2563eb; color: #fff; }
+    body.dark-theme #noDataModal .ndm-btn-view:hover { background: #1d4ed8; }
+    body:not(.dark-theme) #noDataModal .ndm-btn-view { background: #2563eb; color: #fff; }
+    body:not(.dark-theme) #noDataModal .ndm-btn-view:hover { background: #1d4ed8; }
 
     /* ── Sidebar utility buttons ─────────────────────────────────── */
     .lv-refresh-btn {
@@ -803,11 +816,14 @@
 
   <!-- Premium Navigation Bar -->
   <nav class="lv-nav fixed top-0 left-0 right-0 z-[1000] bg-[#070b14]/95 backdrop-blur-md border-b border-[#1e2433] shadow-[0_2px_16px_rgba(0,0,0,0.4)]">
-    <div class="flex items-center justify-between px-4 lg:px-5 h-12">
+    <div class="flex items-center justify-between px-4 lg:px-5 h-[46px]">
       <!-- Logo -->
-      <a href="{% url 'dashboard:dashboard' %}" class="flex items-center gap-2.5 hover:opacity-80 transition-opacity shrink-0">
-        <img src="https://transvolt.in/Images/Logo/black.svg" alt="Transvolt" class="h-3.5 w-auto object-contain lv-logo-img">
-        <span class="lv-brand-name text-[15px] font-bold tracking-tight">LiveTracker</span>
+      <a href="{% url 'dashboard:dashboard' %}" class="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="none"><path d="M7 1L1 9h5l-1 6 7-8H7L7 1z" fill="#22c55e"/></svg>
+        <div class="flex flex-col leading-none">
+          <span class="text-[12px] font-bold tracking-tight" style="color:var(--nav-text)">TRANSVOLT</span>
+          <span class="text-[11px] font-normal" style="color:var(--text-muted)">LiveTracker</span>
+        </div>
       </a>
 
       <!-- Center: Live indicator + project dropdown -->
@@ -851,10 +867,11 @@
 
         <!-- Alert button -->
         <button id="alertToggleBtn" onclick="toggleLiveAlerts()" title="Live Alerts"
-          class="lv-alert-btn relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150">
-          <i data-lucide="bell" class="w-3.5 h-3.5"></i>
-          <span class="text-[11px] font-semibold hidden sm:inline">Alerts</span>
-          <span id="alertCountBadge" class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
+          class="lv-alert-btn relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-150"
+          style="font-size:10px;font-weight:600;border-radius:6px;padding:3px 9px;">
+          <i data-lucide="bell" class="w-3 h-3"></i>
+          <span class="text-[10px] font-semibold hidden sm:inline">Alerts</span>
+          <span id="alertCountBadge" class="hidden absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">0</span>
         </button>
 
         <!-- User avatar -->
@@ -1013,32 +1030,31 @@
   <script src="{% static 'livetracker/js/base.js' %}"></script>
 
   <!-- No Data Alert Modal -->
-  <div id="noDataModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
+  <div id="noDataModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998] flex items-center justify-center p-4">
+    <div class="ndm-card">
       <!-- Header -->
-      <div class="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-100 rounded-t-2xl">
-        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <i data-lucide="alert-circle" class="w-6 h-6 text-red-600"></i>
+      <div class="ndm-header flex items-center gap-3 px-5 py-4 border-b">
+        <div class="ndm-icon-wrap w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i data-lucide="alert-circle" class="ndm-icon w-5 h-5"></i>
         </div>
         <div class="flex-1">
-          <h3 class="text-lg font-bold text-slate-800">No Data Available</h3>
+          <h3 class="ndm-title text-base font-bold">No Data Available</h3>
         </div>
-        <button onclick="closeNoDataModal()" class="p-1 hover:bg-red-100 rounded-lg transition-colors">
-          <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+        <button onclick="closeNoDataModal()" class="ndm-close p-1.5 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
-      
       <!-- Content -->
-      <div class="px-6 py-6">
-        <p id="noDataMessage" class="text-slate-700 text-base leading-relaxed">
+      <div class="px-5 py-5">
+        <p id="noDataMessage" class="ndm-body text-sm leading-relaxed">
           No data found for this vehicle.
         </p>
-        <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div class="flex gap-2">
-            <i data-lucide="info" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"></i>
-            <div class="text-sm text-blue-800">
-              <p class="font-semibold mb-1">Possible reasons:</p>
-              <ul class="list-disc list-inside space-y-1 text-blue-700">
+        <div class="ndm-info-box mt-4 p-3.5 border rounded-lg">
+          <div class="flex gap-2.5">
+            <i data-lucide="info" class="ndm-info-icon w-4 h-4 flex-shrink-0 mt-0.5"></i>
+            <div class="text-sm">
+              <p class="ndm-info-title font-semibold mb-1 text-xs">Possible reasons:</p>
+              <ul class="ndm-info-list list-disc list-inside space-y-0.5 text-xs">
                 <li>Vehicle has no GPS data for today</li>
                 <li>Device is offline or not transmitting</li>
                 <li>Data sync is delayed</li>
@@ -1047,16 +1063,15 @@
           </div>
         </div>
       </div>
-      
       <!-- Footer -->
-      <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex gap-3">
-        <button onclick="closeNoDataModal()" 
-                class="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors">
+      <div class="ndm-footer px-5 py-3.5 border-t flex gap-2.5">
+        <button onclick="closeNoDataModal()"
+                class="ndm-btn-close flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-colors">
           Close
         </button>
-        <button onclick="location.href='/livetracker/'" 
-                class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-          <i data-lucide="map" class="w-4 h-4"></i>
+        <button onclick="location.href='/livetracker/'"
+                class="ndm-btn-view flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+          <i data-lucide="map" class="w-3.5 h-3.5"></i>
           View All Vehicles
         </button>
       </div>

@@ -41,6 +41,12 @@
   --va-st-bg:  #fee2e2;
   --va-ch-bg:  #dbeafe;
   --va-warn:   #fef3c7;
+  /* global design tokens — light */
+  --bg-base: #f4f6fb; --bg-surface: #ffffff; --bg-card: #ffffff;
+  --border: #d1daf5; --border-mid: #c7d2e8;
+  --text-primary: #0f172a; --text-secondary: #334155; --text-muted: #64748b;
+  --c-moving: #22c55e; --c-stopped: #ef4444; --c-charging: #3b82f6; --c-idling: #f59e0b;
+  --soc-track: #e2e8f0;
 }
 body.dark-theme {
   --va-bg:     #070a0f;
@@ -63,6 +69,11 @@ body.dark-theme {
   --va-st-bg:  #2e1212;
   --va-ch-bg:  #0f2138;
   --va-warn:   #2e2008;
+  /* global design tokens — dark */
+  --bg-base: #060a12; --bg-surface: #080c18; --bg-card: #0c1221; --bg-hover: #101829;
+  --border: #0f1829; --border-mid: #1a2540;
+  --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #475569;
+  --soc-track: #0f1829;
 }
 
 /* ── BREADCRUMB ────────────────────────────────────────────────────── */
@@ -243,12 +254,51 @@ body.dark-theme #tripReplayPanel { box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
 .va-chevron-toggle { color: var(--va-ink3); }
 .va-chevron-toggle.open { transform: rotate(180deg); }
 
-/* Playback scrubber */
+/* Playback controls bar */
 #playbackControls {
-  background: var(--va-panel) !important;
-  border: 1px solid var(--va-line) !important;
-  color: var(--va-ink) !important;
+  background: var(--bg-surface, #080c18);
+  border-top: 1px solid var(--border, #0f1829);
+  height: 60px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+body:not(.dark-theme) #playbackControls {
+  background: #ffffff;
+  border-top-color: #d1daf5;
+}
+/* Scrubber */
+#scrubberTrack { height: 7px; border-radius: 4px; background: var(--soc-track, #0f1829); }
+#progressIndicator { height: 100%; background: #3b82f6; border-radius: 4px; }
+#scrubberThumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #e2e8f0; border: 2px solid #3b82f6;
+  cursor: grab;
+  box-shadow: none;
+}
+/* Play button */
+#playBtn {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #0c2a1a; border: 1px solid #166834; color: #22c55e;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s ease;
+}
+body:not(.dark-theme) #playBtn { background: #dcfce7; border-color: #16a34a; color: #166834; }
+/* Other control buttons */
+.playback-btn {
+  width: 26px; height: 26px; border-radius: 5px;
+  background: #0c1221; border: 1px solid #0f1829; color: #475569;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 10px;
+}
+body:not(.dark-theme) .playback-btn { background: #f1f5f9; border-color: #d1daf5; color: #64748b; }
+/* Speed select */
+#speedSelect {
+  background: #0c1221; border: 1px solid #0f1829; color: #475569;
+  font-size: 10px; border-radius: 5px; padding: 2px 4px;
+}
+body:not(.dark-theme) #speedSelect { background: #ffffff; border-color: #d1daf5; color: #334155; }
 
 /* Vehicle info header — hide, driver is in rail */
 #vehicleInfoHeader { display: none !important; }
