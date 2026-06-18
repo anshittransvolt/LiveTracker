@@ -157,39 +157,11 @@ class AlertMonitor {
      * Display an alert using toastr
      */
     displayAlert(alert) {
-        if (typeof toastr === 'undefined') {
-            console.warn('Toastr is not available. Alert:', alert.text);
-            return;
+        // Push to sidebar
+        if (typeof window.pushAlertToSidebar === 'function') {
+            window.pushAlertToSidebar(alert);
         }
 
-        // Determine alert level based on alert_type
-        const alertType = alert.alert_type || 'info';
-        let toastrMethod = 'info';
-        
-        // Map alert types to toastr methods
-        if (alertType.includes('overrun') || alertType.includes('dwell') || 
-            alertType.includes('gap') || alertType.includes('stuck')) {
-            toastrMethod = 'warning';
-        } else if (alertType.includes('unplanned') || alertType.includes('violation')) {
-            toastrMethod = 'error';
-        } else if (alertType.includes('gate_in') || alertType.includes('gate_out')) {
-            toastrMethod = 'info';
-        } else if (alertType.includes('transit')) {
-            toastrMethod = 'warning';
-        }
-
-        // Format the alert message
-        const title = this.formatAlertTitle(alert);
-        const message = this.formatAlertMessage(alert);
-
-        // Display using appropriate toastr method
-        toastr[toastrMethod](message, title, {
-            timeOut: alertType.includes('error') || alertType.includes('unplanned') ? 15000 : 10000,
-            onclick: () => {
-                this.handleAlertClick(alert);
-            }
-        });
-        
         // Map vehicle number for console log
         const displayVehicleNo = getDisplayVehicleNumber(alert.vehicle_no);
         // console.log(`Alert displayed: ${alertType} - ${displayVehicleNo}`);

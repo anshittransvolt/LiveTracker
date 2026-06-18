@@ -11,7 +11,6 @@ from .project_routing import (
 
 PROJECT_RENDER_GROUPS = {
     "show_iplt_links": {"ULTRATECH"},
-    "show_globaltracker_links": {"MBMT", "UMT", "NAGPUR"},
 }
 
 
@@ -64,24 +63,6 @@ def project_spv_context(request):
         selected_project = get_default_project_code()
 
     request.session["selected_project"] = selected_project
-
-    # Get SPV list for selected project
-    spv_list = VENDOR_SPV_LIST.get(selected_project, [])
-    project_slug = project_to_slug(selected_project)
-    project_render_flags = {
-        flag_name: selected_project in project_codes
-        for flag_name, project_codes in PROJECT_RENDER_GROUPS.items()
-    }
-
-    return {
-        "selected_project": selected_project,
-        "selected_project_slug": project_slug,
-        "project_url_prefix": f"/{project_slug}",
-        "project_spv_list": spv_list,
-        "all_projects": list(VENDOR_SPV_LIST.keys()),
-        "project_render_flags": project_render_flags,
-        **project_render_flags,
-    }
 
     # Get SPV list for selected project
     spv_list = VENDOR_SPV_LIST.get(selected_project, [])

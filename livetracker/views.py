@@ -14,14 +14,14 @@ import logging
 import os
 import time
 import pandas as pd
-from .models import TimeBoxDailyAvgDelay, Geofence
+from .models import TimeBoxDailyAvgDelay, Geofence, FleetTrendDaily
 from .analytics.analytics_service import format_analytics_response
 from .analytics.charging_sessions import aggregate_charging_sessions, charging_sessions_to_dataframe
 from .analytics.stoppage_sessions import aggregate_stoppage_sessions, stoppage_sessions_to_dataframe
 from .analytics.dashboard_report import download_dashboard_report
 from .timebox import build_timebox_for_vehicle
 from .data_sources import DataSourceManager
-from mis.services.route_corridor import load_corridor
+from .services.route_corridor import load_corridor
 @login_required
 @require_http_methods(["GET"])
 def dashboard_report_view(request):
@@ -56,100 +56,6 @@ def _wait_for_rate_limit():
     
     _last_nominatim_request_time = time.time()
 
-
-def fetch_timebox_data_from_fetch_geo(
-    start_time: datetime = None,
-    end_time: datetime = None,
-    hours_back: int = 6,
-    batch_window_hours: int = 1
-) -> dict:
-    """
-    Fetch vehicle location data using fetch_geo API with proper pagination.
-    Designed specifically for timebox processing with consistent time ranges.
-    
-    Uses automatic pagination to handle server-side limitations:
-    - Splits time windows into smaller batches (default: 1-hour windows)
-    - Ensures complete data retrieval without gaps
-    - Handles all vehicles in a single call
-    
-    Args:
-        start_time: Explicit start datetime (optional)
-        end_time: Explicit end datetime (optional)
-        hours_back: If start/end not provided, fetch last N hours from now (default: 6)
-        batch_window_hours: Size of pagination batches in hours (default: 1)
-                           Smaller = safer but slower, Larger = faster but may fail
-    
-    Returns:
-        Dict[registration_number] = [
-            {
-                'latitude': float,
-                'longitude': float,
-                'vehicle_status': str,
-                'gps_time': datetime,
-                'event_datetime': datetime,
-                'speed': float,
-                'odometer': float,
-                'registration_number': str,
-                'last_connected': datetime,
-                'gps_location': str (lat,lon)
-            },
-            ...
-        ]
-    """
-    try:
-        # Determine time window
-        if start_time is None or end_time is None:
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours_back)
-        
-        logger.info(
-            f"🔄 Fetching timebox data from fetch_geo API: "
-            f"{start_time} to {end_time} "
-            f"({(end_time - start_time).total_seconds() / 3600:.1f}h window, "
-            f"{batch_window_hours}h batch windows)"
-        )
-        
-        # Fetch data with automatic pagination
-        vehicles_data = DataSourceManager.fetch_fetch_geo_data(
-            start_time=start_time,
-            end_time=end_time,
-            batch_window_hours=batch_window_hours
-        )
-        
-        # Transform to timebox-compatible format
-        timebox_data = {}
-        for reg_no, points in vehicles_data.items():
-            timebox_points = []
-            for point in points:
-                timebox_points.append({
-                    'latitude': point.get('latitude'),
-                    'longitude': point.get('longitude'),
-                    'vehicle_status': point.get('vehicle_status', 'traveling'),
-                    'gps_time': point.get('gps_time'),
-                    'event_datetime': point.get('event_datetime'),
-                    'speed': point.get('speed', 0),
-                    'odometer': point.get('odometer', 0),
-                    'registration_number': reg_no,
-                    'last_connected': point.get('gps_time'),  # Use gps_time as last_connected
-                    'gps_location': f"{point.get('latitude', 0)},{point.get('longitude', 0)}",
-                })
-            timebox_data[reg_no] = timebox_points
-        
-        logger.info(
-            f"✅ Fetched timebox data: {len(timebox_data)} vehicles, "
-            f"{sum(len(p) for p in timebox_data.values())} total points"
-        )
-        
-        return timebox_data
-        
-    except Exception as e:
-        logger.error(f"❌ Error fetching timebox data from fetch_geo: {type(e).__name__}: {str(e)}")
-        return {}
-        sleep_time = 1.0 - time_since_last_request
-        logger.debug(f"⏱️ Rate limiting: sleeping for {sleep_time:.2f}s")
-        time.sleep(sleep_time)
-    
-    _last_nominatim_request_time = time.time()
 
 
 @login_required
@@ -212,12 +118,6 @@ def corridor_config_api(request):
     except Exception as e:
         logger.exception("Failed to load corridor config")
         return JsonResponse({"segments": {"M_J": {"polyline": [], "buffer_m": 3000}, "J_D": {"polyline": [], "buffer_m": 3000}, "D_M": {"polyline": [], "buffer_m": 3000}}})
-@login_required
-def logs_view(request):
-    # Returns the message logs page
-    # Uses TWINS API via Django proxies
-    return render(request, "livetracker/logs.html", {})
-
 
 def send_message_telegram(request):
     """
@@ -296,19 +196,43 @@ def vehicle_analytics_api(request, registration_number):
                 
                 if twins_url and twins_token:
                     _vendor, _spv = _resolve_twins_project(request.GET.get('spv', ''))
-                    # Use TWINS fetch_points endpoint for 24hr data
-                    api_url = f"{twins_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000&registration_number={registration_number}"
+                    import pytz as _pytz_a
+                    _ist_a = _pytz_a.timezone('Asia/Kolkata')
+                    _now_a = datetime.now(_ist_a)
+                    _start_a = _now_a.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%dT%H:%M:%S')
+                    _end_a = _now_a.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Use TWINS fetch_geo endpoint for 24hr GPS data (lat/lon/speed/heading)
+                    api_url = (
+                        f"{twins_url}fetch_geo?spv={_spv}&vendor={_vendor}"
+                        f"&page_size=5000&registration_number={registration_number}"
+                        f"&start_time={_start_a}&end_time={_end_a}"
+                    )
                     response = requests.get(
                         api_url,
                         headers={'Authorization': f'Bearer {twins_token}'},
                         timeout=60
                     )
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    # Extract points for the vehicle
-                    vehicles = data.get('vehicles', {})
-                    twins_points = vehicles.get(registration_number, [])
+                    if response.status_code in (400, 403, 404):
+                        logger.warning(f"⚠️ TWINS fetch_points returned {response.status_code} for {_vendor}/{_spv}/{registration_number}")
+                        data = []
+                    else:
+                        response.raise_for_status()
+                        data = response.json()
+
+                    # Extract points — handle flat list (fetch_points) or dict-with-vehicles (fetch_combined)
+                    if isinstance(data, list):
+                        twins_points = data
+                    elif isinstance(data, dict):
+                        if 'vehicles' in data:
+                            twins_points = data['vehicles'].get(registration_number, [])
+                        elif 'data' in data:
+                            twins_points = data['data']
+                        elif 'points' in data:
+                            twins_points = data['points']
+                        else:
+                            twins_points = []
+                    else:
+                        twins_points = []
                     
                     if twins_points:
                         # Map TWINS points to analytics-compatible format
@@ -321,8 +245,13 @@ def vehicle_analytics_api(request, registration_number):
                             if not (lat and lng and lat != 0 and lng != 0):
                                 continue
                             
-                            # Get SOC and ensure it's a valid positive number
-                            _raw_soc = point.get('soc')
+                            # Get SOC — EKA vendor uses a/b/c_battery_pack_soc (3-pack)
+                            _is_eka = point.get('vendor') == 'eka' or 'a_battery_pack_soc' in point
+                            if _is_eka:
+                                _soc_vals = [point.get(f) for f in ('a_battery_pack_soc', 'b_battery_pack_soc', 'c_battery_pack_soc') if point.get(f) is not None]
+                                _raw_soc = round(sum(float(v) for v in _soc_vals) / len(_soc_vals), 1) if _soc_vals else None
+                            else:
+                                _raw_soc = point.get('soc') or point.get('battery_soc')
                             soc = int(float(_raw_soc)) if _raw_soc is not None else 0
                             
                             # Get speed safely
@@ -1161,1088 +1090,6 @@ def get_multi_day_data(vehicle_numbers, days_back=1):
     
     return multi_day_data
 
-@login_required
-def timeline_table_view(request):
-    """
-    TIME BOX View - Shows checkpoint status for all trucks.
-    
-    This view displays a table with vehicle numbers and their TIME BOX status.
-    Each truck has checkpoints that are color-coded (green=on-time, red=delayed).
-    
-    Trucks are automatically sorted by delay in descending order (highest delay first).
-    
-    Routes:
-    - Dhar to Dhule: Yard → Charging → Loading → Jhulwania Charging → Maharashtra Border → Yard → Charging → Unloading
-    - Dhule to Dhar: Yard → Charging → Loading → Maharashtra Border → Jhulwania Charging → Yard → Charging → Unloading
-    
-    Data source: Real-time multi-day API data with automatic vehicle sync
-    """
-    
-    import json
-    import os
-    
-    # Check if specific vehicle is requested
-    requested_vehicle = request.GET.get('vehicleNumber') or request.GET.get('vehicle')
-    
-    # Always use real-time API data with multi-day fetching
-    timeline_data = {}
-    
-    try:
-        # Step 1: Fetch vehicle data from fetch_geo API with proper pagination
-        logger.info("🔄 Fetching vehicle data from fetch_geo API with pagination")
-        
-        # Get last 24 hours of FRESH data for complete timeline
-        # Fetches from 24h ago to NOW (ensures fresh batches, not stale history)
-        # Live indicator only shows on latest detected phase (within 2-3 hours)
-        timebox_vehicles_data = fetch_timebox_data_from_fetch_geo(
-            hours_back=24,
-            batch_window_hours=1
-        )
-        
-        if not timebox_vehicles_data:
-            logger.warning("❌ fetch_geo API returned no data")
-            timeline_data = {}
-        else:
-            logger.info(f"✅ fetch_geo API: {len(timebox_vehicles_data)} vehicles, {sum(len(p) for p in timebox_vehicles_data.values())} total points")
-            
-            # Step 2: Auto-sync vehicles from fetch_geo data to database
-            api_vehicles = set(timebox_vehicles_data.keys())
-            existing_vehicles = set(Vehicle.objects.values_list('registration_number', flat=True))
-            new_vehicles = api_vehicles - existing_vehicles
-            
-            synced_vehicles = 0
-            if new_vehicles:
-                try:
-                    from dashboard.models import ModelType
-                    default_model_type = ModelType.objects.first()
-                    if default_model_type:
-                        vehicles_to_create = [
-                            Vehicle(registration_number=v, model=default_model_type)
-                            for v in new_vehicles
-                        ]
-                        created = Vehicle.objects.bulk_create(vehicles_to_create, ignore_conflicts=True)
-                        synced_vehicles = len(created)
-                        logger.info(f"✅ Auto-synced {synced_vehicles} new vehicles from fetch_geo API")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not auto-sync vehicles: {e}")
-            
-            # Step 3: Get updated vehicle list from database
-            vehicle_numbers = list(api_vehicles)  # Use vehicles we actually got data for
-            
-            # Filter to specific vehicle if requested
-            if requested_vehicle:
-                if requested_vehicle in vehicle_numbers:
-                    vehicle_numbers = [requested_vehicle]
-                    logger.info(f"Filtering timeline data for specific vehicle: {requested_vehicle}")
-                else:
-                    logger.warning(f"Requested vehicle {requested_vehicle} not found in fetch_geo data")
-                    vehicle_numbers = []
-            
-            if not vehicle_numbers:
-                logger.warning("No vehicles to process")
-                timeline_data = {}
-            else:
-                logger.info(f"🚀 Processing timeline data for {len(vehicle_numbers)} vehicles (including {synced_vehicles} newly synced)")
-                
-                # Step 4: Convert fetch_geo data to timeline format and process with timebox
-                # Feature flag: choose engine via query param; default to timebox
-                engine = request.GET.get('engine') or 'timebox'
-                logger.info(f"Timeline engine selected: {engine}")
-                
-                # Fetch dense 24hr data for all vehicles in ONE batch fetch_combined call
-                # (no registration_number = returns all vehicles, same as fetch_geo but denser)
-                twins_url = settings.TWINS_API_URL
-                twins_token = settings.TWINS_API_TOKEN
-                timebox_input = {}
-
-                def _normalize_pt(pt, vehicle_no):
-                    lat = float(pt.get('latitude', 0)) if pt.get('latitude') else 0
-                    lon = float(pt.get('longitude', 0)) if pt.get('longitude') else 0
-                    speed = float(pt.get('speed', 0)) if pt.get('speed') is not None else 0
-                    raw_status = pt.get('vehicle_status', '')
-                    vehicle_status = raw_status if raw_status else ('traveling' if speed > 1 else 'yard')
-                    raw_gps_time = pt.get('gps_time')
-                    if isinstance(raw_gps_time, int):
-                        from datetime import timezone as _tz
-                        gps_time_str = datetime.fromtimestamp(raw_gps_time, tz=_tz.utc).isoformat()
-                    elif isinstance(raw_gps_time, datetime):
-                        gps_time_str = raw_gps_time.isoformat()
-                    else:
-                        gps_time_str = raw_gps_time
-                    return {
-                        'latitude': lat,
-                        'longitude': lon,
-                        'vehicle_status': vehicle_status,
-                        'gps_time': gps_time_str,
-                        'event_datetime': pt.get('event_datetime'),
-                        'speed': speed,
-                        'odometer': float(pt.get('odometer', 0)) if pt.get('odometer') else 0,
-                        'registration_number': vehicle_no,
-                        'last_connected': gps_time_str,
-                        'gps_location': f"{lat},{lon}",
-                        'soc': int(pt.get('soc', 0)) if pt.get('soc') else 0,
-                    }
-
-                _FC_CACHE_KEY = 'timebox_fc_batch'
-                _FC_CACHE_TTL = 300  # 5 minutes
-
-                all_vehicles_raw = cache.get(_FC_CACHE_KEY)
-                if all_vehicles_raw is not None:
-                    logger.info(f"✅ fetch_combined cache hit: {len(all_vehicles_raw)} vehicles")
-                    for vno in vehicle_numbers:
-                        vdata = all_vehicles_raw.get(vno, [])
-                        if vdata:
-                            timebox_input[vno] = [_normalize_pt(pt, vno) for pt in vdata]
-                        else:
-                            timebox_input[vno] = timebox_vehicles_data.get(vno, [])
-                else:
-                    # Cache miss — render immediately with fetch_geo data, warm cache in background
-                    logger.info("⏩ fetch_combined cache miss — using fetch_geo data now, warming cache in background")
-                    for vno in vehicle_numbers:
-                        timebox_input[vno] = timebox_vehicles_data.get(vno, [])
-
-                    import threading
-                    _tw_url = twins_url
-                    _tw_tok = twins_token
-
-                    def _warm_fc_cache():
-                        try:
-                            _vendor, _spv = _resolve_twins_project('')
-                            resp = requests.get(
-                                f"{_tw_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000",
-                                headers={'Authorization': f'Bearer {_tw_tok}'},
-                                timeout=90,
-                            )
-                            resp.raise_for_status()
-                            raw = resp.json().get('vehicles', {})
-                            cache.set(_FC_CACHE_KEY, raw, _FC_CACHE_TTL)
-                            logger.info(f"✅ Background fetch_combined cache warmed: {len(raw)} vehicles")
-                        except Exception as exc:
-                            logger.warning(f"⚠️ Background fetch_combined cache warm failed: {exc}")
-
-                    try:
-                        threading.Thread(target=_warm_fc_cache, daemon=True).start()
-                    except RuntimeError:
-                        pass  # Interpreter shutting down (dev server reload) — skip background warm
-
-                # Process with timebox engine
-                timeline_data = {}
-                for vehicle_no, records in timebox_input.items():
-                    try:
-                        from .timebox import build_timebox_for_vehicle
-                        result = build_timebox_for_vehicle(records)
-                        timeline_data[vehicle_no] = {
-                            'direction': result.get('direction'),
-                            'timeline': result.get('timeline', []),
-                            'latest_trip_duration_seconds': result.get('latest_trip_duration_seconds'),
-                            'current_trip_duration_seconds': result.get('current_trip_duration_seconds'),
-                            'current_segment_start_ts': result.get('current_segment_start_ts'),
-                            'data_source': 'fetch_combined (real-time GPS)'
-                        }
-                    except Exception as e:
-                        logger.warning(f"⚠️ Timebox processing failed for {vehicle_no}: {e}")
-                        timeline_data[vehicle_no] = {'timeline': [], 'direction': None, 'data_source': 'fetch_geo (error)'}
-                
-                logger.info(f"✅ Successfully processed timeline data for {len(timeline_data)} vehicles")
-        
-    except Exception as e:
-        logger.error(f"Error fetching real-time data: {e}")
-        # Fallback to empty timeline data if API fails
-        timeline_data = {}
-        
-        # Try to get existing vehicles as backup
-        try:
-            vehicles = Vehicle.objects.all().values_list('registration_number', flat=True)
-            vehicle_numbers = list(vehicles)
-            logger.info(f"API failed, showing empty timeline for {len(vehicle_numbers)} existing vehicles")
-            # Create empty timeline entries for existing vehicles
-            for vehicle_no in vehicle_numbers:
-                timeline_data[vehicle_no] = {
-                    'checkpoints': [],
-                    'total_delay': 0,
-                    'status': 'No Data Available'
-                }
-        except Exception as fallback_error:
-            logger.error(f"Fallback also failed: {fallback_error}")
-            # Final fallback to mock data
-            timeline_path = os.path.join(os.path.dirname(__file__), 'test_data', 'route_timeline.json')
-            try:
-                if os.path.exists(timeline_path):
-                    with open(timeline_path) as f:
-                        timeline_data = json.load(f)
-                    logger.info(f"Final fallback to mock data with {len(timeline_data)} vehicles")
-                    
-                    # Debug: Check for historical flags
-                    historical_count = 0
-                    for vehicle_key, vehicle_data in timeline_data.items():
-                        timeline = vehicle_data.get('timeline', [])
-                        for phase in timeline:
-                            if phase.get('historical', False):
-                                historical_count += 1
-                    # print(f"VIEWS DEBUG: Found {historical_count} historical phases in JSON data")
-                    logger.info(f"DEBUG: Found {historical_count} historical phases in JSON data")
-                else:
-                    timeline_data = {}
-                    logger.warning("No mock data available, showing empty timeline")
-            except Exception as mock_error:
-                logger.error(f"Error loading fallback mock data: {mock_error}")
-                timeline_data = {}
-
-    def map_timeline_to_truck(vehicle_number, entry):
-        # Map the timeline JSON entry to the format expected by the template
-        from .alertService import alert_constants as ac
-
-        PHASE_SLA = {
-            'manawar_loading': ac.LOADING_DWELL_SECONDS,
-            'dhule_unloading': ac.UNLOADING_DWELL_SECONDS,
-            'manawar_charging': ac.CHARGING_OVER_SECONDS,
-            'dhule_charging': ac.CHARGING_OVER_SECONDS,
-            'jhulwania_charging': ac.CHARGING_OVER_SECONDS,
-            'maha_border': ac.MAHA_BORDER_DWELL_SECONDS,
-            # Transit phases - using correct phase keys from timeline data
-            'manawar_to_jhulwania': ac.MANAWAR_TO_JHULWANIA_TARGET,
-            'jhulwania_to_manawar': ac.MANAWAR_TO_JHULWANIA_TARGET,
-            'jhulwania_to_maha_border': ac.JHULWANIA_TO_DHULE_TARGET,
-            'maha_border_to_dhule': ac.JHULWANIA_TO_DHULE_TARGET,
-            'dhule_to_maha_border': ac.JHULWANIA_TO_DHULE_TARGET,
-            'maha_border_to_jhulwania': ac.JHULWANIA_TO_DHULE_TARGET,
-            'manawar_yard': 0,
-            'jhulwania_yard': 0,
-            'dhule_yard': 0,
-        }
-
-        # UI box order and friendly names for each direction
-        # Explicit mapping tables for each direction
-        dhar_to_dhule_map = {
-            'manawar_yard':      ('manawar_yard', 'Manawar Yard'),
-            'manawar_loading':   ('manawar_loading', 'Loading'),
-            'manawar_charging':  ('manawar_charging', 'Charging'),
-            'manawar_to_jhulwania': ('manawar_to_jhulwania', 'Manawar to Jhulwania'),
-            'jhulwania_yard':    ('jhulwania_yard', 'Jhulwania Yard'),
-            'jhulwania_charging':('jhulwania_charging', 'Jhulwania Charging'),
-            'jhulwania_to_maha_border': ('jhulwania_to_maha_border', 'Jhulwania to MH Border'),
-            'maha_border':       ('maha_border', 'MH Border'),
-            'maha_border_to_dhule': ('maha_border_to_dhule', 'MH Border to Dhule'),
-            'dhule_yard':        ('dhule_yard', 'Dhule Yard'),
-            'dhule_charging':    ('dhule_charging', 'Dhule Charging'),
-            'dhule_unloading':   ('dhule_unloading', 'Unloading'),
-        }
-        dhule_to_dhar_map = {
-            'dhule_yard':        ('dhule_yard', 'Dhule Yard'),
-            'dhule_unloading':   ('dhule_unloading', 'Unloading'),
-            'dhule_charging':    ('dhule_charging', 'Dhule Charging'),
-            'dhule_to_maha_border': ('dhule_to_maha_border', 'Dhule to MH Border'),
-            'maha_border':       ('maha_border', 'MH Border'),
-            'maha_border_to_jhulwania': ('maha_border_to_jhulwania', 'MH Border to Jhulwania'),
-            'jhulwania_yard':    ('jhulwania_yard', 'Jhulwania Yard'),
-            'jhulwania_charging':('jhulwania_charging', 'Jhulwania Charging'),
-            'jhulwania_to_manawar': ('jhulwania_to_manawar', 'Jhulwania to Manawar'),
-            'manawar_yard':      ('manawar_yard', 'Manawar Yard'),
-            'manawar_charging':  ('manawar_charging', 'Manawar Charging'),
-            'manawar_loading':   ('manawar_loading', 'Loading'),
-        }
-        direction = (entry.get('direction') or '').lower()
-        timeline = entry.get('timeline', [])
-        checkpoints = []
-        current_transit = None
-
-        def parse_timestamp(time_str):
-            if not time_str:
-                return None
-            try:
-                # Handle ISO format with timezone (e.g., 2025-12-16T15:18:00+05:30)
-                if 'T' in time_str and '+' in time_str:
-                    # Parse ISO format with timezone and convert to IST
-                    dt = datetime.fromisoformat(time_str)
-                    # Convert to IST and then make naive for comparison
-                    ist_dt = dt.astimezone(ist)
-                    return ist_dt.replace(tzinfo=None)
-                elif 'T' in time_str:
-                    # ISO format without timezone - assume IST
-                    dt = datetime.fromisoformat(time_str.replace('Z', ''))
-                    return dt.replace(tzinfo=None)
-                else:
-                    # Standard format - assume already IST
-                    # Try with seconds, then with minutes-only
-                    try:
-                        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
-                    return dt.replace(tzinfo=None)
-            except Exception as e:
-                # Fallback: try to extract just the datetime part
-                try:
-                    # Remove timezone info and try again
-                    clean_time = time_str.split('+')[0].split('Z')[0].replace('T', ' ')
-                    try:
-                        return datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        return datetime.strptime(clean_time, "%Y-%m-%d %H:%M")
-                except:
-                    return None
-
-        # Safety override: if timebox reported dhar_to_dhule but the data contains
-        # return-trip transit phases from the CURRENT segment, the vehicle has already
-        # left Dhule heading back.  Switch direction so the return canonical order is used.
-        # IMPORTANT: only check phases from the current trip segment (after
-        # current_segment_start_ts) to avoid false positives from a prior return leg
-        # that are still in the 24-hour timeline window.
-        if direction == 'dhar_to_dhule':
-            _return_signals = {'dhule_to_maha_border', 'maha_border_to_jhulwania', 'jhulwania_to_manawar'}
-            _seg_start_str = entry.get('current_segment_start_ts')
-            _seg_start_dt = parse_timestamp(_seg_start_str) if _seg_start_str else None
-            if _seg_start_dt:
-                # Only consider phases that begin at or after the current segment start
-                _data_phases = set()
-                for _p in timeline:
-                    _ps = parse_timestamp(_p.get('start')) or parse_timestamp(_p.get('end'))
-                    if _ps and _ps >= _seg_start_dt:
-                        _data_phases.add(_p.get('phase', '').lower())
-            else:
-                _data_phases = {p.get('phase', '').lower() for p in timeline}
-            if _data_phases & _return_signals:
-                direction = 'dhule_to_dhar'
-                logger.info(f"Direction override for {vehicle_number}: dhar_to_dhule → dhule_to_dhar (return phases: {_data_phases & _return_signals})")
-
-        # Get the canonical UI order and mapping first
-        if direction == 'dhar_to_dhule':
-            canonical_order = list(dhar_to_dhule_map.keys())
-            phase_map = dhar_to_dhule_map
-        elif direction == 'dhule_to_dhar':
-            canonical_order = list(dhule_to_dhar_map.keys())
-            phase_map = dhule_to_dhar_map
-        else:
-            # Default to dhule_to_dhar if direction is unclear
-            canonical_order = list(dhule_to_dhar_map.keys())
-            phase_map = dhule_to_dhar_map
-        
-        # Build a lookup for all phases in the timeline
-        # Handle both exact matches and normalized transit phase matches
-        # For duplicate phase names, keep the entry with the longest duration_seconds
-        phase_data_map = {}
-        for p in timeline:
-            phase_name = p.get('phase', '')
-            if not phase_name:
-                continue
-            
-            # Add exact match (lowercased) — keep longest duration if duplicate
-            key_lower = phase_name.lower()
-            existing = phase_data_map.get(key_lower)
-            if existing is None or (p.get('duration_seconds') or 0) > (existing.get('duration_seconds') or 0):
-                phase_data_map[key_lower] = p
-            
-            # Handle transit phases - normalize different naming conventions
-            if '_to_' in phase_name:
-                # Normalize transit phase names to match canonical order
-                normalized = phase_name.lower()
-                existing_transit = phase_data_map.get(normalized)
-                if existing_transit is None or (p.get('duration_seconds') or 0) > (existing_transit.get('duration_seconds') or 0):
-                    phase_data_map[normalized] = p
-        
-        # Debug: Log phase mapping for troubleshooting
-        if vehicle_number and timeline:
-            logger.info(f"Phase mapping for {vehicle_number}: phases in data={list(phase_data_map.keys())}, canonical_order={canonical_order}")
-        # Find the current phase based on actual timestamps
-        import pytz
-        
-        # Get current time in IST (India Standard Time) since API data is in IST
-        ist = pytz.timezone('Asia/Kolkata')
-        current_time = datetime.now(ist).replace(tzinfo=None)  # Convert to naive IST time
-        current_phase_idx = -1
-        
-        # Helper function to parse timestamps
-        # Find the most recent activity across ALL phases, then map it to canonical order
-        most_recent_activity = None
-        most_recent_phase_key = None
-        
-        # First pass: Find the most recent activity timestamp across all phases
-        for key, phase in phase_data_map.items():
-            end_time = parse_timestamp(phase.get('end', ''))
-            start_time = parse_timestamp(phase.get('start', ''))
-            
-            # Check for currently active phase (between start and end)
-            if start_time and end_time and start_time <= current_time <= end_time:
-                most_recent_activity = current_time  # Currently active - highest priority
-                most_recent_phase_key = key
-                break
-            elif start_time and not end_time and start_time <= current_time:
-                # Ongoing phase (no end time) - second highest priority
-                most_recent_activity = current_time
-                most_recent_phase_key = key
-                break
-            elif end_time and end_time <= current_time:
-                # Completed phase - track the most recent completion
-                if most_recent_activity is None or end_time > most_recent_activity:
-                    most_recent_activity = end_time
-                    most_recent_phase_key = key
-        
-        # Second pass: Map the most recent phase back to canonical order
-        current_phase_idx = -1
-        latest_phase_idx = -1
-        if most_recent_phase_key and most_recent_activity:
-            # Check if the most recent activity is within 3 hours (show live blue flickering only for recent phases)
-            if most_recent_activity == current_time:
-                # Currently active - always show as live
-                live_eligible = True
-            else:
-                # Recently completed - check recency (only show live for activity within last 3 hours)
-                time_since_activity = (current_time - most_recent_activity).total_seconds() / 3600
-                live_eligible = (time_since_activity <= 3.0)
-            
-            if live_eligible:
-                # Find this phase in the canonical order
-                for idx, canonical_key in enumerate(canonical_order):
-                    if canonical_key.lower() == most_recent_phase_key:
-                        current_phase_idx = idx
-                        break
-            else:
-                # Not live, but still remember the latest phase index for fallback gating
-                for idx, canonical_key in enumerate(canonical_order):
-                    if canonical_key.lower() == most_recent_phase_key:
-                        latest_phase_idx = idx
-                        break
-
-        # Compute pivot time: latest non-transit phase start/end
-        pivot_dt = None
-        for p in timeline:
-            phase_name = p.get('phase', '')
-            if not phase_name or '_to_' in phase_name:
-                continue
-            s = parse_timestamp(p.get('start'))
-            e = parse_timestamp(p.get('end'))
-            candidate = e or s or None
-            if candidate is not None and (pivot_dt is None or candidate > pivot_dt):
-                pivot_dt = candidate
-        
-        # Determine trip chain start for display gating (avoid older trip dates)
-        chain_start_dt = None
-        try:
-            # Primary: use the segment start exposed by the timebox engine.
-            # This is the START of the last source-cluster visit (last Manawar visit for
-            # dhar_to_dhule, last Dhule visit for dhule_to_dhar).  It is the authoritative
-            # anchor: all phase data from before this point belongs to a prior trip and
-            # should be treated as "pending" on the current canonical sequence.
-            current_seg_start = entry.get('current_segment_start_ts')
-            if current_seg_start:
-                chain_start_dt = parse_timestamp(current_seg_start)
-
-            if chain_start_dt is None:
-                latest_start = entry.get('latest_trip_start_ts')
-                current_start = entry.get('current_trip_start_ts')
-                # Identify if current phase is at Manawar; if so, prefer latest trip start
-                try:
-                    if current_phase_idx != -1:
-                        current_key = canonical_order[current_phase_idx].lower()
-                    elif latest_phase_idx != -1:
-                        current_key = canonical_order[latest_phase_idx].lower()
-                    else:
-                        current_key = ''
-                except Exception:
-                    current_key = ''
-                is_in_manawar = current_key.startswith('manawar')
-                if is_in_manawar and latest_start:
-                    chain_start_dt = parse_timestamp(latest_start)
-                elif current_start:
-                    chain_start_dt = parse_timestamp(current_start)
-                elif latest_start:
-                    chain_start_dt = parse_timestamp(latest_start)
-            # Fallback: if chain_start_dt is still None, derive earliest timestamp from today
-            if chain_start_dt is None:
-                try:
-                    # Look back up to 36 hours to support cross-midnight trips
-                    lookback_cutoff = current_time - timedelta(hours=36)
-                    earliest_chain_dt = None
-                    cutoff_idx = current_phase_idx if current_phase_idx != -1 else (latest_phase_idx if latest_phase_idx != -1 else len(canonical_order)-1)
-                    for idx2 in range(0, cutoff_idx + 1):
-                        key2 = canonical_order[idx2]
-                        p2 = phase_data_map.get(key2.lower())
-                        if not p2:
-                            continue
-                        s2 = parse_timestamp(p2.get('start'))
-                        e2 = parse_timestamp(p2.get('end'))
-                        for dtx in [s2, e2]:
-                            if dtx and dtx >= lookback_cutoff:
-                                if earliest_chain_dt is None or dtx < earliest_chain_dt:
-                                    earliest_chain_dt = dtx
-                    chain_start_dt = earliest_chain_dt
-                    try:
-                        logger.info(f"Chain gating fallback for {vehicle_number}: earliest_chain_dt={earliest_chain_dt}")
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-            try:
-                logger.info(f"Chain gating for {vehicle_number}: current_segment_start_ts={current_seg_start}, chain_start_dt={chain_start_dt}")
-            except Exception:
-                pass
-        except Exception:
-            chain_start_dt = None
-
-        # Build checkpoints in canonical order - show all phases (existing + pending)
-        checkpoints = []
-        last_dt = None  # Ensure displayed times progress forward
-
-        # Prune phase_data_map: remove any phase whose data is entirely from a previous trip
-        # (all timestamps predate chain_start_dt). This prevents forward-trip phases that
-        # overlap into the return canonical order (e.g. jhulwania_yard at 15:32 showing as
-        # "completed" when the vehicle is on the return leg with chain_start_dt=19:00).
-        if chain_start_dt is not None:
-            _pruned = {}
-            for _k, _p in phase_data_map.items():
-                _dt_s = parse_timestamp(_p.get('start'))
-                _dt_e = parse_timestamp(_p.get('end'))
-                if (_dt_s and _dt_s >= chain_start_dt) or (_dt_e and _dt_e >= chain_start_dt):
-                    _pruned[_k] = _p
-                elif not _dt_s and not _dt_e:
-                    _pruned[_k] = _p  # no timestamps → keep
-            phase_data_map = _pruned
-
-        # Find the last canonical index that has real phase data (post-pruning).
-        last_data_idx = -1
-        for _idx2, _ck2 in enumerate(canonical_order):
-            if _ck2.lower() in phase_data_map:
-                last_data_idx = _idx2
-
-        for idx, key in enumerate(canonical_order):
-            # Strict flow: mark any box after the most recent phase (live or latest) as pending.
-            # Advance the cutoff to cover every canonical phase that has real data so that
-            # a return-journey vehicle doesn't show forward phases as pending.
-            base_cutoff = current_phase_idx if current_phase_idx != -1 else (latest_phase_idx if latest_phase_idx != -1 else -1)
-            cutoff_idx = max(base_cutoff, last_data_idx)
-            if cutoff_idx != -1 and idx > cutoff_idx:
-                highlight_key, friendly_name = phase_map[key]
-                checkpoints.append({
-                    'name': friendly_name,
-                    'time': '',
-                    'end_time': '',
-                    'status': 'pending',
-                    'is_current': False,
-                    'duration_minutes': 0,
-                    'duration_hhmm': '',
-                    'delay_minutes': 0,
-                    'delay_hhmm': '',
-                    'phase_key': key,
-                })
-                continue
-
-            if key.lower() in phase_data_map:
-                # Phase exists in data - show actual data
-                phase = phase_data_map[key.lower()]
-                dur = phase.get('duration_seconds') or 0
-                # If duration_seconds is zero, try computing from raw start/end timestamps
-                if dur == 0:
-                    _raw_s = phase.get('start') or phase.get('display_start')
-                    _raw_e = phase.get('end') or phase.get('display_end')
-                    if _raw_s and _raw_e:
-                        try:
-                            _ts = parse_timestamp(_raw_s)
-                            _te = parse_timestamp(_raw_e)
-                            if _ts and _te and _te > _ts:
-                                dur = int((_te - _ts).total_seconds())
-                        except Exception:
-                            pass
-                highlight_key, friendly_name = phase_map[key]
-                
-                # Check if this is a gap-filled historical phase
-                is_gap_filled = phase.get('gap_filled', False)
-                is_historical = phase.get('historical', False)
-                
-                # Calculate duration in minutes
-                duration_text = int(dur // 60) if dur > 0 else 0
-                # Calculate duration HH:MM string ('-' when truly unknown/zero)
-                duration_hhmm = f"{int(dur)//3600:02d}:{(int(dur)%3600)//60:02d}" if dur > 0 else "-"
-                
-                if is_gap_filled:
-                    # Gap-filled phase - show as completed historical with proper data
-                    status = 'completed_historical'
-                    # Gap-filled phases may have minimal duration, calculate delay if SLA available
-                    phase_key = highlight_key
-                    sla = PHASE_SLA.get(phase_key)
-                    delay_seconds = 0
-                    if sla == 0 and phase_key in ['manawar_yard', 'jhulwania_yard', 'dhule_yard']:
-                        delay_seconds = dur
-                    elif sla and dur > sla:
-                        delay_seconds = dur - sla
-                    is_current = False
-                else:
-                    # Regular current phase - apply SLA logic
-                    phase_key = highlight_key
-                    sla = PHASE_SLA.get(phase_key)
-                    status = 'on_time'
-                    delay_seconds = 0
-                    if sla == 0 and phase_key in ['manawar_yard', 'jhulwania_yard', 'dhule_yard']:
-                        if dur > 0:
-                            status = 'delayed'
-                            delay_seconds = dur
-                    elif sla:
-                        if dur > sla:
-                            status = 'delayed'
-                            delay_seconds = dur - sla
-                    # Determine if this is the live highlighted box
-                    is_current = (idx == current_phase_idx)
-                    # Only show 'warning' (amber) on the live highlighted box
-                    if status == 'on_time' and is_current and sla and dur > 0 and dur > sla * 0.9:
-                        status = 'warning'
-                    
-                if is_current:
-                    current_transit = highlight_key
-                
-                # Extract time in HH:MM format from start/end timestamps
-                def format_time_from_iso(iso_str):
-                    if not iso_str or iso_str in ['Historical', 'Gap Filled', '']:
-                        return ''
-                    try:
-                        # Try parsing ISO format
-                        if 'T' in iso_str:
-                            dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
-                            return dt.strftime('%H:%M')
-                        return iso_str  # Already formatted
-                    except:
-                        return iso_str
-                
-                # Use displayed times only if non-decreasing and before pivot (allow past dates for passed phases)
-                dt_start = parse_timestamp(phase.get('display_start') or phase.get('start'))
-                dt_end = parse_timestamp(phase.get('display_end') or phase.get('end'))
-                display_time = ''
-                display_end_time = ''
-                display_ts = None
-                # Location dwell phases (yard/charging/loading/unloading) are exempt from strict
-                # ascending order — they can appear in any order within their location group.
-                # All other phases (transits, maha_border) must have strictly ascending times.
-                LOCATION_DWELL_KEYS = {
-                    'manawar_yard', 'manawar_charging', 'manawar_loading',
-                    'jhulwania_yard', 'jhulwania_charging',
-                    'dhule_yard', 'dhule_charging', 'dhule_unloading',
-                }
-                is_location_dwell = key.lower() in LOCATION_DWELL_KEYS
-
-                if is_location_dwell:
-                    # Within a location: show time even if earlier than last_dt.
-                    # Gate only on chain_start_dt and pivot_dt.
-                    # Advance last_dt to the maximum time seen so transits after the group are gated correctly.
-                    if dt_start and (pivot_dt is None or dt_start <= pivot_dt) and (chain_start_dt is None or dt_start >= chain_start_dt):
-                        display_time = phase.get('display_start', '') or phase.get('time', '') or format_time_from_iso(phase.get('start', ''))
-                        display_ts = int(dt_start.timestamp())
-                        if last_dt is None or dt_start > last_dt:
-                            last_dt = dt_start
-                    elif dt_end and (pivot_dt is None or dt_end <= pivot_dt) and (chain_start_dt is None or dt_end >= chain_start_dt):
-                        display_end_time = phase.get('display_end', '') or phase.get('end_time', '') or format_time_from_iso(phase.get('end', ''))
-                        display_ts = int(dt_end.timestamp())
-                        if last_dt is None or dt_end > last_dt:
-                            last_dt = dt_end
-                else:
-                    # Transit and checkpoint phases: strictly ascending time order.
-                    if dt_start and (pivot_dt is None or dt_start <= pivot_dt) and (last_dt is None or dt_start >= last_dt) and (chain_start_dt is None or dt_start >= chain_start_dt):
-                        display_time = phase.get('display_start', '') or phase.get('time', '') or format_time_from_iso(phase.get('start', ''))
-                        last_dt = dt_start
-                        display_ts = int(dt_start.timestamp())
-                    elif dt_end and (pivot_dt is None or dt_end <= pivot_dt) and (last_dt is None or dt_end >= last_dt) and (chain_start_dt is None or dt_end >= chain_start_dt):
-                        display_end_time = phase.get('display_end', '') or phase.get('end_time', '') or format_time_from_iso(phase.get('end', ''))
-                        last_dt = dt_end
-                        display_ts = int(dt_end.timestamp())
-                    else:
-                        # Log suppression for debugging
-                        try:
-                            if chain_start_dt is not None:
-                                if (dt_start and dt_start < chain_start_dt) or (dt_end and dt_end < chain_start_dt):
-                                    logger.info(
-                                        f"Chain suppression for {vehicle_number}: phase_key={key}, phase_name={phase.get('phase')}, dt_start={dt_start}, dt_end={dt_end}, chain_start_dt={chain_start_dt}"
-                                    )
-                        except Exception:
-                            pass
-                    
-                # Add raw timestamp fields for template access
-                raw_start = phase.get('start', '')
-                raw_end = phase.get('end', '')
-                raw_display_start = phase.get('display_start', '')
-                raw_display_end = phase.get('display_end', '')
-                    
-                checkpoints.append({
-                    'name': friendly_name,
-                    'time': display_time,
-                    'end_time': display_end_time,
-                    'raw_start': raw_start,
-                    'raw_end': raw_end,
-                    'raw_display_start': raw_display_start,
-                    'raw_display_end': raw_display_end,
-                    'status': status,
-                    'is_current': is_current,
-                    'duration_minutes': duration_text,
-                    'duration_hhmm': duration_hhmm,
-                    'delay_seconds': int(delay_seconds) if delay_seconds > 0 else 0,
-                    'delay_minutes': int(delay_seconds // 60) if delay_seconds > 0 else 0,
-                    'delay_hhmm': (f"{int(delay_seconds)//3600:02d}:{(int(delay_seconds)%3600)//60:02d}" if delay_seconds and int(delay_seconds) > 0 else "00:00"),
-                    'phase_key': key,  # Add phase key for grouping
-                    'is_historical': is_historical,
-                    'is_gap_filled': is_gap_filled,
-                    'display_ts': display_ts,
-                })
-            else:
-                # Phase not yet reached - ALWAYS show as pending (gray)
-                # Do NOT predict colors for unvisited phases
-                highlight_key, friendly_name = phase_map[key]
-                
-                checkpoints.append({
-                    'name': friendly_name,
-                    'time': '',  # No time for unvisited phases
-                    'end_time': '',
-                    'status': 'pending',  # ALWAYS pending (gray) for unvisited phases
-                    'is_current': False,
-                    'duration_minutes': 0,  # No duration data
-                    'duration_hhmm': '',
-                    'delay_minutes': 0,  # No delay data
-                    'delay_hhmm': '',
-                    'phase_key': key  # Add phase key for grouping
-                })
-        
-        # Group checkpoints by location
-        grouped_checkpoints = []
-        # Define location groups
-        location_groups = {
-            'manawar': ['manawar_yard', 'manawar_charging', 'manawar_loading'],
-            'jhulwania': ['jhulwania_yard', 'jhulwania_charging'],
-            'dhule': ['dhule_yard', 'dhule_charging', 'dhule_unloading']
-        }
-        
-        # Build grouped structure
-        i = 0
-        while i < len(checkpoints):
-            current_checkpoint = checkpoints[i]
-            phase_key = current_checkpoint['phase_key']
-            
-            # Check if this phase belongs to a location group
-            location_name = None
-            for loc, phases in location_groups.items():
-                if phase_key in phases:
-                    location_name = loc
-                    break
-            
-            if location_name:
-                # This is part of a location group
-                group_phases = location_groups[location_name]
-                group_checkpoints = []
-                
-                # Collect all checkpoints for this location that appear in order
-                j = i
-                while j < len(checkpoints) and checkpoints[j]['phase_key'] in group_phases:
-                    group_checkpoints.append(checkpoints[j])
-                    j += 1
-                # Sort within the group by display_ts (ascending), keeping None at end
-                group_checkpoints.sort(key=lambda cp: (cp.get('display_ts') is None, cp.get('display_ts') or 0))
-                
-                # Add the group
-                grouped_checkpoints.append({
-                    'type': 'group',
-                    'location': location_name.capitalize(),
-                    'checkpoints': group_checkpoints
-                })
-                
-                i = j  # Move to next ungrouped checkpoint
-            else:
-                # This is a standalone checkpoint (transit)
-                grouped_checkpoints.append({
-                    'type': 'single',
-                    'checkpoint': current_checkpoint
-                })
-                i += 1
-        # Mark which transit box should be highlighted
-        transit_highlight = None
-        if current_transit:
-            if 'manawar_to_jhulwania' in current_transit or 'jhulwania_to_manawar' in current_transit:
-                transit_highlight = 'dhar_to_jhulwania'
-            elif 'jhulwania_to_dhule' in current_transit or 'dhule_to_jhulwania' in current_transit:
-                transit_highlight = 'jhulwania_to_dhule'
-            elif 'dhule_to_maha_border' in current_transit or 'maha_border_to_dhule' in current_transit:
-                transit_highlight = 'dhule_to_mh'
-            elif 'maha_border_to_jhulwania' in current_transit or 'jhulwania_to_maha_border' in current_transit:
-                transit_highlight = 'mh_to_jhulwania'
-            elif 'jhulwania_to_dhar' in current_transit or 'dhar_to_jhulwania' in current_transit:
-                transit_highlight = 'jhulwania_to_dhar'
-        # Calculate total duration for display
-        # Prefer current trip duration when positive; otherwise fall back to latest completed trip.
-        # If neither is available, fallback to sum of phase durations.
-        total_duration_seconds = 0
-        try:
-            if isinstance(entry, dict):
-                ctd_raw = entry.get('current_trip_duration_seconds')
-                ltd_raw = entry.get('latest_trip_duration_seconds')
-                ctd = int(ctd_raw or 0)
-                ltd = int(ltd_raw or 0)
-                # If current box is within Manawar (yard/charging/loading), prefer latest trip over current
-                try:
-                    current_key = canonical_order[current_phase_idx].lower() if current_phase_idx != -1 else (canonical_order[latest_phase_idx].lower() if latest_phase_idx != -1 else '')
-                except Exception:
-                    current_key = ''
-                is_in_manawar = current_key.startswith('manawar')
-                # Fallback: derive current chain duration from today's phase timestamps up to cutoff when ctd is missing/zero
-                cutoff_idx = current_phase_idx if current_phase_idx != -1 else (latest_phase_idx if latest_phase_idx != -1 else -1)
-                ctd_fallback = 0
-                try:
-                    today_date = current_time.date()
-                    min_dt = None
-                    max_dt = None
-                    if cutoff_idx != -1:
-                        for idx2 in range(0, cutoff_idx + 1):
-                            key2 = canonical_order[idx2]
-                            p2 = phase_data_map.get(key2.lower())
-                            if not p2:
-                                continue
-                            s2 = parse_timestamp(p2.get('start'))
-                            e2 = parse_timestamp(p2.get('end'))
-                            for dtx in [s2, e2]:
-                                if dtx and dtx.date() == today_date:
-                                    if min_dt is None or dtx < min_dt:
-                                        min_dt = dtx
-                                    if max_dt is None or dtx > max_dt:
-                                        max_dt = dtx
-                    if min_dt and max_dt and max_dt >= min_dt:
-                        ctd_fallback = int((max_dt - min_dt).total_seconds())
-                except Exception:
-                    ctd_fallback = 0
-                # Selection rules:
-                # - At Manawar: prefer latest; if missing, fallback to sum (not current dwell)
-                # - Away from Manawar: prefer current; else latest; else sum
-                chosen_source = 'sum'
-                if is_in_manawar:
-                    if ltd > 0:
-                        total_duration_seconds = ltd
-                        chosen_source = 'latest'
-                    elif ctd > 0:
-                        total_duration_seconds = ctd
-                        chosen_source = 'current'
-                    elif ctd_fallback > 0:
-                        total_duration_seconds = ctd_fallback
-                        chosen_source = 'current_fallback_today'
-                    else:
-                        total_duration_seconds = int(sum(cp.get('duration_seconds', 0) for cp in entry.get('timeline', [])))
-                        chosen_source = 'sum'
-                else:
-                    if ctd > 0:
-                        total_duration_seconds = ctd
-                        chosen_source = 'current'
-                    elif ctd_fallback > 0:
-                        total_duration_seconds = ctd_fallback
-                        chosen_source = 'current_fallback_today'
-                    elif ltd > 0:
-                        total_duration_seconds = ltd
-                        chosen_source = 'latest'
-                    else:
-                        total_duration_seconds = int(sum(cp.get('duration_seconds', 0) for cp in entry.get('timeline', [])))
-                        chosen_source = 'sum'
-                try:
-                    logger.info(f"Duration selection for {vehicle_number}: ctd={ctd}, ctd_fallback_today={ctd_fallback}, ltd={ltd}, current_key={current_key}, is_in_manawar={is_in_manawar}, chosen={chosen_source}, total_seconds={total_duration_seconds}")
-                except Exception:
-                    pass
-            else:
-                total_duration_seconds = int(sum(cp.get('duration_seconds', 0) for cp in entry.get('timeline', [])))
-        except Exception:
-            total_duration_seconds = int(sum(cp.get('duration_seconds', 0) for cp in entry.get('timeline', [])))
-        total_duration = f"{total_duration_seconds//3600:02d}:{(total_duration_seconds%3600)//60:02d}"
-        # Calculate total drive time (sum of transit phases only)
-        # Prefer current trip drive time, else latest completed, else fallback sum across phases
-        if isinstance(entry, dict) and entry.get('current_trip_drive_seconds') is not None:
-            drive_seconds = int(entry.get('current_trip_drive_seconds') or 0)
-        elif isinstance(entry, dict) and entry.get('latest_trip_drive_seconds') is not None:
-            drive_seconds = int(entry.get('latest_trip_drive_seconds') or 0)
-        else:
-            drive_seconds = 0
-            for cp in entry.get('timeline', []):
-                phase_name = cp.get('phase', '')
-                if isinstance(phase_name, str) and '_to_' in phase_name:
-                    drive_seconds += int(cp.get('duration_seconds') or 0)
-        # Sanity: drive time cannot exceed total trip duration
-        try:
-            if total_duration_seconds is not None:
-                drive_seconds = max(0, min(drive_seconds, total_duration_seconds))
-        except Exception:
-            pass
-        total_drive_time = f"{drive_seconds//3600:02d}:{(drive_seconds%3600)//60:02d}"
-
-        # Moving time since trip start (first box filled): prefer current trip drive seconds
-        moving_since_start_seconds = None
-        moving_since_start = "00:00"
-        try:
-            if isinstance(entry, dict) and entry.get('current_trip_drive_seconds') is not None:
-                moving_since_start_seconds = int(entry.get('current_trip_drive_seconds') or 0)
-                # Clamp to total duration
-                if total_duration_seconds is not None:
-                    moving_since_start_seconds = max(0, min(moving_since_start_seconds, total_duration_seconds))
-                moving_since_start = f"{moving_since_start_seconds//3600:02d}:{(moving_since_start_seconds%3600)//60:02d}"
-        except Exception:
-            pass
-        # Sum all per-phase delays (in seconds) - need to extract from grouped structure
-        def extract_all_checkpoints(grouped_checkpoints):
-            all_checkpoints = []
-            for item in grouped_checkpoints:
-                if item['type'] == 'group':
-                    all_checkpoints.extend(item['checkpoints'])
-                else:
-                    all_checkpoints.append(item['checkpoint'])
-            return all_checkpoints
-        
-        all_flat_checkpoints = extract_all_checkpoints(grouped_checkpoints)
-        # Calculate total delay properly: delay per phase should not exceed that phase's duration
-        # Total delay = sum of (max(0, phase_duration - phase_sla)) for all phases
-        total_delay_seconds = 0
-        ultratech_delay_seconds = 0
-        driver_delay_seconds = 0
-        
-        # Phase SLA map for reference
-        phase_sla_map = {
-            'manawar_loading': PHASE_SLA.get('manawar_loading', 0),
-            'dhule_unloading': PHASE_SLA.get('dhule_unloading', 0),
-            'manawar_charging': PHASE_SLA.get('manawar_charging', 0),
-            'dhule_charging': PHASE_SLA.get('dhule_charging', 0),
-            'jhulwania_charging': PHASE_SLA.get('jhulwania_charging', 0),
-            'maha_border': PHASE_SLA.get('maha_border', 0),
-            'manawar_to_jhulwania': PHASE_SLA.get('manawar_to_jhulwania', 0),
-            'jhulwania_to_manawar': PHASE_SLA.get('jhulwania_to_manawar', 0),
-            'jhulwania_to_maha_border': PHASE_SLA.get('jhulwania_to_maha_border', 0),
-            'maha_border_to_dhule': PHASE_SLA.get('maha_border_to_dhule', 0),
-            'dhule_to_maha_border': PHASE_SLA.get('dhule_to_maha_border', 0),
-            'maha_border_to_jhulwania': PHASE_SLA.get('maha_border_to_jhulwania', 0),
-            'manawar_yard': PHASE_SLA.get('manawar_yard', 0),
-            'jhulwania_yard': PHASE_SLA.get('jhulwania_yard', 0),
-            'dhule_yard': PHASE_SLA.get('dhule_yard', 0),
-        }
-        
-        # Split delay into Ultratech (Manawar + Dhule locations) vs Driver (rest)
-        ultratech_phase_keys = set([
-            'manawar_yard', 'manawar_charging', 'manawar_loading',
-            'dhule_yard', 'dhule_charging', 'dhule_unloading'
-        ])
-        
-        # Use pre-computed delay_seconds stored on each checkpoint (avoids precision
-        # loss from converting dur → minutes → seconds in the previous approach).
-        for cp in all_flat_checkpoints:
-            phase_key = cp.get('phase_key', '')
-            phase_delay_seconds = cp.get('delay_seconds', 0)
-            
-            # Add to totals
-            total_delay_seconds += phase_delay_seconds
-            
-            if phase_key in ultratech_phase_keys:
-                ultratech_delay_seconds += phase_delay_seconds
-            else:
-                driver_delay_seconds += phase_delay_seconds
-        
-        # Ensure total delay doesn't exceed total duration
-        if total_duration_seconds is not None:
-            total_delay_seconds = min(total_delay_seconds, total_duration_seconds)
-        total_delay = f"{total_delay_seconds//3600:02d}:{(total_delay_seconds%3600)//60:02d}"
-        ultratech_delay = f"{ultratech_delay_seconds//3600:02d}:{(ultratech_delay_seconds%3600)//60:02d}"
-        driver_delay = f"{driver_delay_seconds//3600:02d}:{(driver_delay_seconds%3600)//60:02d}"
-        transit_status = 'delayed' if any(cp['status']=='delayed' for cp in all_flat_checkpoints) else ('warning' if any(cp['status']=='warning' for cp in all_flat_checkpoints) else 'on_time')
-
-        # Targeted flow debug for specific vehicle
-        try:
-            if vehicle_number and vehicle_number.lower().strip() in ['mh18bz3386','mh 18 bz 3386'] or (vehicle_number and vehicle_number.endswith('3386')):
-                try:
-                    debug_rows = [
-                        f"{cp.get('phase_key')}: {cp.get('status')} time={cp.get('time')} end={cp.get('end_time')}"
-                        for cp in all_flat_checkpoints
-                    ]
-                    logger.info(
-                        f"Flow debug for {vehicle_number}: current_phase_idx={current_phase_idx}, canonical_order={canonical_order}, rows={debug_rows}"
-                    )
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        
-        return {
-            'vehicle_number': vehicle_number,
-            'route': entry.get('direction', ''),
-            'total_duration': total_duration,
-            'total_duration_seconds': total_duration_seconds,
-            'total_delay': total_delay,
-            'total_drive_time': total_drive_time,
-            'total_drive_seconds': drive_seconds,
-            'moving_since_start': moving_since_start,
-            'moving_since_start_seconds': moving_since_start_seconds,
-            'ultratech_delay': ultratech_delay,
-            'driver_delay': driver_delay,
-            'checkpoints': grouped_checkpoints,  # Use grouped checkpoints
-            'transit_status': transit_status,
-            'transit_highlight': transit_highlight
-        }
-
-    trucks = []
-    for vn, entry in timeline_data.items():
-        truck = map_timeline_to_truck(vn, entry)
-        # Surface engine info to the UI JSON for verification
-        if isinstance(entry, dict) and entry.get('engine'):
-            truck['engine'] = entry.get('engine')
-        if isinstance(entry, dict) and entry.get('latest_trip_duration_seconds') is not None:
-            truck['latest_trip_duration_seconds'] = entry.get('latest_trip_duration_seconds')
-        trucks.append(truck)
-    
-    # Fetch driver information for all trucks
-    from roster.models import HorseTrolleyAssignment
-    
-    # Get all assignments with driver details in a single query
-    assignments = HorseTrolleyAssignment.objects.select_related('driver').filter(
-        horse__horse_number__in=[truck['vehicle_number'] for truck in trucks]
-    )
-    
-    # Create a mapping of vehicle number to driver details
-    driver_map = {}
-    for assignment in assignments:
-        driver_map[assignment.horse.horse_number] = {
-            'driver_name': assignment.driver.employee_name if assignment.driver else None,
-            'driver_phone': assignment.driver.phone if assignment.driver else None,
-        }
-    
-    # Add driver information to each truck
-    for truck in trucks:
-        driver_info = driver_map.get(truck['vehicle_number'], {})
-        truck['driver_name'] = driver_info.get('driver_name')
-        truck['driver_phone'] = driver_info.get('driver_phone')
-    
-    # Sort by delay (delayed first)
-    trucks.sort(key=lambda x: x['total_delay'], reverse=True)
-    on_time_count = sum(1 for truck in trucks if truck['total_delay'] == '00:00')
-    delayed_count = len(trucks) - on_time_count
-    
-    # Compute averages for Duration, Delay, and Drive Time across trucks
-    def _hhmm_to_seconds(hhmm: str) -> int:
-        try:
-            if not hhmm or ':' not in hhmm:
-                return 0
-            h, m = hhmm.split(':', 1)
-            return int(h) * 3600 + int(m) * 60
-        except Exception:
-            return 0
-    def _sec_to_hhmm(seconds: int) -> str:
-        seconds = max(0, int(seconds))
-        return f"{seconds//3600:02d}:{(seconds%3600)//60:02d}"
-
-    n = max(1, len(trucks))
-    total_duration_avg = _sec_to_hhmm(sum(_hhmm_to_seconds(t['total_duration']) for t in trucks) // n)
-    total_delay_avg = _sec_to_hhmm(sum(_hhmm_to_seconds(t['total_delay']) for t in trucks) // n)
-    total_drive_time_avg = _sec_to_hhmm(sum(_hhmm_to_seconds(t.get('total_drive_time', '00:00')) for t in trucks) // n)
-    
-    # Add JSON output support for testing
-    if request.GET.get('format') == 'json':
-        return JsonResponse({
-            'trucks': trucks,
-            'on_time_count': on_time_count,
-            'delayed_count': delayed_count,
-            'total_trucks': len(trucks)
-        })
-    
-    return render(request, 'livetracker/timelineTable.html', {
-        'trucks': trucks,
-        'on_time_count': on_time_count,
-        'delayed_count': delayed_count,
-        'total_trucks': len(trucks),
-        'avg_total_duration': total_duration_avg,
-        'avg_total_delay': total_delay_avg,
-        'avg_total_drive_time': total_drive_time_avg,
-    })
-
-
-
 @require_http_methods(["POST"])
 @csrf_exempt
 @login_required
@@ -2462,529 +1309,6 @@ def download_stoppage_report(request, registration_number):
 
 @login_required
 @require_http_methods(["GET"])
-def timebox_avg_delay_series(request):
-    """
-    Return average delay time series.
-    Query params:
-      - group_by: 'day' (default) or 'month'
-      - days: when group_by=day (default 7, max 31)
-      - months: when group_by=month (default 3, max 12)
-      - month: YYYY-MM to get a specific month's day-wise series (overrides days)
-    Response:
-      { series: [{label,date,avg_delay,avg_delay_minutes}], unit: 'minutes', group_by: 'day'|'month' }
-    """
-    group_by = request.GET.get('group_by', 'day').lower()
-    month_param = request.GET.get('month')
-
-    # SLA thresholds per phase (seconds)
-    from .alertService import alert_constants as ac
-    PHASE_SLA = {
-        'manawar_loading': ac.LOADING_DWELL_SECONDS,
-        'dhule_unloading': ac.UNLOADING_DWELL_SECONDS,
-        'manawar_charging': ac.CHARGING_OVER_SECONDS,
-        'dhule_charging': ac.CHARGING_OVER_SECONDS,
-        'jhulwania_charging': ac.CHARGING_OVER_SECONDS,
-        'maha_border': ac.MAHA_BORDER_DWELL_SECONDS,
-        # Transit phases targets
-        'manawar_to_jhulwania': ac.MANAWAR_TO_JHULWANIA_TARGET,
-        'jhulwania_to_manawar': ac.MANAWAR_TO_JHULWANIA_TARGET,
-        'jhulwania_to_maha_border': ac.JHULWANIA_TO_DHULE_TARGET,
-        'maha_border_to_dhule': ac.JHULWANIA_TO_DHULE_TARGET,
-        'dhule_to_maha_border': ac.JHULWANIA_TO_DHULE_TARGET,
-        'maha_border_to_jhulwania': ac.JHULWANIA_TO_DHULE_TARGET,
-        'manawar_yard': 0,
-        'jhulwania_yard': 0,
-        'dhule_yard': 0,
-    }
-
-    def _calc_vehicle_delay_seconds(timeline: list) -> int:
-        """
-        Calculate total delay for a vehicle journey.
-        
-        Delay = time spent OVER the SLA for each phase.
-        - Transit phases (sla=0): No delay counted
-        - Yard phases (sla=0): No delay counted  
-        - Charging/Loading phases (sla>0): Delay = max(0, duration - sla)
-        """
-        total = 0
-        for phase in timeline or []:
-            name = (phase.get('phase') or '').lower()
-            dur = int(phase.get('duration_seconds') or 0)
-            if not name or dur <= 0:
-                continue
-            
-            # Normalize phase name
-            key = name.replace('mahaborder', 'maha_border').replace('maha border', 'maha_border')
-            
-            # Get SLA for this phase
-            sla = PHASE_SLA.get(key)
-            if sla is None:
-                # If not in PHASE_SLA dict, check if it's a transit phase
-                if '_to_' in key:
-                    sla = 0  # Transit phases have no SLA
-                else:
-                    continue  # Unknown phase, skip
-            
-            # Calculate delay: only count time OVER the SLA threshold
-            # sla can be 0 (for yards/transit) or positive (for charging/loading)
-            if sla is not None and sla > 0 and dur > sla:
-                # Count only the excess time beyond SLA
-                total += (dur - sla)
-            # Note: sla=0 phases (yards, transit) don't contribute to delay
-        
-        return max(0, int(total))
-
-    def _serialize_day_obj(date_obj, avg_minutes: int) -> dict:
-        return {
-            'date': date_obj.strftime('%Y-%m-%d'),
-            'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-            'avg_delay_minutes': avg_minutes,
-        }
-
-    def _compute_day_avg(date_obj) -> dict:
-        start = date_obj.strftime('%Y-%m-%d')
-        end = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-        cache_key = f"tb:day:{start}"
-        # Prefer DB cache first
-        try:
-            db_row = TimeBoxDailyAvgDelay.objects.filter(date=date_obj).first()
-            if db_row:
-                result = _serialize_day_obj(date_obj, int(db_row.avg_delay_minutes or 0))
-                cache.set(cache_key, result, timeout=60 * 60 * 24)
-                return result
-        except Exception:
-            pass
-        # Fallback: mem cache
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-        records = fetch_day(None, start, end) or []
-        by_vehicle = {}
-        for rec in records:
-            vn = rec.get('vehicle_no')
-            if not vn:
-                continue
-            by_vehicle.setdefault(vn, []).append(rec)
-        delays = []
-        for vn, points in by_vehicle.items():
-            try:
-                journey = build_timebox_for_vehicle(points)
-                timeline = journey.get('timeline', [])
-                delay_sec = _calc_vehicle_delay_seconds(timeline)
-                delays.append(delay_sec)
-            except Exception:
-                continue
-        avg_sec = (sum(delays) // len(delays)) if delays else 0
-        result = _serialize_day_obj(date_obj, (avg_sec // 60))
-        # Best-effort persist to DB for future fast loads
-        try:
-            TimeBoxDailyAvgDelay.objects.update_or_create(
-                date=date_obj,
-                defaults={
-                    'avg_delay_minutes': (avg_sec // 60),
-                    'vehicle_count': len(delays),
-                }
-            )
-        except Exception:
-            pass
-        cache.set(cache_key, result, timeout=60 * 60 * 24)  # cache 24h
-        return result
-
-    def _compute_month_day_series(year: int, month: int):
-        month_key = f"tb:month_days:{year:04d}-{month:02d}"
-        cached = cache.get(month_key)
-        if cached is not None:
-            return cached
-        # iterate all days in the month
-        first = datetime(year, month, 1).date()
-        if month == 12:
-            next_month = datetime(year + 1, 1, 1).date()
-        else:
-            next_month = datetime(year, month + 1, 1).date()
-        days = []
-        d = first
-        while d < next_month:
-            days.append(_compute_day_avg(d))
-            d += timedelta(days=1)
-        cache.set(month_key, days, timeout=60 * 60 * 6)  # 6 hours
-        return days
-
-    if group_by == 'month':
-        try:
-            months = int(request.GET.get('months', 3))
-            months = max(1, min(months, 12))
-        except Exception:
-            months = 3
-        # series-level cache
-        cache_key = f"tb:series:month:{months}"
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'month' })
-        # compute last N calendar months
-        today = datetime.now().date().replace(day=1)
-        series = []
-        for i in range(months - 1, -1, -1):
-            # target month start
-            month_index = (today.year * 12 + (today.month - 1)) - i
-            year = month_index // 12
-            month = (month_index % 12) + 1
-            label = f"{year:04d}-{month:02d}"
-            # Prefer DB for day-wise series
-            try:
-                month_days_db = TimeBoxDailyAvgDelay.objects.filter(
-                    date__gte=datetime(year, month, 1).date(),
-                    date__lt=(datetime(year, month, 1) + timedelta(days=32)).replace(day=1).date()
-                ).order_by('date')
-                if month_days_db.exists():
-                    mins = [int(row.avg_delay_minutes or 0) for row in month_days_db]
-                else:
-                    # Fallback to compute+cache
-                    days = _compute_month_day_series(year, month)
-                    mins = [p['avg_delay_minutes'] for p in days if p]
-            except Exception:
-                days = _compute_month_day_series(year, month)
-                mins = [p['avg_delay_minutes'] for p in days if p]
-            avg_m = (sum(mins) // len(mins)) if mins else 0
-            series.append({ 'date': label, 'label': label, 'avg_delay': f"{(avg_m//60):02d}:{(avg_m%60):02d}", 'avg_delay_minutes': avg_m })
-        cache.set(cache_key, series, timeout=60 * 60 * 6)
-        return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'month' })
-
-    # group_by day
-    # If a specific month is requested, return that month's day-wise series
-    if month_param:
-        try:
-            year, month = map(int, month_param.split('-'))
-            # Prefer DB day rows for the month
-            try:
-                month_days_db = TimeBoxDailyAvgDelay.objects.filter(
-                    date__gte=datetime(year, month, 1).date(),
-                    date__lt=(datetime(year, month, 1) + timedelta(days=32)).replace(day=1).date()
-                ).order_by('date')
-                if month_days_db.exists():
-                    days = [
-                        _serialize_day_obj(row.date, int(row.avg_delay_minutes or 0))
-                        for row in month_days_db
-                    ]
-                else:
-                    days = _compute_month_day_series(year, month)
-            except Exception:
-                days = _compute_month_day_series(year, month)
-            return JsonResponse({ 'series': days, 'unit': 'minutes', 'group_by': 'day', 'month': month_param })
-        except Exception:
-            pass
-    try:
-        days_count = int(request.GET.get('days', 7))
-        days_count = max(1, min(days_count, 31))
-    except Exception:
-        days_count = 7
-    cache_key = f"tb:series:day:{days_count}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'day' })
-    # Prefer DB for last N days
-    try:
-        today = datetime.now().date()
-        start = today - timedelta(days=days_count - 1)
-        db_rows = TimeBoxDailyAvgDelay.objects.filter(date__gte=start, date__lte=today).order_by('date')
-        if db_rows.exists() and db_rows.count() == days_count:
-            series = [
-                _serialize_day_obj(row.date, int(row.avg_delay_minutes or 0))
-                for row in db_rows
-            ]
-            cache.set(cache_key, series, timeout=60 * 30)
-            return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day' })
-    except Exception:
-        pass
-    # Fallback: compute+cache
-    series = []
-    today = datetime.now().date()
-    for i in range(days_count - 1, -1, -1):
-        d = today - timedelta(days=i)
-        series.append(_compute_day_avg(d))
-    cache.set(cache_key, series, timeout=60 * 30)  # 30 minutes
-    return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day' })
-
-
-@login_required
-@require_http_methods(["GET"])
-def timebox_avg_delay_series_v2(request):
-    """
-    ⚡ OPTIMIZED trend graph API - uses pre-computed delay data from CalculatedTrip
-    
-    🚀 Performance improvement: Uses fast SQL aggregation instead of real-time GPS processing
-    Response time: 50-200ms (vs 30-60s for original) = 100-300x faster!
-    
-    Query params: Same as original (group_by, days, months, month)
-    Response: Same format as original for frontend compatibility  
-    """
-    from mis.models import CalculatedTrip
-    from django.db.models import Avg, Count, Q, F
-    from django.core.cache import cache
-    from datetime import datetime, timedelta
-    import logging
-
-    logger = logging.getLogger(__name__)
-    group_by = request.GET.get('group_by', 'day').lower()
-    month_param = request.GET.get('month')
-
-    def _serialize_day_obj(date_obj, avg_minutes: int, trip_count: int = 0) -> dict:
-        return {
-            'date': date_obj.strftime('%Y-%m-%d'),
-            'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-            'avg_delay_minutes': avg_minutes,
-            'trip_count': trip_count,
-            'data_source': 'calculated_trip_v2'
-        }
-
-    def _compute_day_avg_optimized(date_obj) -> dict:
-        """
-        🔥 FAST path: Use pre-computed delay data from CalculatedTrip table
-        
-        Performance: ~5ms SQL query vs ~30+ seconds real-time GPS processing
-        """
-        cache_key = f"tb:v2:day:{date_obj.strftime('%Y-%m-%d')}"
-        
-        # Check cache first  
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-            
-        # Query pre-computed trip delays for this date
-        trips = CalculatedTrip.objects.filter(
-            log_date=date_obj,
-            total_delay_s__isnull=False  # Only trips with computed delays
-        ).aggregate(
-            avg_delay_seconds=Avg('total_delay_s'),
-            trip_count=Count('id')
-        )
-        
-        avg_delay_seconds = trips['avg_delay_seconds'] or 0
-        trip_count = trips['trip_count'] or 0
-        avg_delay_minutes = int(avg_delay_seconds // 60)
-        
-        result = _serialize_day_obj(date_obj, avg_delay_minutes, trip_count)
-        
-        # Cache for 6 hours (shorter than original since data updates frequently)
-        cache.set(cache_key, result, timeout=60 * 60 * 6)
-        return result
-
-    # Handle different grouping modes (same logic as original)
-    if group_by == 'month':
-        try:
-            months = int(request.GET.get('months', 3))
-            months = max(1, min(months, 12))
-        except Exception:
-            months = 3
-            
-        cache_key = f"tb:v2:series:month:{months}"
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'month' })
-            
-        # Compute monthly averages using optimized daily data
-        today = datetime.now().date().replace(day=1)
-        series = []
-        
-        for i in range(months - 1, -1, -1):
-            month_index = (today.year * 12 + (today.month - 1)) - i
-            year = month_index // 12
-            month = (month_index % 12) + 1
-            label = f"{year:04d}-{month:02d}"
-            
-            # Get all days in this month from CalculatedTrip
-            first_day = datetime(year, month, 1).date()
-            if month == 12:
-                last_day = datetime(year + 1, 1, 1).date()
-            else:
-                last_day = datetime(year, month + 1, 1).date()
-                
-            month_trips = CalculatedTrip.objects.filter(
-                log_date__gte=first_day,
-                log_date__lt=last_day,
-                total_delay_s__isnull=False
-            ).aggregate(
-                avg_delay_seconds=Avg('total_delay_s'),
-                trip_count=Count('id')
-            )
-            
-            avg_seconds = month_trips['avg_delay_seconds'] or 0
-            avg_minutes = int(avg_seconds // 60)
-            
-            series.append({
-                'date': label,
-                'label': label, 
-                'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-                'avg_delay_minutes': avg_minutes,
-                'trip_count': month_trips['trip_count'],
-                'data_source': 'calculated_trip_v2'
-            })
-            
-        cache.set(cache_key, series, timeout=60 * 60 * 6)
-        return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'month' })
-
-    # Daily grouping 
-    if month_param:
-        # Specific month day-wise series
-        try:
-            year, month = map(int, month_param.split('-'))
-            first_day = datetime(year, month, 1).date()
-            if month == 12:
-                last_day = datetime(year + 1, 1, 1).date()
-            else:
-                last_day = datetime(year, month + 1, 1).date()
-                
-            # Get daily averages for the entire month
-            daily_data = CalculatedTrip.objects.filter(
-                log_date__gte=first_day,
-                log_date__lt=last_day,
-                total_delay_s__isnull=False
-            ).values('log_date').annotate(
-                avg_delay_seconds=Avg('total_delay_s'),
-                trip_count=Count('id')
-            ).order_by('log_date')
-            
-            series = []
-            for day_data in daily_data:
-                avg_seconds = day_data['avg_delay_seconds'] or 0
-                avg_minutes = int(avg_seconds // 60)
-                series.append({
-                    'date': day_data['log_date'].strftime('%Y-%m-%d'),
-                    'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-                    'avg_delay_minutes': avg_minutes,
-                    'trip_count': day_data['trip_count'],
-                    'data_source': 'calculated_trip_v2'
-                })
-                
-            return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day', 'month': month_param })
-        except Exception:
-            pass
-    
-    # Last N days series (default)
-    try:
-        days_count = int(request.GET.get('days', 7))
-        days_count = max(1, min(days_count, 31))
-    except Exception:
-        days_count = 7
-        
-    cache_key = f"tb:v2:series:day:{days_count}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'day' })
-        
-    # Get daily averages for last N days
-    today = datetime.now().date()
-    start_date = today - timedelta(days=days_count - 1)
-    
-    daily_data = CalculatedTrip.objects.filter(
-        log_date__gte=start_date,
-        log_date__lte=today,
-        total_delay_s__isnull=False
-    ).values('log_date').annotate(
-        avg_delay_seconds=Avg('total_delay_s'),
-        trip_count=Count('id')
-    ).order_by('log_date')
-    
-    # Convert to series format
-    series = []
-    for day_data in daily_data:
-        avg_seconds = day_data['avg_delay_seconds'] or 0
-        avg_minutes = int(avg_seconds // 60)
-        series.append({
-            'date': day_data['log_date'].strftime('%Y-%m-%d'),
-            'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-            'avg_delay_minutes': avg_minutes,
-            'trip_count': day_data['trip_count'],
-            'data_source': 'calculated_trip_v2'
-        })
-    
-    cache.set(cache_key, series, timeout=60 * 30)
-    return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day' })
-
-
-@login_required
-@require_http_methods(["GET"])  
-def timebox_phase_breakdown_api(request):
-    """
-    🆕 NEW API: Phase-wise delay breakdown for detailed trend analysis
-    
-    Returns delay breakdown by phase (loading, unloading, charging, etc.)
-    Enables drill-down analysis of which operations cause most delays
-    """
-    from mis.models import CalculatedTrip
-    from django.db.models import Avg, Sum, Count, F
-    
-    days = int(request.GET.get('days', 7))
-    days = max(1, min(days, 31))
-    
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=days - 1)
-    
-    # Get phase-wise delay averages
-    phase_breakdown = CalculatedTrip.objects.filter(
-        log_date__gte=start_date,
-        log_date__lte=end_date,
-        total_delay_s__isnull=False
-    ).aggregate(
-        avg_manawar_loading_delay_min=Avg(F('manawar_loading_delay_s') / 60),
-        avg_dhule_unloading_delay_min=Avg(F('dhule_unloading_delay_s') / 60), 
-        avg_manawar_charging_delay_min=Avg(F('manawar_charging_delay_s') / 60),
-        avg_dhule_charging_delay_min=Avg(F('dhule_charging_delay_s') / 60),
-        avg_jhulwania_charging_delay_min=Avg(F('jhulwania_charging_delay_s') / 60),
-        avg_maha_border_delay_min=Avg(F('maha_border_delay_s') / 60),
-        avg_ultratech_delay_min=Avg(F('ultratech_delay_s') / 60),
-        avg_driver_delay_min=Avg(F('driver_delay_s') / 60),
-        total_trips=Count('id')
-    )
-    
-    # Format response
-    breakdown = {
-        'manawar_loading': {
-            'name': 'Manawar Loading',
-            'avg_delay_minutes': int(phase_breakdown['avg_manawar_loading_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'dhule_unloading': {
-            'name': 'Dhule Unloading', 
-            'avg_delay_minutes': int(phase_breakdown['avg_dhule_unloading_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'manawar_charging': {
-            'name': 'Manawar Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_manawar_charging_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'dhule_charging': {
-            'name': 'Dhule Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_dhule_charging_delay_min'] or 0), 
-            'category': 'ultratech'
-        },
-        'jhulwania_charging': {
-            'name': 'Jhulwania Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_jhulwania_charging_delay_min'] or 0),
-            'category': 'driver'
-        },
-        'maha_border': {
-            'name': 'MH Border Crossing',
-            'avg_delay_minutes': int(phase_breakdown['avg_maha_border_delay_min'] or 0),
-            'category': 'driver'
-        }
-    }
-    
-    return JsonResponse({
-        'breakdown': breakdown,
-        'summary': {
-            'ultratech_avg_delay_minutes': int(phase_breakdown['avg_ultratech_delay_min'] or 0),
-            'driver_avg_delay_minutes': int(phase_breakdown['avg_driver_delay_min'] or 0),
-            'total_trips': phase_breakdown['total_trips'],
-            'period_days': days,
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d')
-        }
-    })
-
-
-@login_required
-@require_http_methods(["GET"])
 def event_page_view(request):
     """
     Event page view - displays webhook events fetched from the event page API.
@@ -3186,6 +1510,42 @@ def twins_api_proxy(request):
         )
 
 
+def _telemetry_fallback_24hr(registration_number, vendor, spv):
+    """
+    Fallback for twins_24hr_route_proxy when TWINS fetch_points has no data.
+    Uses DataSourceManager.fetch_historical_data (Telemetry API) for today's date.
+    Returns a JsonResponse in the same {points: [...]} format.
+    """
+    try:
+        from livetracker.data_sources import DataSourceManager
+        import pytz as _pytz_fb
+        _ist_fb = _pytz_fb.timezone('Asia/Kolkata')
+        today_str = datetime.now(_ist_fb).strftime('%Y-%m-%d')
+
+        logger.info(f"🔄 Telemetry fallback for {registration_number} ({vendor}/{spv}) on {today_str}")
+
+        result = DataSourceManager.fetch_historical_data(
+            registration_number=registration_number,
+            start_date=today_str,
+            end_date=today_str,
+            spv=spv,
+            vendor=vendor,
+        )
+
+        points = result.get('points', []) if isinstance(result, dict) else []
+
+        if not points:
+            logger.warning(f"⚠️ Telemetry fallback also returned no data for {registration_number}")
+            return JsonResponse({'points': [], 'registration_number': registration_number}, status=200)
+
+        logger.info(f"✅ Telemetry fallback: {len(points)} points for {registration_number}")
+        return JsonResponse({'points': points, 'registration_number': registration_number}, status=200)
+
+    except Exception as exc:
+        logger.error(f"❌ Telemetry fallback error for {registration_number}: {exc}")
+        return JsonResponse({'points': [], 'registration_number': registration_number}, status=200)
+
+
 @login_required
 @require_http_methods(["GET"])
 def twins_24hr_route_proxy(request):
@@ -3220,10 +1580,24 @@ def twins_24hr_route_proxy(request):
             )
         
         _vendor, _spv = _resolve_twins_project(request.GET.get('spv', ''))
-        # Build URL for 24hr full route data with vendor and spv filters
-        api_url = f"{twins_url}fetch_points?spv={_spv}&vendor={_vendor}&page_size=5000&registration_number={registration_number}"
-        
-        logger.info(f"🔄 Proxying TWINS 24hr route request: registration_number={registration_number}")
+
+        # Time window: today midnight IST → now IST so route and chart share the same calendar day
+        import pytz as _pytz_24hr
+        _ist_24hr = _pytz_24hr.timezone('Asia/Kolkata')
+        _now_ist = datetime.now(_ist_24hr)
+        _start_ist = _now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        _start_str = _start_ist.strftime('%Y-%m-%dT%H:%M:%S')
+        _end_str = _now_ist.strftime('%Y-%m-%dT%H:%M:%S')
+
+        # fetch_geo returns GPS track points (lat/lon/speed/heading) for a vehicle over a time range.
+        # fetch_points only has BMS/telemetry data (SOC, odometer) and has no GPS coordinates.
+        api_url = (
+            f"{twins_url}fetch_geo?spv={_spv}&vendor={_vendor}"
+            f"&page_size=5000&registration_number={registration_number}"
+            f"&start_time={_start_str}&end_time={_end_str}"
+        )
+
+        logger.info(f"🔄 Proxying TWINS 24hr route request: registration_number={registration_number}, vendor={_vendor}, spv={_spv}")
         
         # Make request to TWINS API with token
         # Use stream=True to handle large responses better and avoid timeout during download
@@ -3236,14 +1610,15 @@ def twins_24hr_route_proxy(request):
             stream=True
         )
         
-        # Handle 404 errors gracefully - vehicle may not have 24hr data available
+        # Handle non-success statuses gracefully (project may not be available in TWINS)
+        if response.status_code in (400, 403):
+            logger.warning(f"⚠️ TWINS returned {response.status_code} for vendor={_vendor} spv={_spv} reg={registration_number} — trying Telemetry API fallback")
+            return _telemetry_fallback_24hr(registration_number, _vendor, _spv)
+
+        # Handle 404 errors gracefully — vehicle not in TWINS, try Telemetry fallback
         if response.status_code == 404:
-            logger.warning(f"⚠️ Vehicle {registration_number} not found in TWINS 24hr data - may not have historical data available")
-            return JsonResponse({
-                'error': f'No 24-hour playback data available for vehicle {registration_number}. This vehicle may not have location tracking enabled or sufficient data.',
-                'points': [],
-                'registration_number': registration_number
-            }, status=200)  # Return 200 with empty points instead of 404
+            logger.warning(f"⚠️ Vehicle {registration_number} not found in TWINS 24hr data — trying Telemetry API fallback")
+            return _telemetry_fallback_24hr(registration_number, _vendor, _spv)
         
         response.raise_for_status()
         
@@ -3268,8 +1643,8 @@ def twins_24hr_route_proxy(request):
             vehicle_points = []
         
         if not vehicle_points:
-            logger.warning(f"⚠️ No points returned from TWINS API for {registration_number}")
-            return JsonResponse({'points': [], 'registration_number': registration_number}, safe=True)
+            logger.warning(f"⚠️ No points returned from TWINS fetch_points for {registration_number} ({_vendor}/{_spv}) — trying Telemetry API fallback")
+            return _telemetry_fallback_24hr(registration_number, _vendor, _spv)
         
         point_count = len(vehicle_points)
         logger.info(f"✅ TWINS 24hr route response: {point_count} points for {registration_number}")
@@ -3288,6 +1663,13 @@ def twins_24hr_route_proxy(request):
                 return datetime.fromtimestamp(raw, tz=_ist).strftime('%Y-%m-%dT%H:%M:%S')
             return raw  # already ISO string or None
 
+        def _point_soc(p):
+            if p.get('vendor') == 'eka' or 'a_battery_pack_soc' in p:
+                vals = [float(p[f]) for f in ('a_battery_pack_soc', 'b_battery_pack_soc', 'c_battery_pack_soc') if p.get(f) is not None]
+                return round(sum(vals) / len(vals)) if vals else None
+            raw = p.get('soc') if p.get('soc') is not None else p.get('battery_soc')
+            return int(float(raw)) if raw is not None else None
+
         mapped_points = []
         for point in vehicle_points:
             _gps_time = _normalize_gps_time(point.get('gps_time'))
@@ -3300,11 +1682,11 @@ def twins_24hr_route_proxy(request):
                 'gps_time': _gps_time,
                 'event_datetime': point.get('event_datetime'),
                 'last_connected': _last_connected,
-                'heading': float(point.get('head', 0)) if point.get('head') else None,  # TWINS uses 'head' for heading
+                'heading': float(point.get('head', 0)) if point.get('head') else None,
                 'gps_heading': float(point.get('head', 0)) if point.get('head') else None,
                 'speed': float(point.get('speed', 0)) if point.get('speed') is not None else 0,
                 'gps_speed': float(point.get('speed', 0)) if point.get('speed') is not None else 0,
-                'soc': (int(float(point['soc'])) if point.get('soc') is not None else (int(float(point['battery_soc'])) if point.get('battery_soc') is not None else None)),
+                'soc': _point_soc(point),
                 'odometer': float(point.get('vcu_odometer') or point.get('odometer') or 0) or None,
                 'altitude': float(point.get('altitude', 0)) if point.get('altitude') else None,
                 'satellites': point.get('satellites'),
@@ -3345,281 +1727,126 @@ def twins_24hr_route_proxy(request):
 
 @login_required
 @require_http_methods(["GET"])
-def timebox_avg_delay_series_v2(request):
+def twins_temp_soc_proxy(request):
     """
-    OPTIMIZED trend graph API - uses pre-computed delay data from CalculatedTrip
-    
-    🚀 Performance improvement: Uses fast SQL aggregation instead of real-time GPS processing
-    
-    Query params: Same as original (group_by, days, months, month)
-    Response: Same format as original for frontend compatibility  
+    Proxy for TWINS fetch_temp_soc endpoint.
+    Single-page per call; frontend drives pagination via cursor param.
+
+    URL:    /livetracker/api/twins/temp-soc/
+    Params: registration_number (required), spv, start_time, end_time, page_size, cursor
+    Returns: { points, has_more, next_cursor, registration_number }
     """
-    from mis.models import CalculatedTrip
-    from django.db.models import Avg, Count, Q, F
-    
-    group_by = request.GET.get('group_by', 'day').lower()
-    month_param = request.GET.get('month')
+    import pytz as _pytz
+    _ist = _pytz.timezone('Asia/Kolkata')
 
-    def _serialize_day_obj(date_obj, avg_minutes: int) -> dict:
-        return {
-            'date': date_obj.strftime('%Y-%m-%d'),
-            'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-            'avg_delay_minutes': avg_minutes,
-        }
+    registration_number = request.GET.get('registration_number', '').strip()
+    if not registration_number:
+        return JsonResponse({'error': 'registration_number required'}, status=400)
 
-    def _compute_day_avg_optimized(date_obj) -> dict:
-        """
-        FAST path: Use pre-computed delay data from CalculatedTrip table
-        
-        Performance: ~5ms SQL query vs ~30+ seconds real-time GPS processing
-        """
-        cache_key = f"tb:v2:day:{date_obj.strftime('%Y-%m-%d')}"
-        
-        # Check cache first  
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-            
-        # Query pre-computed trip delays for this date
-        trips = CalculatedTrip.objects.filter(
-            log_date=date_obj,
-            total_delay_s__isnull=False  # Only trips with computed delays
-        ).aggregate(
-            avg_delay_seconds=Avg('total_delay_s'),
-            trip_count=Count('id')
-        )
-        
-        avg_delay_seconds = trips['avg_delay_seconds'] or 0
-        trip_count = trips['trip_count'] or 0
-        avg_delay_minutes = int(avg_delay_seconds // 60)
-        
-        result = _serialize_day_obj(date_obj, avg_delay_minutes)
-        
-        # Add metadata for debugging 
-        result['trip_count'] = trip_count
-        result['data_source'] = 'calculated_trip_v2'
-        
-        # Cache for 6 hours (shorter than original since data updates frequently)
-        cache.set(cache_key, result, timeout=60 * 60 * 6)
-        return result
+    twins_url   = getattr(settings, 'TWINS_API_URL', '')
+    twins_token = getattr(settings, 'TWINS_API_TOKEN', '')
+    if not twins_url or not twins_token:
+        return JsonResponse({'error': 'TWINS API not configured'}, status=500)
 
-    # Handle different grouping modes (same logic as original)
-    if group_by == 'month':
+    _vendor, _spv = _resolve_twins_project(request.GET.get('spv', ''))
+    start_time = request.GET.get('start_time', '')
+    end_time   = request.GET.get('end_time', '')
+    page_size  = int(request.GET.get('page_size', 1000))
+    cursor     = request.GET.get('cursor', '')
+
+    def _norm(raw):
+        if raw is None:
+            return None
         try:
-            months = int(request.GET.get('months', 3))
-            months = max(1, min(months, 12))
-        except Exception:
-            months = 3
-            
-        cache_key = f"tb:v2:series:month:{months}"
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'month' })
-            
-        # Compute monthly averages using optimized daily data
-        today = datetime.now().date().replace(day=1)
-        series = []
-        
-        for i in range(months - 1, -1, -1):
-            month_index = (today.year * 12 + (today.month - 1)) - i
-            year = month_index // 12
-            month = (month_index % 12) + 1
-            label = f"{year:04d}-{month:02d}"
-            
-            # Get all days in this month from CalculatedTrip
-            first_day = datetime(year, month, 1).date()
-            if month == 12:
-                last_day = datetime(year + 1, 1, 1).date()
-            else:
-                last_day = datetime(year, month + 1, 1).date()
-                
-            month_trips = CalculatedTrip.objects.filter(
-                log_date__gte=first_day,
-                log_date__lt=last_day,
-                total_delay_s__isnull=False
-            ).aggregate(
-                avg_delay_seconds=Avg('total_delay_s'),
-                trip_count=Count('id')
-            )
-            
-            avg_seconds = month_trips['avg_delay_seconds'] or 0
-            avg_minutes = int(avg_seconds // 60)
-            
-            series.append({
-                'date': label,
-                'label': label, 
-                'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-                'avg_delay_minutes': avg_minutes,
-                'trip_count': month_trips['trip_count'],
-                'data_source': 'calculated_trip_v2'
-            })
-            
-        cache.set(cache_key, series, timeout=60 * 60 * 6)
-        return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'month' })
+            ts = int(raw)
+            # fetch_temp_soc always uses epoch seconds (confirmed empirically)
+            dt = datetime.fromtimestamp(ts, tz=_ist)
+            return dt.strftime('%Y-%m-%dT%H:%M:%S')
+        except (ValueError, TypeError):
+            return str(raw)
 
-    # Daily grouping 
-    if month_param:
-        # Specific month day-wise series
-        try:
-            year, month = map(int, month_param.split('-'))
-            first_day = datetime(year, month, 1).date()
-            if month == 12:
-                last_day = datetime(year + 1, 1, 1).date()
-            else:
-                last_day = datetime(year, month + 1, 1).date()
-                
-            # Get daily averages for the entire month
-            daily_data = CalculatedTrip.objects.filter(
-                log_date__gte=first_day,
-                log_date__lt=last_day,
-                total_delay_s__isnull=False
-            ).values('log_date').annotate(
-                avg_delay_seconds=Avg('total_delay_s'),
-                trip_count=Count('id')
-            ).order_by('log_date')
-            
-            series = []
-            for day_data in daily_data:
-                avg_seconds = day_data['avg_delay_seconds'] or 0
-                avg_minutes = int(avg_seconds // 60)
-                series.append({
-                    'date': day_data['log_date'].strftime('%Y-%m-%d'),
-                    'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-                    'avg_delay_minutes': avg_minutes,
-                    'trip_count': day_data['trip_count'],
-                    'data_source': 'calculated_trip_v2'
-                })
-                
-            return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day', 'month': month_param })
-        except Exception:
-            pass
-    
-    # Last N days series (default)
+    params = {
+        'vendor': _vendor, 'spv': _spv,
+        'registration_number': registration_number,
+        'page_size': page_size,
+    }
+    if start_time:  params['start_time'] = start_time
+    if end_time:    params['end_time']   = end_time
+    if cursor:      params['cursor']     = cursor
+
     try:
-        days_count = int(request.GET.get('days', 7))
-        days_count = max(1, min(days_count, 31))
-    except Exception:
-        days_count = 7
-        
-    cache_key = f"tb:v2:series:day:{days_count}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return JsonResponse({ 'series': cached, 'unit': 'minutes', 'group_by': 'day' })
-        
-    # Get daily averages for last N days
-    today = datetime.now().date()
-    start_date = today - timedelta(days=days_count - 1)
-    
-    daily_data = CalculatedTrip.objects.filter(
-        log_date__gte=start_date,
-        log_date__lte=today,
-        total_delay_s__isnull=False
-    ).values('log_date').annotate(
-        avg_delay_seconds=Avg('total_delay_s'),
-        trip_count=Count('id')
-    ).order_by('log_date')
-    
-    # Convert to series format
-    series = []
-    for day_data in daily_data:
-        avg_seconds = day_data['avg_delay_seconds'] or 0
-        avg_minutes = int(avg_seconds // 60)
-        series.append({
-            'date': day_data['log_date'].strftime('%Y-%m-%d'),
-            'avg_delay': f"{(avg_minutes//60):02d}:{(avg_minutes%60):02d}",
-            'avg_delay_minutes': avg_minutes,
-            'trip_count': day_data['trip_count'],
-            'data_source': 'calculated_trip_v2'
+        resp = requests.get(
+            f"{twins_url}fetch_temp_soc",
+            headers={'Authorization': f'Bearer {twins_token}'},
+            params=params,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning(f"[temp_soc] fetch error: {exc}")
+        return JsonResponse({'error': str(exc)}, status=502)
+
+    if isinstance(data, list):
+        page_points = data
+        has_more    = False
+        next_cursor = None
+    else:
+        vehicles    = data.get('vehicles', {})
+        # Exact match first, then any key
+        page_points = vehicles.get(registration_number) or (next(iter(vehicles.values()), []) if vehicles else [])
+        has_more    = data.get('has_more', False)
+        next_cursor = data.get('next_cursor') or None
+
+    def _avg(*vals):
+        nums = [v for v in vals if v is not None]
+        return round(sum(nums) / len(nums), 2) if nums else None
+
+    def _max(*vals):
+        nums = [v for v in vals if v is not None]
+        return max(nums) if nums else None
+
+    points = []
+    for pt in page_points:
+        # intangles: soc, temperature_highest, voltage, current
+        # eka: a/b/c_battery_pack_soc, a/b/c_cell_temperature_highest, a/b/c_battery_pack_voltage, a/b/c_battery_pack_current
+        is_eka = pt.get('vendor') == 'eka' or 'a_battery_pack_soc' in pt
+
+        if is_eka:
+            soc   = _avg(pt.get('a_battery_pack_soc'), pt.get('b_battery_pack_soc'), pt.get('c_battery_pack_soc'))
+            soh   = _avg(pt.get('soh_a_battery'), pt.get('soh_b_battery'), pt.get('soh_c_battery'))
+            temp  = _max(pt.get('a_cell_temperature_highest'), pt.get('b_cell_temperature_highest'), pt.get('c_cell_temperature_highest'))
+            volt  = _avg(pt.get('a_battery_pack_voltage'), pt.get('b_battery_pack_voltage'), pt.get('c_battery_pack_voltage'))
+            curr  = _avg(pt.get('a_battery_pack_current'), pt.get('b_battery_pack_current'), pt.get('c_battery_pack_current'))
+        else:
+            soc   = pt.get('soc')
+            soh   = pt.get('soh')
+            temp  = pt.get('temperature_highest')
+            volt  = pt.get('voltage')
+            curr  = pt.get('current')
+
+        points.append({
+            'gps_time':            _norm(pt.get('gps_time')),
+            'soc':                 soc,
+            'soh':                 soh,
+            'battery_temperature': temp,
+            'battery_voltage':     volt,
+            'battery_current':     curr,
+            'speed':               pt.get('speed'),
+            'latitude':            pt.get('latitude'),
+            'longitude':           pt.get('longitude'),
         })
-    
-    cache.set(cache_key, series, timeout=60 * 30)
-    return JsonResponse({ 'series': series, 'unit': 'minutes', 'group_by': 'day' })
+
+    logger.info(f"[temp_soc] {registration_number}: {len(points)} pts page, has_more={has_more}")
+    return JsonResponse({
+        'points':              points,
+        'has_more':            has_more,
+        'next_cursor':         next_cursor,
+        'registration_number': registration_number,
+    })
 
 
 @login_required
-@require_http_methods(["GET"])  
-def timebox_phase_breakdown_api(request):
-    """
-    NEW API: Phase-wise delay breakdown for detailed trend analysis
-    
-    Returns delay breakdown by phase (loading, unloading, charging, etc.)
-    Enables drill-down analysis of which operations cause most delays
-    """
-    from mis.models import CalculatedTrip
-    from django.db.models import Avg, Sum, Count
-    
-    days = int(request.GET.get('days', 7))
-    days = max(1, min(days, 31))
-    
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=days - 1)
-    
-    # Get phase-wise delay averages
-    phase_breakdown = CalculatedTrip.objects.filter(
-        log_date__gte=start_date,
-        log_date__lte=end_date
-    ).aggregate(
-        avg_manawar_loading_delay_min=Avg(F('manawar_loading_delay_s') / 60),
-        avg_dhule_unloading_delay_min=Avg(F('dhule_unloading_delay_s') / 60), 
-        avg_manawar_charging_delay_min=Avg(F('manawar_charging_delay_s') / 60),
-        avg_dhule_charging_delay_min=Avg(F('dhule_charging_delay_s') / 60),
-        avg_jhulwania_charging_delay_min=Avg(F('jhulwania_charging_delay_s') / 60),
-        avg_maha_border_delay_min=Avg(F('maha_border_delay_s') / 60),
-        avg_ultratech_delay_min=Avg(F('ultratech_delay_s') / 60),
-        avg_driver_delay_min=Avg(F('driver_delay_s') / 60),
-        total_trips=Count('id')
-    )
-    
-    # Format response
-    breakdown = {
-        'manawar_loading': {
-            'name': 'Manawar Loading',
-            'avg_delay_minutes': int(phase_breakdown['avg_manawar_loading_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'dhule_unloading': {
-            'name': 'Dhule Unloading', 
-            'avg_delay_minutes': int(phase_breakdown['avg_dhule_unloading_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'manawar_charging': {
-            'name': 'Manawar Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_manawar_charging_delay_min'] or 0),
-            'category': 'ultratech'
-        },
-        'dhule_charging': {
-            'name': 'Dhule Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_dhule_charging_delay_min'] or 0), 
-            'category': 'ultratech'
-        },
-        'jhulwania_charging': {
-            'name': 'Jhulwania Charging',
-            'avg_delay_minutes': int(phase_breakdown['avg_jhulwania_charging_delay_min'] or 0),
-            'category': 'driver'
-        },
-        'maha_border': {
-            'name': 'MH Border Crossing',
-            'avg_delay_minutes': int(phase_breakdown['avg_maha_border_delay_min'] or 0),
-            'category': 'driver'
-        }
-    }
-    
-    return JsonResponse({
-        'breakdown': breakdown,
-        'summary': {
-            'ultratech_avg_delay_minutes': int(phase_breakdown['avg_ultratech_delay_min'] or 0),
-            'driver_avg_delay_minutes': int(phase_breakdown['avg_driver_delay_min'] or 0),
-            'total_trips': phase_breakdown['total_trips'],
-            'period_days': days,
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d')
-        }
-    })
-
-# ======================
-# GEOFENCE ENDPOINTS
-# ======================
-
 @login_required
 @require_http_methods(["GET", "POST"])
 def geofences_list_create(request):
@@ -3711,3 +1938,176 @@ def geofence_detail(request, pk):
         'spv': geofence.spv,
         'color': geofence.color,
     })
+
+
+# ── Fleet Trend API ───────────────────────────────────────────────────────────
+
+def _fetch_soc_discharge_all(spv, vendor, start_date, end_date, vehicle_no=None, cache_ttl=900):
+    """Fetch all pages from /analytics/soc-discharge and return flat list of records."""
+    from dashboard.services.dashboard_kpi_services import fetch_voltrack_api
+    all_records = []
+    cursor = None
+    for _ in range(30):
+        params = {'spv': spv, 'vendor': vendor, 'start_date': start_date, 'end_date': end_date}
+        if cursor:
+            params['cursor'] = cursor
+        if vehicle_no:
+            params['registration_number'] = vehicle_no
+        resp = fetch_voltrack_api('/analytics/soc-discharge', params=params, cache_ttl=cache_ttl)
+        if not resp:
+            break
+        all_records.extend(resp.get('data', []))
+        cursor = (resp.get('pagination') or {}).get('next_cursor')
+        if not cursor:
+            break
+    return all_records
+
+
+def _records_to_daily_averages(all_records, filter_vehicle=None):
+    """Group records by date and compute average distance, energy, efficiency."""
+    from collections import defaultdict
+    BATTERY_KWH = 282
+    daily = defaultdict(lambda: {'dist': [], 'energy': [], 'eff': []})
+    for rec in all_records:
+        if not isinstance(rec, dict):
+            continue
+        if filter_vehicle:
+            rec_vehicle = rec.get('registration_number', '') or ''
+            if rec_vehicle.upper() != filter_vehicle.upper():
+                continue
+        date_key = str(rec.get('dt') or rec.get('date') or rec.get('data_date') or rec.get('record_date') or '')[:10]
+        if not date_key:
+            continue
+        try:
+            dist = float(rec.get('distance_km', 0) or 0)
+            discharge = float(rec.get('total_discharge_pct', 0) or 0)
+        except (ValueError, TypeError):
+            continue
+        if dist < 10 or discharge < 10:
+            continue
+        daily[date_key]['dist'].append(dist)
+        raw_energy = rec.get('energy_consumed_kwh') or rec.get('energy_kwh')
+        energy = float(raw_energy) if raw_energy not in (None, '', 0) else (discharge / 100) * BATTERY_KWH
+        daily[date_key]['energy'].append(energy)
+        try:
+            eff = float(rec.get('efficiency_kwh_per_km', 0) or 0)
+            if eff > 0:
+                daily[date_key]['eff'].append(eff)
+        except (ValueError, TypeError):
+            pass
+    return daily
+
+
+def _build_7day_output(daily, today):
+    """Build ordered 7-day lists: labels, distances, energies, efficiencies."""
+    def avg(lst): return round(sum(lst) / len(lst), 3) if lst else None
+    labels, distances, energies, efficiencies = [], [], [], []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i + 1)
+        labels.append(d.strftime('%d %b'))
+        key = d.strftime('%Y-%m-%d')
+        dv = daily.get(key, {})
+        distances.append(avg(dv.get('dist', [])))
+        energies.append(avg(dv.get('energy', [])))
+        efficiencies.append(avg(dv.get('eff', [])))
+    return labels, distances, energies, efficiencies
+
+
+@login_required
+def fleet_trend_api(request):
+    """
+    Returns 7-day daily averages: distance, energy, efficiency.
+    ?vehicle_no=REG — vehicle-specific trend (live API, short cache)
+    No param — fleet-wide average, served from DB if precomputed by scheduler
+    """
+    from dashboard.vendor_spv_list import VENDOR_SPV_LIST
+
+    # Accept ?spv= from the URL (baked in by the template at render time) so that
+    # project-switching works without relying on session/redirect ordering.
+    # Fall back to session if not provided. Validate against known SPVs to prevent
+    # cross-project data leakage.
+    requested_spv = request.GET.get('spv', '').strip().upper()
+    session_spv = request.session.get('selected_project', 'ULTRATECH')
+    spv = requested_spv if requested_spv in VENDOR_SPV_LIST else session_spv
+
+    vendors = VENDOR_SPV_LIST.get(spv, [])
+    if not vendors:
+        return JsonResponse({'error': 'No vendor for project'}, status=400)
+    vendor = vendors[0]
+    vehicle_no = request.GET.get('vehicle_no', '').strip().upper()
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
+    end_date = (today - timedelta(days=1)).strftime('%Y-%m-%d')
+
+    def _db_rows_to_output(db_rows):
+        from collections import defaultdict
+        d = defaultdict(lambda: {'dist': [], 'energy': [], 'eff': []})
+        for date_str, row in db_rows.items():
+            if row.avg_distance_km is not None:
+                d[date_str]['dist'] = [row.avg_distance_km]
+            if row.avg_energy_kwh is not None:
+                d[date_str]['energy'] = [row.avg_energy_kwh]
+            if row.avg_efficiency_kwh_per_km is not None:
+                d[date_str]['eff'] = [row.avg_efficiency_kwh_per_km]
+        return _build_7day_output(d, today)
+
+    if vehicle_no:
+        # Vehicle-specific: DB fast path first (populated by nightly scheduler)
+        db_rows = {
+            str(row.date): row
+            for row in FleetTrendDaily.objects.filter(
+                spv=spv, vehicle_no=vehicle_no,
+                date__gte=start_date, date__lte=end_date
+            )
+        }
+        if len(db_rows) >= 3:
+            labels, distances, energies, efficiencies = _db_rows_to_output(db_rows)
+            return JsonResponse({'dates': labels, 'distance': distances, 'energy': energies, 'efficiency': efficiencies, 'vehicle_no': vehicle_no, 'source': 'db'})
+
+        # Fall back: Django short-cache then live API
+        cache_key = f'fleet_trend_v:{spv}:{vehicle_no}'
+        cached = cache.get(cache_key)
+        if cached:
+            return JsonResponse(cached)
+        all_records = _fetch_soc_discharge_all(spv, vendor, start_date, end_date, cache_ttl=300)
+        daily = _records_to_daily_averages(all_records, filter_vehicle=vehicle_no)
+        labels, distances, energies, efficiencies = _build_7day_output(daily, today)
+        result = {'dates': labels, 'distance': distances, 'energy': energies, 'efficiency': efficiencies, 'vehicle_no': vehicle_no}
+        cache.set(cache_key, result, 1800)
+        return JsonResponse(result)
+
+    # Fleet average — DB fast path (vehicle_no IS NULL)
+    db_rows = {
+        str(row.date): row
+        for row in FleetTrendDaily.objects.filter(
+            spv=spv, vehicle_no__isnull=True,
+            date__gte=start_date, date__lte=end_date
+        )
+    }
+    if len(db_rows) >= 5:
+        labels, distances, energies, efficiencies = _db_rows_to_output(db_rows)
+        return JsonResponse({'dates': labels, 'distance': distances, 'energy': energies, 'efficiency': efficiencies, 'source': 'db'})
+
+    # Fall back to live API and save any missing days to DB
+    all_records = _fetch_soc_discharge_all(spv, vendor, start_date, end_date, cache_ttl=900)
+    daily = _records_to_daily_averages(all_records)
+    labels, distances, energies, efficiencies = _build_7day_output(daily, today)
+
+    # Backfill DB for missing days (fleet average, vehicle_no=None)
+    def _avg(lst): return round(sum(lst) / len(lst), 4) if lst else None
+    for date_str, vals in daily.items():
+        if date_str not in db_rows:
+            try:
+                FleetTrendDaily.objects.update_or_create(
+                    date=date_str, spv=spv, vehicle_no=None,
+                    defaults={
+                        'avg_distance_km': _avg(vals['dist']),
+                        'avg_energy_kwh': _avg(vals['energy']),
+                        'avg_efficiency_kwh_per_km': _avg(vals['eff']),
+                        'vehicle_count': len(vals['dist']),
+                    }
+                )
+            except Exception:
+                pass
+
+    return JsonResponse({'dates': labels, 'distance': distances, 'energy': energies, 'efficiency': efficiencies, 'source': 'live'})

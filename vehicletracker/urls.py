@@ -7,7 +7,6 @@ project_prefixed_urlpatterns = [
     path("", include("dashboard.urls")),
     path("livetracker/", include("livetracker.urls")),
     path("roster/", include("roster.urls")),
-    path("mis/", include("mis.urls")),
     path("livenotif/", include("livenotif.urls")),
 ]
 
@@ -17,7 +16,6 @@ urlpatterns = [
     path("accounts/", include(("dashboard.urls", "accounts"), namespace="accounts")),
     path("livetracker/", include("livetracker.urls")),
     path("roster/", include("roster.urls")),
-    path("mis/", include("mis.urls")),
     path("livenotif/", include("livenotif.urls")),
     path("<slug:project>/", include((project_prefixed_urlpatterns, "project_prefixed"))),
 ]

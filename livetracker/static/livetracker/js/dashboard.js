@@ -69,29 +69,9 @@ import { getDisplayVehicleNumber } from './vehicle_mapping.js';
     }
 
     function displayAlert(alert) {
-        if (typeof toastr === "undefined") {
-            console.warn("Toastr unavailable:", alert.text);
-            return;
+        if (typeof window.pushAlertToSidebar === 'function') {
+            window.pushAlertToSidebar(alert);
         }
-        
-        // Map trolley to truck number for display
-        const displayVehicleNo = getDisplayVehicleNumber(alert.vehicle_no);
-
-        const title = formatAlertTitle(alert.alert_type, displayVehicleNo);
-        let message = alert.text || "No details available";
-
-        if (alert.soc !== undefined && alert.soc !== null) {
-            message += `\nSOC: ${alert.soc}%`;
-        }
-        if (alert.geofence_name) {
-            message += `\nLocation: ${alert.geofence_name}`;
-        }
-
-        const method = getToastrMethod(alert.alert_type);
-        const timeout = method === "error" ? 20000 : 15000;
-
-        toastr[method](message, title, { timeOut: timeout });
-        // console.log(`Alert displayed: [${alert.alert_type}] ${displayVehicleNo}`);
     }
 
     async function fetchAlerts() {

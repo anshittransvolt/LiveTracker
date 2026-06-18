@@ -4,7 +4,7 @@
 {% block title %}LiveTracker — All Vehicles{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<link rel="stylesheet" href="{% static 'livetracker/css/leaflet.draw.css' %}">
 {% endblock %}
 
 {% block topbar_project_switcher %}
@@ -23,7 +23,7 @@
     <span id="lv-project-label">Ultratech</span>
     <svg class="lv-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
   </button>
-  <div id="lv-project-menu" class="lv-project-menu hidden absolute left-0 mt-1 w-44 z-[100004]">
+  <div id="lv-project-menu" class="lv-project-menu hidden absolute left-1/2 -translate-x-1/2 mt-1 w-44 z-[100004]">
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="ULTRATECH" data-label="Ultratech" onclick="window.selectProject(this)">Ultratech</button>
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="UMT" data-label="UMT" onclick="window.selectProject(this)">UMT</button>
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="VECV" data-label="VECV" onclick="window.selectProject(this)">VECV</button>
@@ -47,6 +47,13 @@
   <i data-lucide="pentagon" class="w-3.5 h-3.5 text-emerald-500"></i>
   <span class="text-[11px] font-semibold hidden sm:inline">Geofences</span>
 </button>
+<button id="markerStyleToggle"
+  onclick="window.toggleMarkerStyle()"
+  class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150"
+  title="Switch marker: Truck / Arrow">
+  <i data-lucide="truck" class="w-3.5 h-3.5 text-sky-400"></i>
+  <span id="markerStyleLabel" class="text-[11px] font-semibold hidden sm:inline">Truck</span>
+</button>
 {% endblock %}
 
 {% block topbar_map_style_toggle %}
@@ -60,45 +67,32 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="{% static 'livetracker/js/leaflet.draw.js' %}"></script>
 <script>
-// ── Geofence Manager (runs after Leaflet.Draw and map.js are ready) ──────────
+// ── Geofence Manager (Leaflet.Draw) + GPS Coordinate Click ───────────────────
 (function () {
   const GEOFENCES_API = '/livetracker/api/geofences/';
 
-  function waitForMap(cb) {
-    if (window.map) { cb(); return; }
-    const t = setInterval(() => { if (window.map) { clearInterval(t); cb(); } }, 200);
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
   }
 
-  waitForMap(initGeofenceManager);
+  function waitForMap(cb) {
+    const isReady = () => window.map && typeof window.map.addLayer === 'function';
+    if (isReady()) { cb(); return; }
+    const t = setInterval(() => { if (isReady()) { clearInterval(t); cb(); } }, 200);
+  }
 
-  function initGeofenceManager() {
+  waitForMap(function () {
+    try {
     const lmap = window.map;
     let drawnLayers = {};
     let pendingLayer = null;
+    let isDrawing = false;
     const currentSPV = () => document.getElementById('projectSwitcher')?.value || '';
 
-    const drawnItems = new L.FeatureGroup().addTo(lmap);
-    let drawHandler = null;
-
-    function startDraw(type) {
-      if (drawHandler) { try { drawHandler.disable(); } catch(e){} }
-      const opts = { shapeOptions: { color: '#ef4444', fillOpacity: 0.15 } };
-      if (type === 'polygon')        drawHandler = new L.Draw.Polygon(lmap, opts);
-      else if (type === 'rectangle') drawHandler = new L.Draw.Rectangle(lmap, opts);
-      else if (type === 'circle')    drawHandler = new L.Draw.Circle(lmap, opts);
-      if (drawHandler) drawHandler.enable();
-    }
-
-    lmap.on(L.Draw.Event.CREATED, function (e) {
-      if (pendingLayer) drawnItems.removeLayer(pendingLayer);
-      pendingLayer = e.layer;
-      drawnItems.addLayer(pendingLayer);
-      document.getElementById('geofenceSaveForm').classList.remove('hidden');
-      document.getElementById('geofenceName').focus();
-    });
-
+    // ── Panel toggle ─────────────────────────────────────────────────────────
     document.getElementById('openGeofencePanel').addEventListener('click', () => {
       document.getElementById('geofencePanel').classList.remove('hidden');
       document.getElementById('openGeofencePanel').classList.add('hidden');
@@ -109,18 +103,106 @@
       cancelDraw();
     });
 
-    document.getElementById('drawPolygon').addEventListener('click',   () => startDraw('polygon'));
-    document.getElementById('drawRectangle').addEventListener('click', () => startDraw('rectangle'));
-    document.getElementById('drawCircle').addEventListener('click',    () => startDraw('circle'));
+    // ── Leaflet.Draw setup ───────────────────────────────────────────────────
+    const drawnItems = new L.FeatureGroup();
+    lmap.addLayer(drawnItems);
 
-    document.getElementById('cancelGeofenceBtn').addEventListener('click', cancelDraw);
+    const shapeStyle = { color: '#ef4444', fillOpacity: 0.15, weight: 2 };
+
+    const polyHandler = new L.Draw.Polygon(lmap,   { shapeOptions: shapeStyle, allowIntersection: false });
+    const rectHandler = new L.Draw.Rectangle(lmap, { shapeOptions: shapeStyle });
+    const circHandler = new L.Draw.Circle(lmap,    { shapeOptions: shapeStyle });
+
+    function disableAll() {
+      [polyHandler, rectHandler, circHandler].forEach(h => { try { h.disable(); } catch(e) {} });
+    }
+
     function cancelDraw() {
-      if (drawHandler) { try { drawHandler.disable(); } catch(e){} drawHandler = null; }
+      isDrawing = false;
+      disableAll();
       if (pendingLayer) { drawnItems.removeLayer(pendingLayer); pendingLayer = null; }
       document.getElementById('geofenceSaveForm').classList.add('hidden');
       document.getElementById('geofenceName').value = '';
     }
 
+    lmap.on(L.Draw.Event.CREATED, function (e) {
+      isDrawing = false;
+      if (pendingLayer) drawnItems.removeLayer(pendingLayer);
+      pendingLayer = e.layer;
+      drawnItems.addLayer(pendingLayer);
+      document.getElementById('geofenceSaveForm').classList.remove('hidden');
+      document.getElementById('geofenceName').focus();
+    });
+
+    document.getElementById('drawPolygon').addEventListener('click', () => {
+      cancelDraw(); isDrawing = true; polyHandler.enable();
+    });
+    document.getElementById('drawRectangle').addEventListener('click', () => {
+      cancelDraw(); isDrawing = true; rectHandler.enable();
+    });
+    document.getElementById('drawCircle').addEventListener('click', () => {
+      cancelDraw(); isDrawing = true; circHandler.enable();
+    });
+
+    document.getElementById('cancelGeofenceBtn').addEventListener('click', cancelDraw);
+
+    // ── Manual coordinate entry ──────────────────────────────────────────────
+    let manualType = 'circle';
+
+    document.getElementById('toggleManualEntry').addEventListener('click', () => {
+      const form = document.getElementById('manualEntryForm');
+      const chevron = document.getElementById('manualChevron');
+      const hidden = form.classList.toggle('hidden');
+      chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+      if (!hidden) cancelDraw();
+    });
+
+    document.getElementById('manualTypeCircle').addEventListener('click', function () {
+      manualType = 'circle';
+      this.className = 'flex-1 py-1.5 bg-blue-600 text-white transition-colors';
+      document.getElementById('manualTypePolygon').className = 'flex-1 py-1.5 bg-white text-slate-600 hover:bg-slate-50 transition-colors';
+      document.getElementById('manualCircleInputs').classList.remove('hidden');
+      document.getElementById('manualPolygonInputs').classList.add('hidden');
+    });
+
+    document.getElementById('manualTypePolygon').addEventListener('click', function () {
+      manualType = 'polygon';
+      this.className = 'flex-1 py-1.5 bg-blue-600 text-white transition-colors';
+      document.getElementById('manualTypeCircle').className = 'flex-1 py-1.5 bg-white text-slate-600 hover:bg-slate-50 transition-colors';
+      document.getElementById('manualPolygonInputs').classList.remove('hidden');
+      document.getElementById('manualCircleInputs').classList.add('hidden');
+    });
+
+    document.getElementById('placeManualGeofence').addEventListener('click', () => {
+      cancelDraw();
+      if (manualType === 'circle') {
+        const lat = parseFloat(document.getElementById('manualLat').value);
+        const lng = parseFloat(document.getElementById('manualLng').value);
+        const radius = parseFloat(document.getElementById('manualRadius').value) || 100;
+        if (isNaN(lat) || isNaN(lng)) { alert('Enter valid latitude and longitude.'); return; }
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { alert('Coordinates out of range.'); return; }
+        pendingLayer = L.circle([lat, lng], { radius, color: '#ef4444', fillOpacity: 0.15, weight: 2 });
+        drawnItems.addLayer(pendingLayer);
+        lmap.setView([lat, lng], Math.max(14, lmap.getZoom()));
+      } else {
+        const raw = document.getElementById('manualPolyCoords').value.trim();
+        if (!raw) { alert('Enter at least 3 coordinate pairs.'); return; }
+        const latlngs = raw.split('\n').map(line => {
+          const parts = line.split(',').map(s => parseFloat(s.trim()));
+          return parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1]) ? [parts[0], parts[1]] : null;
+        }).filter(Boolean);
+        if (latlngs.length < 3) { alert('Need at least 3 valid coordinate pairs for a polygon.'); return; }
+        pendingLayer = L.polygon(latlngs, { color: '#ef4444', fillOpacity: 0.15, weight: 2 });
+        drawnItems.addLayer(pendingLayer);
+        lmap.fitBounds(pendingLayer.getBounds(), { padding: [30, 30] });
+      }
+      document.getElementById('manualEntryForm').classList.add('hidden');
+      document.getElementById('manualChevron').style.transform = '';
+      document.getElementById('geofenceSaveForm').classList.remove('hidden');
+      document.getElementById('geofenceName').focus();
+    });
+
+    // ── Save geofence ────────────────────────────────────────────────────────
     document.getElementById('saveGeofenceBtn').addEventListener('click', async () => {
       const name = document.getElementById('geofenceName').value.trim();
       if (!name) { alert('Please enter a geofence name.'); return; }
@@ -144,6 +226,23 @@
       } catch (err) { alert('Failed to save: ' + err.message); }
     });
 
+    // ── GPS coordinate popup ─────────────────────────────────────────────────
+    const coordPopup = L.popup({ closeButton: true, className: 'tv-popup' });
+    lmap.on('click', function (e) {
+      if (isDrawing) return;
+      const lat = e.latlng.lat.toFixed(6), lng = e.latlng.lng.toFixed(6);
+      const coords = `${lat}, ${lng}`;
+      coordPopup.setLatLng(e.latlng).setContent(
+        `<div style="font-family:'JetBrains Mono',monospace;min-width:190px;padding:2px 0;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:.08em;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;">GPS Coordinates</div>
+          <div style="font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:8px;user-select:all;">${coords}</div>
+          <button onclick="navigator.clipboard.writeText('${coords}').then(()=>{this.textContent='Copied ✓';this.style.background='#16a34a';setTimeout(()=>{this.textContent='Copy';this.style.background='#1d4ed8';},1500)})"
+            style="width:100%;background:#1d4ed8;color:#fff;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">Copy</button>
+        </div>`
+      ).openOn(lmap);
+    });
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
     function layerToGeoJSON(layer) {
       if (layer instanceof L.Circle) {
         return { type: 'circle', center: { lat: layer.getLatLng().lat, lng: layer.getLatLng().lng }, radius: layer.getRadius() };
@@ -154,7 +253,7 @@
     function addGeofenceToMap(g) {
       const style = { color: g.color || '#3b82f6', fillOpacity: 0.12, weight: 2 };
       let layer;
-      if (g.geometry.type === 'circle') {
+      if (g.geometry && g.geometry.type === 'circle') {
         layer = L.circle([g.geometry.center.lat, g.geometry.center.lng], { radius: g.geometry.radius, ...style });
       } else {
         layer = L.geoJSON({ type: 'Feature', geometry: g.geometry }, { style: () => style });
@@ -187,13 +286,16 @@
     window.gfZoom = function (id) {
       const layer = drawnLayers[id];
       if (!layer) return;
-      try { layer.getBounds ? lmap.fitBounds(layer.getBounds()) : lmap.setView(layer.getLatLng(), 14); } catch(e){}
+      try { layer.getBounds ? lmap.fitBounds(layer.getBounds()) : lmap.setView(layer.getLatLng(), 14); } catch (e) {}
     };
 
     window.gfDelete = async function (id) {
       if (!confirm('Delete this geofence?')) return;
       try {
-        const resp = await fetch(`${GEOFENCES_API}${id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+        const resp = await fetch(`${GEOFENCES_API}${id}/`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
         if (!resp.ok) throw new Error('Delete failed');
         if (drawnLayers[id]) { lmap.removeLayer(drawnLayers[id]); delete drawnLayers[id]; }
         document.getElementById(`gf-item-${id}`)?.remove();
@@ -225,12 +327,8 @@
       const newSpv = document.getElementById('projectSwitcher')?.value || '';
       window.refreshHardcodedGeofences?.(newSpv);
     });
-  }
-
-  function getCookie(name) {
-    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return v ? v.pop() : '';
-  }
+    } catch(err) { console.error('[GF-INIT ERROR]', err.message, err.stack); }
+  });
 })();
 </script>
 
@@ -311,135 +409,291 @@
   });
 })();
 </script>
+
+<script>
+// ── Alert Sidebar ──────────────────────────────────────────────
+(function() {
+  let _open = false;
+  let _count = 0;
+
+  const ALERT_COLORS = {
+    error:   { bg:'rgba(239,68,68,.07)',  border:'rgba(239,68,68,.18)',  left:'#f87171', label:'#f87171', chip:'critical' },
+    warning: { bg:'rgba(245,158,11,.07)', border:'rgba(245,158,11,.18)', left:'#fbbf24', label:'#fbbf24', chip:'warning'  },
+    info:    { bg:'rgba(59,130,246,.07)', border:'rgba(59,130,246,.18)', left:'#60a5fa', label:'#60a5fa', chip:'info'     },
+  };
+  let _activeFilter = 'all';
+
+  const TYPE_LABELS = {
+    charging_overrun: 'Charging',
+    unplanned_stop_outside_geofence: 'Unplanned Stop',
+    data_feed_gap: 'Data Gap',
+    tare_weight_overrun: 'Weight',
+    gross_weight_overrun: 'Weight',
+    loading_overrun: 'Loading',
+    tarpaulin_overrun: 'Tarpaulin',
+    maha_border_dwell: 'Border Dwell',
+    unloading_overrun: 'Unloading',
+    gate_in_manawar: 'Gate In',
+    gate_out_manawar: 'Gate Out',
+    transit_sla_violation: 'Transit SLA',
+    soc_100_stuck: 'Battery',
+  };
+
+  function _toastrLevel(alertType) {
+    if (!alertType) return 'info';
+    if (alertType.includes('overrun') || alertType.includes('dwell') || alertType.includes('gap') || alertType.includes('stuck')) return 'warning';
+    if (alertType.includes('unplanned') || alertType.includes('violation')) return 'error';
+    return 'info';
+  }
+
+  function _syncSidebar() {
+    const sidebar = document.getElementById('alertSidebar');
+    const chevron = document.getElementById('alertSidebarChevron');
+    if (!sidebar) return;
+    sidebar.style.width = _open ? '246px' : '26px';
+    if (chevron) {
+      chevron.setAttribute('data-lucide', _open ? 'chevron-right' : 'chevron-left');
+      if (typeof lucide !== 'undefined') lucide.createIcons({ rootElement: chevron.parentElement.parentElement });
+    }
+    setTimeout(() => {
+      if (window.map && typeof window.map.invalidateSize === 'function') {
+        window.map.invalidateSize({ pan: true });
+      }
+    }, 240);
+  }
+
+  window.toggleAlertSidebar = function() {
+    _open = !_open;
+    _syncSidebar();
+  };
+
+  window.clearAlertSidebar = function() {
+    _count = 0;
+    _activeFilter = 'all';
+    const list = document.getElementById('alertSidebarList');
+    const tabCount = document.getElementById('alertTabCount');
+    const headerCount = document.getElementById('alertHeaderCount');
+    if (list) {
+      list.innerHTML = '<div id="alertSidebarEmpty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-muted);opacity:.4;height:100%;"><i data-lucide="bell-off" style="width:26px;height:26px;"></i><span style="font-size:11px;">No alerts yet</span></div>';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    if (tabCount) { tabCount.textContent = '0'; tabCount.style.display = 'none'; }
+    if (headerCount) { headerCount.textContent = '0'; headerCount.style.display = 'none'; }
+    // Reset chips
+    document.querySelectorAll('.alert-chip').forEach(c => c.classList.remove('alert-chip--active'));
+    const allChip = document.querySelector('.alert-chip[data-filter="all"]');
+    if (allChip) allChip.classList.add('alert-chip--active');
+  };
+
+  function _esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Filter chip logic
+  window.setAlertFilter = function(filter, btn) {
+    _activeFilter = filter;
+    document.querySelectorAll('.alert-chip').forEach(c => c.classList.remove('alert-chip--active'));
+    if (btn) btn.classList.add('alert-chip--active');
+    document.querySelectorAll('#alertSidebarList > div[data-chip]').forEach(card => {
+      card.style.display = (filter === 'all' || card.getAttribute('data-chip') === filter) ? '' : 'none';
+    });
+  };
+
+  // Accepts both simple alert objects {vehicle_no, alert_type, text, gps_location, soc, geofence_name}
+  // and full livenotif toast objects {id, title, message, severity, driver_name, created_at, latitude, longitude}
+  window.pushAlertToSidebar = function(alert, source) {
+    _count++;
+
+    const isToast = source === 'livenotif';
+    let vehicleNo, typeLabel, locationLine, driverName, socVal, geofenceName, clr, toastId, lat, lng, timeStr;
+
+    if (isToast) {
+      const raw = String(alert.title || '');
+      const vMatch = `${raw} ${alert.message||''}`.match(/\b[A-Z]{2}\d{2}[A-Z]{2}\d{4}\b/);
+      vehicleNo    = alert.vehicle_no || (vMatch ? vMatch[0] : '') || '—';
+      // Strip the plate from the title to get the type
+      typeLabel    = raw.replace(vehicleNo, '').replace(/^[\s—\-:|]+|[\s—\-:|]+$/g, '').trim() || 'Alert';
+      // Take only the first sentence/line of message to avoid walls of text
+      locationLine = String(alert.message || '').split(/[\n.]/)[0].trim();
+      driverName   = String(alert.driver_name || '').trim();
+      socVal       = null;
+      geofenceName = '';
+      const sev    = alert.severity || 'info';
+      clr          = sev === 'high' ? ALERT_COLORS.error : sev === 'medium' ? ALERT_COLORS.warning : ALERT_COLORS.info;
+      toastId      = alert.id;
+      lat = alert.latitude; lng = alert.longitude;
+      const d      = alert.created_at ? new Date(alert.created_at) : new Date();
+      timeStr      = d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+    } else {
+      vehicleNo    = alert.vehicle_no || '—';
+      const level  = _toastrLevel(alert.alert_type || '');
+      clr          = ALERT_COLORS[level] || ALERT_COLORS.info;
+      typeLabel    = TYPE_LABELS[alert.alert_type] || (alert.alert_type || 'Alert').replace(/_/g, ' ');
+      // Use structured fields instead of the raw multiline text blob
+      locationLine = String(alert.gps_location || '').trim();
+      driverName   = '';
+      socVal       = (alert.soc !== null && alert.soc !== undefined) ? Number(alert.soc) : null;
+      geofenceName = String(alert.geofence_name || '').trim();
+      toastId      = null;
+      lat = null; lng = null;
+      timeStr      = new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+    }
+
+    // Sentence-case
+    typeLabel = typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1).toLowerCase();
+
+    // Update counters
+    const tabCount    = document.getElementById('alertTabCount');
+    const headerCount = document.getElementById('alertHeaderCount');
+    if (tabCount)    { tabCount.textContent = _count;    tabCount.style.display = ''; }
+    if (headerCount) { headerCount.textContent = _count; headerCount.style.display = ''; }
+
+    const empty = document.getElementById('alertSidebarEmpty');
+    if (empty) empty.remove();
+
+    // SOC badge (for simple alerts that carry soc)
+    const socBadge = socVal !== null ? (() => {
+      const sc = socVal > 55 ? '#4ade80' : socVal >= 25 ? '#f59e0b' : '#f87171';
+      return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;color:${sc};flex-shrink:0;">
+        <i data-lucide="battery" style="width:9px;height:9px;pointer-events:none;"></i>${socVal}%</span>`;
+    })() : '';
+
+    // Action row — only for livenotif toasts that have an ID
+    const actionRow = toastId ? `<div style="display:flex;align-items:center;gap:5px;margin-top:6px;">
+      ${lat && lng ? `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener"
+          style="display:inline-flex;align-items:center;gap:2px;font-size:9px;
+                 color:var(--text-muted);text-decoration:none;
+                 border:0.5px solid var(--border);border-radius:4px;padding:2px 6px;">
+          <i data-lucide="map-pin" style="width:8px;height:8px;pointer-events:none;"></i>Map</a>` : ''}
+      <button onclick="liveToastManager&&liveToastManager.handleIgnore(${toastId})"
+        style="background:none;border:0.5px solid var(--border);border-radius:4px;cursor:pointer;
+               padding:2px 7px;color:var(--text-muted);font-size:9px;font-weight:500;">Ack</button>
+      <button onclick="liveToastManager&&liveToastManager.handleAction(${toastId})"
+        style="background:none;border:0.5px solid var(--border);border-radius:4px;cursor:pointer;
+               padding:2px 7px;color:var(--text-muted);font-size:9px;font-weight:500;">Action</button>
+    </div>` : '';
+
+    // Build card element — set styles individually to avoid cssText parsing issues
+    const card = document.createElement('div');
+    card.setAttribute('data-chip', clr.chip);
+    card.style.borderRadius   = '8px';
+    card.style.border         = `0.5px solid ${clr.border}`;
+    card.style.borderLeft     = `2.5px solid ${clr.left}`;
+    card.style.background     = clr.bg;
+    card.style.padding        = '7px 9px';
+    card.style.flexShrink     = '0';
+    card.style.display        = (_activeFilter === 'all' || _activeFilter === clr.chip) ? 'block' : 'none';
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px;">
+        <span style="font-size:10px;font-weight:500;color:${clr.label};line-height:1.35;">${_esc(typeLabel)}</span>
+        <span style="font-size:9px;color:var(--text-muted);white-space:nowrap;flex-shrink:0;padding-top:1px;">${timeStr}</span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;
+                  color:var(--text-primary);margin-bottom:5px;letter-spacing:.01em;">${_esc(vehicleNo)}</div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${driverName ? `<div style="display:flex;align-items:center;gap:5px;">
+          <i data-lucide="user" style="width:9px;height:9px;color:var(--text-muted);flex-shrink:0;pointer-events:none;"></i>
+          <span style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(driverName)}</span>
+        </div>` : ''}
+        ${locationLine ? `<div style="display:flex;align-items:flex-start;gap:5px;">
+          <i data-lucide="map-pin" style="width:9px;height:9px;color:var(--text-muted);flex-shrink:0;margin-top:1px;pointer-events:none;"></i>
+          <span style="font-size:9px;color:var(--text-muted);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_esc(locationLine)}</span>
+        </div>` : ''}
+        ${geofenceName ? `<div style="display:flex;align-items:center;gap:5px;">
+          <i data-lucide="hexagon" style="width:9px;height:9px;color:var(--text-muted);flex-shrink:0;pointer-events:none;"></i>
+          <span style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(geofenceName)}</span>
+        </div>` : ''}
+        ${socBadge ? `<div style="display:flex;align-items:center;gap:5px;">${socBadge}</div>` : ''}
+      </div>
+      ${actionRow}`;
+
+    const list = document.getElementById('alertSidebarList');
+    if (list) {
+      list.insertBefore(card, list.firstChild);
+      if (typeof lucide !== 'undefined') lucide.createIcons({ rootElement: card });
+    }
+
+    if (!_open) { _open = true; _syncSidebar(); }
+  };
+})();
+</script>
 {% endblock %}
 
 {% block content %}
-<div class="flex h-full">
+<div class="flex flex-col h-full min-h-0 overflow-hidden">
+
+<div class="flex flex-1 min-h-0 overflow-hidden">
   <!-- Sidebar (Hidden on mobile) -->
-  <aside class="hidden md:flex w-[360px] border-r flex-col overflow-hidden">
+  <aside class="hidden md:flex border-r flex-col overflow-hidden" style="width:268px;flex-shrink:0;">
 
     <!-- Search -->
-    <div class="px-3 pt-3 pb-2 border-b lv-sidebar-section">
-      <div class="lv-search-wrap flex items-center gap-2 border rounded-lg px-3 py-2">
-        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+    <div class="px-2 pt-1.5 pb-1.5 border-b lv-sidebar-section">
+      <div class="lv-search-wrap flex items-center gap-1.5 border rounded px-2 py-1">
+        <i data-lucide="search" class="w-3 h-3 text-slate-400 flex-shrink-0"></i>
         <input type="text" id="sidebarSearchInput" placeholder="Search vehicles..."
-          class="flex-1 text-xs focus:outline-none"/>
+          class="flex-1 text-xs focus:outline-none" style="font-size:11px;"/>
         <button id="clearSearchBtn" class="text-slate-400 hover:text-slate-600 hidden transition-colors">
-          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          <i data-lucide="x" class="w-3 h-3"></i>
         </button>
       </div>
     </div>
 
-    <!-- 2×2 Stat Grid -->
-    <div class="grid grid-cols-2 gap-2 p-3 border-b lv-sidebar-section">
-      <button id="filterMoving" data-filter="moving" class="lv-stat-card group cursor-pointer" title="Moving">
-        <span class="lv-stat-icon">
-          <svg width="16" height="25" viewBox="0 0 38 62" fill="none">
-            <rect x="6" y="4" width="26" height="54" rx="5" fill="#1a2f50" stroke="#2563eb" stroke-width="1.5"/>
-            <rect x="8" y="4" width="22" height="10" rx="4" fill="#1e3a6e"/>
-            <rect x="10" y="5.5" width="18" height="6" rx="2" fill="#2563eb" opacity=".4"/>
-            <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="8" y="19" width="22" height="1" rx=".5" fill="#2563eb" opacity=".2"/>
-            <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="#22c55e" opacity=".95"/>
-          </svg>
-        </span>
-        <span id="countMoving" class="lv-stat-val text-emerald-400">0</span>
-        <span class="lv-stat-lbl">Moving</span>
-      </button>
-      <button id="filterStopped" data-filter="stopped" class="lv-stat-card group cursor-pointer" title="Stopped">
-        <span class="lv-stat-icon">
-          <svg width="16" height="25" viewBox="0 0 38 62" fill="none">
-            <rect x="6" y="4" width="26" height="54" rx="5" fill="#2a0d0d" stroke="#7f1d1d" stroke-width="1.5"/>
-            <rect x="8" y="4" width="22" height="10" rx="4" fill="#3a1010"/>
-            <rect x="10" y="5.5" width="18" height="6" rx="2" fill="#7f1d1d" opacity=".4"/>
-            <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="8" y="19" width="22" height="1" rx=".5" fill="#7f1d1d" opacity=".2"/>
-            <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="#ef4444" opacity=".95"/>
-          </svg>
-        </span>
-        <span id="countStopped" class="lv-stat-val text-red-400">0</span>
-        <span class="lv-stat-lbl">Stopped</span>
-      </button>
-      <button id="filterCharging" data-filter="charging" class="lv-stat-card group cursor-pointer" title="Charging">
-        <span class="lv-stat-icon">
-          <svg width="16" height="25" viewBox="0 0 38 62" fill="none">
-            <rect x="6" y="4" width="26" height="54" rx="5" fill="#0d1f3c" stroke="#1d4ed8" stroke-width="1.5"/>
-            <rect x="8" y="4" width="22" height="10" rx="4" fill="#112347"/>
-            <rect x="10" y="5.5" width="18" height="6" rx="2" fill="#1d4ed8" opacity=".4"/>
-            <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="8" y="19" width="22" height="1" rx=".5" fill="#1d4ed8" opacity=".2"/>
-            <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="#3b82f6" opacity=".95"/>
-          </svg>
-        </span>
-        <span id="countCharging" class="lv-stat-val text-blue-400">0</span>
-        <span class="lv-stat-lbl">Charging</span>
-      </button>
-      <button id="filterAll" data-filter="all" class="lv-stat-card group cursor-pointer" title="All">
-        <span class="lv-stat-icon">
-          <svg width="16" height="25" viewBox="0 0 38 62" fill="none">
-            <rect x="6" y="4" width="26" height="54" rx="5" fill="#1a1400" stroke="#92400e" stroke-width="1.5"/>
-            <rect x="8" y="4" width="22" height="10" rx="4" fill="#251800"/>
-            <rect x="10" y="5.5" width="18" height="6" rx="2" fill="#92400e" opacity=".4"/>
-            <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-            <rect x="8" y="19" width="22" height="1" rx=".5" fill="#92400e" opacity=".2"/>
-            <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="#f59e0b" opacity=".95"/>
-          </svg>
-        </span>
-        <span id="countAll" class="lv-stat-val text-amber-400">0</span>
-        <span class="lv-stat-lbl">Total</span>
-      </button>
-    </div>
-
-    <!-- Filter row (Low SOC + Refresh) -->
-    <div class="flex items-center justify-between px-3 py-2 border-b lv-sidebar-section">
-      <button id="filterLowSoc" data-filter="lowsoc" title="Low SOC (<30%)"
-        class="hidden lv-lowsoc-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all">
-        <i data-lucide="battery-low" class="w-3 h-3"></i>
-        Low SOC <span id="countLowSoc" class="font-bold ml-0.5">0</span>
-      </button>
-      <div></div>
-      <button id="refreshBtn" class="lv-refresh-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all" title="Refresh">
-        <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
-      </button>
+    <!-- Fleet Meter -->
+    <div class="px-2 py-1.5 border-b lv-sidebar-section">
+      <!-- Header: label + total + refresh -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)">FLEET</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span id="countAll" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--text-primary);">0</span>
+          <span style="font-size:9px;color:var(--text-muted);">total</span>
+          <button id="refreshBtn" class="lv-fleet-refresh" title="Refresh" style="margin-left:2px;">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Segmented bar -->
+      <div style="display:flex;height:3px;border-radius:2px;overflow:hidden;background:var(--soc-track);margin-bottom:8px;">
+        <div id="barMoving" style="background:#22c55e;width:0%;transition:width .4s ease;"></div>
+        <div id="barStopped" style="background:#ef4444;width:0%;transition:width .4s ease;"></div>
+        <div id="barCharging" style="background:#3b82f6;width:0%;transition:width .4s ease;"></div>
+      </div>
+      <!-- Legend / filter buttons -->
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="filterMoving" data-filter="moving" class="lv-fleet-leg" title="Filter: Moving">
+          <span class="lv-fleet-dot" style="background:#22c55e;"></span>
+          <span id="countMoving" class="lv-fleet-cnt" style="color:#4ade80;">0</span>
+          <span class="lv-fleet-lbl">Moving</span>
+        </button>
+        <button id="filterStopped" data-filter="stopped" class="lv-fleet-leg" title="Filter: Stopped">
+          <span class="lv-fleet-dot" style="background:#ef4444;"></span>
+          <span id="countStopped" class="lv-fleet-cnt" style="color:#f87171;">0</span>
+          <span class="lv-fleet-lbl">Stopped</span>
+        </button>
+        <button id="filterCharging" data-filter="charging" class="lv-fleet-leg" title="Filter: Charging">
+          <span class="lv-fleet-dot" style="background:#3b82f6;"></span>
+          <span id="countCharging" class="lv-fleet-cnt" style="color:#60a5fa;">0</span>
+          <span class="lv-fleet-lbl">Charging</span>
+        </button>
+        <!-- Hidden controls for JS compatibility -->
+        <button id="filterAll" data-filter="all" class="hidden" aria-hidden="true"></button>
+        <button id="filterLowSoc" data-filter="lowsoc" class="hidden" aria-hidden="true"><span id="countLowSoc"></span></button>
+      </div>
     </div>
 
     <!-- Vehicle List -->
     <div class="lv-vehicle-list-bg flex-1 overflow-y-auto">
-      <div id="vehicleList" class="p-2 space-y-1.5"></div>
+      <div id="vehicleList" class="p-1.5 space-y-1"></div>
       <div id="vehicle-list-message" class="p-4 text-center text-xs" style="color:var(--text-muted)"></div>
     </div>
+
   </aside>
 
   <!-- Map area -->
   <main class="flex-1 relative">
     <div id="map" class="absolute inset-0"></div>
-
-    <!-- Latest alert card (bottom-right) -->
-    <div id="lv-alert-card" class="absolute bottom-16 right-4 z-[800] w-[260px]" style="display:none;">
-      <div class="text-[9px] font-semibold text-red-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-        <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span> Latest Alert
-      </div>
-      <div id="lv-alert-vehicle" class="text-xs font-bold text-white mb-0.5"></div>
-      <div id="lv-alert-desc" class="text-[10px] text-slate-400 mb-2 leading-snug"></div>
-      <div class="flex gap-2">
-        <button onclick="document.getElementById('lv-alert-card').style.display='none'"
-          class="flex-1 text-[10px] font-semibold py-1 rounded bg-[#1a2035] border border-[#1e2433] text-slate-300 hover:bg-[#243050] transition-all">Dismiss</button>
-        <button onclick="toggleLiveAlerts()"
-          class="flex-1 text-[10px] font-semibold py-1 rounded bg-red-900/60 border border-red-800/40 text-red-300 hover:bg-red-900 transition-all">View All</button>
-      </div>
-    </div>
 
     <!-- Mobile Sidebar Overlay -->
     <div id="mobileSidebar" class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998] hidden">
@@ -458,13 +712,6 @@
         <!-- Compact Action Buttons (Mobile) -->
         <div class="p-2.5 border-b border-slate-200 bg-gradient-to-r from-gray-50 to-white">
           <div class="flex items-stretch justify-center gap-2">
-            <!-- Route Timebox -->
-            <a href="/livetracker/timebox/" target="_blank"
-               class="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-300 transition-all duration-200 group flex-1"
-               title="Route Timebox">
-              <i data-lucide="route" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-              <span class="text-[9px] font-medium leading-tight text-center">Timebox</span>
-            </a>
 
             <!-- Download Report -->
             <a href="/livetracker/api/download_dashboard_report/"
@@ -505,6 +752,7 @@
         <i data-lucide="eye-off" class="w-5 h-5"></i>
       </button>
 
+      {% if show_iplt_links %}
       <!-- Mobile Route Filters (Compact Icons) -->
       <div class="route-filter-legend lg:hidden flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
         <div class="flex items-center gap-1 px-2 py-2">
@@ -531,15 +779,17 @@
           </button>
 
           <!-- Both Routes (Mobile) -->
-          <button data-route-filter="both" class="route-filter-btn flex items-center justify-center p-2 rounded-lg bg-slate-100 
+          <button data-route-filter="both" class="route-filter-btn flex items-center justify-center p-2 rounded-lg bg-slate-100
                    border border-slate-300 shadow-md hover:shadow-lg transition-all duration-200"
             title="All Routes">
             <i data-lucide="route" class="w-5 h-5 text-slate-600"></i>
           </button>
         </div>
       </div>
+      {% endif %}
 
-      <!-- Direction Legend (Horizontal) - Now Interactive Filters (Desktop) -->
+      <!-- Direction Legend (Horizontal) - Now Interactive Filters (Desktop, ULTRATECH only) -->
+      {% if show_iplt_links %}
       <div class="route-filter-legend hidden lg:flex bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
         <!-- Legend Items Horizontal -->
         <div class="flex items-center gap-1 px-2 py-1.5">
@@ -590,6 +840,7 @@
 
         </div>
       </div>
+      {% endif %}
     </div>
 
     <!-- Bottom-right mini player (hidden in all mode) -->
@@ -599,142 +850,189 @@
 
     <!-- Quick Analytics Panel (appears when vehicle selected) -->
     <div id="quickAnalytics"
-      class="hidden fixed top-20 left-[360px] w-[360px] bg-white rounded-lg shadow-2xl border-2 border-blue-500 z-[10000] transform -translate-x-full opacity-0 transition-all duration-300 ease-out">
+      class="hidden fixed z-[10000] transform -translate-x-full opacity-0 transition-all duration-300 ease-out"
+      style="top:64px;left:268px;width:232px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);">
       <!-- Header -->
-      <div class="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
-            <div>
-              <h3 class="font-semibold text-sm text-blue-900">Quick Analytics</h3>
-              <p id="selectedVehicleName" class="text-xs text-blue-700 font-medium"></p>
-            </div>
-          </div>
-          <button id="closeQuickAnalytics"
-    class="p-1 rounded hover:bg-gray-100 transition">
-    <i data-lucide="x" class="w-4 h-4 stroke-black stroke-[3]"></i>
-</button>
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <i data-lucide="activity" style="width:12px;height:12px;color:#3b82f6;flex-shrink:0;"></i>
+          <span id="selectedVehicleName" style="font-size:11px;font-weight:700;color:var(--text-primary);letter-spacing:.02em;"></span>
         </div>
+        <button id="closeQuickAnalytics" style="background:none;border:none;cursor:pointer;padding:2px;border-radius:4px;line-height:0;">
+          <i data-lucide="x" style="width:12px;height:12px;color:var(--text-muted);"></i>
+        </button>
       </div>
 
       <!-- Content -->
-      <div class="p-3 space-y-2">
-        <!-- Driver Info Section -->
-        <div class="p-2 bg-blue-50 rounded-lg border border-blue-200">
-          <div class="flex items-center justify-between mb-1.5">
-            <div class="flex items-center gap-2 text-blue-700">
-              <i data-lucide="user" class="w-3.5 h-3.5"></i>
-              <span class="text-xs font-semibold">Driver Information</span>
-            </div>
-            <!-- <button id="editDriverBtn" 
-              class="hidden px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-all duration-200 flex items-center gap-1"
-              title="Edit driver assignment">
-              <i data-lucide="edit-2" class="w-3 h-3"></i>
-              <span id="editDriverBtnText">Edit</span>
-            </button> -->
+      <div style="padding:8px 10px;display:flex;flex-direction:column;gap:5px;">
+
+        <!-- Driver row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;gap:6px;">
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <i data-lucide="user" style="width:11px;height:11px;color:var(--text-muted);"></i>
+            <span style="font-size:10px;color:var(--text-muted);">Driver</span>
           </div>
-          <div class="space-y-1">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-blue-600">Name:</span>
-              <span id="quickDriverName" class="font-semibold text-blue-900">Loading...</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-blue-600">Phone:</span>
-              <span id="quickDriverPhone" class="font-semibold text-blue-900">Loading...</span>
-            </div>
+          <div style="text-align:right;min-width:0;">
+            <div id="quickDriverName" style="font-size:10px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">—</div>
+            <div id="quickDriverPhone" style="font-size:9px;color:var(--text-muted);">—</div>
           </div>
         </div>
 
-        <!-- Status -->
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-          <div class="flex items-center gap-2 text-gray-600">
-            <i data-lucide="activity" class="w-3.5 h-3.5"></i>
-            <span class="text-xs">Status</span>
+        <!-- Status + Odometer row (2 col) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+          <div style="padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;">
+            <div style="font-size:9px;color:var(--text-muted);margin-bottom:2px;">Status</div>
+            <span id="quickStatus" style="font-size:10px;font-weight:700;color:var(--text-primary);">--</span>
           </div>
-          <span id="quickStatus" class="text-xs font-semibold text-gray-900">--</span>
+          <div style="padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;">
+            <div style="font-size:9px;color:var(--text-muted);margin-bottom:2px;">Odometer</div>
+            <span id="quickCurrentOdo" style="font-size:10px;font-weight:700;color:var(--text-primary);">--</span>
+          </div>
         </div>
-
-        <!-- Battery Temp -->
-        <!-- <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-          <div class="flex items-center gap-2 text-gray-600">
-            <i data-lucide="thermometer" class="w-3.5 h-3.5"></i>
-            <span class="text-xs">Battery Temp</span>
-          </div>
-          <span id="quickBatteryTemp" class="text-xs font-semibold text-gray-900">--</span>
-        </div> -->
-
-        <!-- Current Odometer -->
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-          <div class="flex items-center gap-2 text-gray-600">
-            <i data-lucide="gauge-circle" class="w-3.5 h-3.5"></i>
-            <span class="text-xs">Odometer</span>
-          </div>
-          <span id="quickCurrentOdo" class="text-xs font-semibold text-gray-900">--</span>
-        </div>
-
-        <!-- Distance Today -->
-        <!-- <div class="flex items-center justify-between p-2 bg-green-50 rounded-lg border border-green-200">
-          <div class="flex items-center gap-2 text-green-700">
-            <i data-lucide="map" class="w-3.5 h-3.5"></i>
-            <span class="text-xs font-medium">KM Today</span>
-          </div>
-          <span id="quickDistanceCovered" class="text-xs font-bold text-green-900">--</span>
-        </div> -->
 
         <!-- Location -->
-        <div class="p-2 bg-gray-50 rounded-lg">
-          <div class="flex items-center justify-between gap-2 mb-1.5">
-            <div class="flex items-center gap-2 text-gray-600">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
-              <span class="text-xs font-medium">Location</span>
+        <div style="padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <i data-lucide="map-pin" style="width:11px;height:11px;color:var(--text-muted);"></i>
+              <span style="font-size:9px;color:var(--text-muted);">Location</span>
             </div>
-            <div class="flex gap-1">
-              <button id="openSatelliteView"
-                class="px-2 py-1 text-[10px] font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-all duration-200"
-                title="Open in Google Maps Satellite View">
-                <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
+            <div style="display:flex;gap:3px;">
+              <button id="openSatelliteView" title="Open in Google Maps"
+                style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:2px 4px;line-height:0;">
+                <i data-lucide="locate-fixed" style="width:10px;height:10px;color:var(--text-muted);"></i>
               </button>
-              <button id="copyCoordinates"
-                class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-all duration-200"
-                title="Copy coordinates">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <button id="copyCoordinates" title="Copy coordinates"
+                style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:2px 4px;line-height:0;">
+                <i data-lucide="copy" style="width:10px;height:10px;color:var(--text-muted);"></i>
               </button>
             </div>
           </div>
-          <div class="text-xs text-gray-700 leading-relaxed">
-            <div id="quickAddress">Loading address...</div>
-          </div>
-          <!-- Hidden elements to store coordinates -->
+          <div id="quickAddress" style="font-size:10px;color:var(--text-primary);line-height:1.4;">Loading…</div>
           <span id="quickLatitude" class="hidden">--</span>
           <span id="quickLongitude" class="hidden">--</span>
         </div>
 
-        <!-- Last Update -->
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-          <div class="flex items-center gap-2 text-gray-600">
-            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
-            <span class="text-xs">Last Updated</span>
+        <!-- Last updated -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:var(--nav-btn-bg);border-radius:6px;">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <i data-lucide="clock" style="width:11px;height:11px;color:var(--text-muted);"></i>
+            <span style="font-size:9px;color:var(--text-muted);">Updated</span>
           </div>
-          <span id="quickLastUpdate" class="text-xs font-semibold text-gray-900">--</span>
+          <span id="quickLastUpdate" style="font-size:10px;font-weight:600;color:var(--text-primary);">--</span>
         </div>
+
+        <!-- Hidden: battery temp (still needed by JS) -->
+        <span id="quickBatteryTemp" class="hidden">--</span>
+        <span id="quickDistanceCovered" class="hidden">--</span>
       </div>
 
       <!-- Footer Actions -->
-      <div class="p-2 border-t border-gray-200 bg-gray-50 flex gap-2">
+      <div style="padding:6px 10px;border-top:1px solid var(--border);display:flex;gap:5px;">
         <button id="viewFullAnalytics"
-          class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1">
-          <i data-lucide="bar-chart-3" class="w-3 h-3"></i>
-          <span>Analytics</span>
+          style="flex:1;background:#3b82f6;color:#fff;border:none;cursor:pointer;padding:5px 0;border-radius:6px;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;">
+          <i data-lucide="bar-chart-3" style="width:11px;height:11px;"></i>Analytics
         </button>
         <button id="viewHistoricalData"
-          class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1">
-          <i data-lucide="calendar" class="w-3 h-3"></i>
-          <span>Historical</span>
+          style="flex:1;background:#7c3aed;color:#fff;border:none;cursor:pointer;padding:5px 0;border-radius:6px;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;">
+          <i data-lucide="calendar" style="width:11px;height:11px;"></i>History
         </button>
       </div>
     </div>
   </main>
 
+  <!-- Alert Sidebar (right layout column) -->
+  <div id="alertSidebar"
+    style="width:26px;flex-shrink:0;height:100%;overflow:hidden;transition:width .22s ease;
+           border-left:1px solid var(--border);background:var(--sidebar-bg);
+           display:flex;flex-direction:row;">
+
+    <!-- Handle (always 26px, entire strip is clickable) -->
+    <div onclick="toggleAlertSidebar()" title="Toggle Alerts"
+      style="width:26px;flex-shrink:0;height:100%;display:flex;flex-direction:column;
+             align-items:center;padding:10px 0;gap:8px;cursor:pointer;user-select:none;">
+      <!-- Chevron pill -->
+      <div style="display:flex;align-items:center;justify-content:center;
+                  width:20px;height:20px;border-radius:6px;flex-shrink:0;
+                  background:var(--border);transition:background .15s;">
+        <i id="alertSidebarChevron" data-lucide="chevron-left"
+           style="width:13px;height:13px;color:var(--text-muted);display:block;pointer-events:none;"></i>
+      </div>
+      <!-- Bell + count -->
+      <i data-lucide="bell" style="width:12px;height:12px;color:#f87171;flex-shrink:0;pointer-events:none;"></i>
+      <span id="alertTabCount"
+        style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;
+               color:#f87171;line-height:1;display:none;pointer-events:none;">0</span>
+      <!-- rotated label -->
+      <span style="font-size:7px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                   color:var(--text-muted);writing-mode:vertical-rl;transform:rotate(180deg);
+                   margin-top:2px;line-height:1;pointer-events:none;">ALERTS</span>
+    </div>
+
+    <!-- Panel (220px, hidden when sidebar collapsed) -->
+    <div id="alertSidebarPanel"
+      style="width:220px;flex-shrink:0;height:100%;display:flex;flex-direction:column;overflow:hidden;
+             border-left:1px solid var(--border);">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 10px;
+                  border-bottom:1px solid var(--border);background:var(--nav-btn-bg);flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <i data-lucide="bell" style="width:12px;height:12px;color:#f87171;"></i>
+          <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+                       color:var(--text-primary);">Alerts</span>
+          <span id="alertHeaderCount"
+            style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;
+                   background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);
+                   padding:1px 5px;border-radius:999px;display:none;">0</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;">
+          <button onclick="clearAlertSidebar()" title="Clear all"
+            style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px;
+                   border-radius:4px;line-height:0;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">
+            <i data-lucide="trash-2" style="width:12px;height:12px;pointer-events:none;"></i>
+          </button>
+          <button onclick="toggleAlertSidebar()" title="Close"
+            style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px;
+                   border-radius:4px;line-height:0;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">
+            <i data-lucide="x" style="width:12px;height:12px;pointer-events:none;"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Filter chips -->
+      <div id="alertFilterRow"
+        style="display:flex;gap:4px;padding:6px 8px;border-bottom:0.5px solid var(--border);
+               flex-shrink:0;overflow-x:auto;scrollbar-width:none;">
+        <button class="alert-chip alert-chip--active" data-filter="all"
+          onclick="setAlertFilter('all',this)"
+          style="font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap;
+                 cursor:pointer;border:0.5px solid transparent;">All</button>
+        <button class="alert-chip" data-filter="critical"
+          onclick="setAlertFilter('critical',this)"
+          style="font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap;
+                 cursor:pointer;border:0.5px solid transparent;">Critical</button>
+        <button class="alert-chip" data-filter="warning"
+          onclick="setAlertFilter('warning',this)"
+          style="font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap;
+                 cursor:pointer;border:0.5px solid transparent;">Warning</button>
+        <button class="alert-chip" data-filter="info"
+          onclick="setAlertFilter('info',this)"
+          style="font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap;
+                 cursor:pointer;border:0.5px solid transparent;">Info</button>
+      </div>
+      <!-- Alert list -->
+      <div id="alertSidebarList"
+        style="flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;
+               gap:4px;scrollbar-width:thin;">
+        <div id="alertSidebarEmpty"
+          style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                 gap:8px;color:var(--text-muted);opacity:.4;height:100%;">
+          <i data-lucide="bell-off" style="width:26px;height:26px;"></i>
+          <span style="font-size:11px;">No alerts yet</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
 
   <!-- Date Picker Modal for Historical View -->
   <div id="historicalDatePickerModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] hidden items-center justify-center">
@@ -795,8 +1093,49 @@
           <i data-lucide="circle" class="w-4 h-4"></i><span>Circle</span>
         </button>
       </div>
+      <div id="drawTip" class="hidden text-[11px] text-emerald-600 font-medium bg-emerald-50 rounded-lg px-2.5 py-1.5 leading-snug"></div>
+      <button id="finishDrawBtn" class="hidden w-full px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors">
+        Finish Polygon
+      </button>
 
-      <!-- Save form (shown after drawing) -->
+      <!-- Manual coordinate entry -->
+      <button id="toggleManualEntry"
+        class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs text-slate-600 font-medium transition-all">
+        <span class="flex items-center gap-1.5"><i data-lucide="crosshair" class="w-3.5 h-3.5 text-blue-500"></i>Enter Coordinates Manually</span>
+        <i id="manualChevron" data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 transition-transform"></i>
+      </button>
+      <div id="manualEntryForm" class="hidden space-y-2 pt-1">
+        <!-- Shape type tabs -->
+        <div class="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
+          <button id="manualTypeCircle"
+            class="flex-1 py-1.5 bg-blue-600 text-white transition-colors" data-type="circle">Circle</button>
+          <button id="manualTypePolygon"
+            class="flex-1 py-1.5 bg-white text-slate-600 hover:bg-slate-50 transition-colors" data-type="polygon">Polygon</button>
+        </div>
+        <!-- Circle inputs -->
+        <div id="manualCircleInputs" class="space-y-1.5">
+          <div class="grid grid-cols-2 gap-1.5">
+            <input id="manualLat" type="number" step="any" placeholder="Latitude"
+              class="px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 w-full" />
+            <input id="manualLng" type="number" step="any" placeholder="Longitude"
+              class="px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 w-full" />
+          </div>
+          <input id="manualRadius" type="number" step="1" min="1" placeholder="Radius in metres (default 100)"
+            class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <!-- Polygon inputs -->
+        <div id="manualPolygonInputs" class="hidden space-y-1">
+          <p class="text-[10px] text-slate-400 leading-snug">One coordinate per line: <span class="font-mono">lat, lng</span></p>
+          <textarea id="manualPolyCoords" rows="5" placeholder="21.156063, 74.853409&#10;21.151118, 74.849793&#10;21.265904, 74.847418"
+            class="w-full px-2 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none leading-relaxed"></textarea>
+        </div>
+        <button id="placeManualGeofence"
+          class="w-full px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>Place on Map
+        </button>
+      </div>
+
+      <!-- Save form (shown after drawing or manual placement) -->
       <div id="geofenceSaveForm" class="hidden space-y-2">
         <input id="geofenceName" type="text" placeholder="Geofence name..."
           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
@@ -927,5 +1266,414 @@
   });
 </script>
 
-</div>
+</div><!-- end inner flex row -->
+
+<style>#ftCollapseChevron{transition:transform .22s ease;display:block;}</style>
+<!-- ── Fleet Analytics Bottom Bar ─────────────────────────────────────────── -->
+<div id="fleetTrendBar"
+  style="flex-shrink:0;height:152px;border-top:1px solid var(--border);
+         background:var(--sidebar-bg);display:flex;flex-direction:column;
+         overflow:hidden;transition:height .22s ease;">
+
+  <!-- ── Handle row (always visible, 30px) — entire row is clickable ── -->
+  <div id="ftHandleRow" onclick="toggleFleetTrendBar()" title="Toggle Fleet Analytics"
+    style="height:30px;flex-shrink:0;display:flex;align-items:center;
+           padding:0 12px;gap:10px;border-bottom:1px solid var(--border);
+           cursor:pointer;user-select:none;">
+
+    <!-- Centred chevron pill -->
+    <div style="display:flex;align-items:center;justify-content:center;
+                width:22px;height:22px;border-radius:6px;flex-shrink:0;
+                background:var(--border);transition:background .15s;">
+      <i id="ftCollapseChevron" data-lucide="chevron-down"
+         style="width:14px;height:14px;color:var(--text-muted);pointer-events:none;
+                transition:transform .22s ease;display:block;"></i>
+    </div>
+
+    <!-- Title -->
+    <span style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                 color:var(--text-muted);flex-shrink:0;">FLEET ANALYTICS</span>
+
+    <!-- Right side: back btn / vehicle label / date range (stop clicks from bubbling to toggle) -->
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;"
+         onclick="event.stopPropagation()">
+      <button id="ftBackBtn" onclick="window.loadFleetTrend()"
+              style="display:none;background:none;border:1px solid var(--border);border-radius:4px;
+                     padding:1px 6px;cursor:pointer;color:var(--text-muted);font-size:9px;line-height:1.6;">
+        ← FLEET
+      </button>
+      <span id="ftVehicleLabel"
+            style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;
+                   color:#3b82f6;display:none;white-space:nowrap;
+                   overflow:hidden;text-overflow:ellipsis;max-width:120px;"></span>
+      <span id="ftLabel"
+            style="font-size:8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+                   color:var(--text-muted);display:none;"></span>
+      <span id="ftDateRange"
+            style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--text-muted);
+                   white-space:nowrap;">last 7 days</span>
+    </div>
+  </div>
+
+  <!-- ── Charts row ── -->
+  <div style="flex:1;display:flex;align-items:stretch;overflow:hidden;min-height:0;">
+
+    <!-- Chart 1: Avg Distance -->
+    <div style="flex:1;border-right:1px solid var(--border);padding:6px 12px;
+                display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--text-muted);">Avg Distance</span>
+        <span id="ft-dist-val" style="font-family:'JetBrains Mono',monospace;font-size:14px;
+                                       font-weight:700;color:#22c55e;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--text-muted);">km</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="ft-dist-chart" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+      </div>
+      <div id="ft-dist-labels" style="display:flex;justify-content:space-between;flex-shrink:0;margin-top:2px;"></div>
+    </div>
+
+    <!-- Chart 2: Avg Energy -->
+    <div style="flex:1;border-right:1px solid var(--border);padding:6px 12px;
+                display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--text-muted);">Avg Energy</span>
+        <span id="ft-energy-val" style="font-family:'JetBrains Mono',monospace;font-size:14px;
+                                         font-weight:700;color:#3b82f6;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--text-muted);">kWh</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="ft-energy-chart" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+      </div>
+      <div id="ft-energy-labels" style="display:flex;justify-content:space-between;flex-shrink:0;margin-top:2px;"></div>
+    </div>
+
+    <!-- Chart 3: Avg Efficiency -->
+    <div style="flex:1;padding:6px 12px;display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--text-muted);">Avg Efficiency</span>
+        <span id="ft-eff-val" style="font-family:'JetBrains Mono',monospace;font-size:14px;
+                                      font-weight:700;color:#f59e0b;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--text-muted);">kWh/km</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="ft-eff-chart" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+      </div>
+      <div id="ft-eff-labels" style="display:flex;justify-content:space-between;flex-shrink:0;margin-top:2px;"></div>
+    </div>
+
+  </div><!-- end charts row -->
+
+</div><!-- end fleetTrendBar -->
+
+<script>
+(function() {
+  // ── Shared hover tooltip ──────────────────────────────────────────────────
+  const _tt = document.createElement('div');
+  _tt.style.cssText = [
+    'position:fixed;pointer-events:none;display:none;z-index:9999',
+    'background:var(--sidebar-bg,#1e2330);border:1px solid var(--border,#333)',
+    'border-radius:5px;padding:5px 9px;white-space:nowrap',
+    'font-size:10px;font-family:"JetBrains Mono",monospace',
+    'box-shadow:0 4px 12px rgba(0,0,0,.35)',
+  ].join(';');
+  document.body.appendChild(_tt);
+
+  // canvasId → { data, dates, unit, decimals, color }
+  const _meta = {};
+
+  // ── Canvas drawing ────────────────────────────────────────────────────────
+  function drawSparkline(canvasId, data, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const W = rect.width  > 0 ? rect.width  : (canvas.parentElement.offsetWidth  || 200);
+    const H = rect.height > 0 ? rect.height : (canvas.parentElement.offsetHeight || 52);
+    if (W < 4 || H < 4) return;
+
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const valid = data.filter(v => v !== null);
+    const n = data.length;
+    const pad = { t: 8, b: 8, l: 4, r: 4 };
+    const w = W - pad.l - pad.r;
+    const h = H - pad.t - pad.b;
+    const step = n > 1 ? w / (n - 1) : w;
+
+    if (valid.length < 2) {
+      // Flat dashed placeholder
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad.l, H / 2);
+      ctx.lineTo(W - pad.r, H / 2);
+      ctx.strokeStyle = color + '38';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Still draw null-day markers so user sees positions
+      data.forEach((v, i) => {
+        if (v !== null) return;
+        const x = pad.l + i * step;
+        ctx.beginPath();
+        ctx.arc(x, H / 2, 2, 0, Math.PI * 2);
+        ctx.strokeStyle = color + '40';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+      return;
+    }
+
+    const rawMin = Math.min(...valid);
+    const rawMax = Math.max(...valid);
+    // Add 15% breathing room above and below so min doesn't hug the floor
+    const slack = (rawMax - rawMin) * 0.15 || rawMax * 0.1 || 1;
+    const min = rawMin - slack;
+    const max = rawMax + slack * 0.5;
+    const range = max - min;
+
+    const yOf = v => pad.t + h - ((v - min) / range) * h;
+
+    const pts = data.map((v, i) => ({
+      x: pad.l + i * step,
+      y: v === null ? null : yOf(v),
+      v,
+    }));
+
+    // Gradient fill under valid segments
+    const firstP = pts.find(p => p.y !== null);
+    const lastP  = [...pts].reverse().find(p => p.y !== null);
+    if (firstP && lastP) {
+      const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + h);
+      grad.addColorStop(0, color + '50');
+      grad.addColorStop(1, color + '06');
+      ctx.beginPath();
+      let inPath = false;
+      pts.forEach(p => {
+        if (p.y === null) return;
+        if (!inPath) { ctx.moveTo(p.x, p.y); inPath = true; }
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.lineTo(lastP.x, pad.t + h);
+      ctx.lineTo(firstP.x, pad.t + h);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    // Line (skip gaps across nulls)
+    ctx.beginPath();
+    let started = false;
+    pts.forEach(p => {
+      if (p.y === null) { started = false; return; }
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Filled dots for valid points
+    pts.forEach(p => {
+      if (p.y === null) return;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    });
+
+    // Hollow dash for null points (shows "no data" at that x position)
+    const midY = pad.t + h / 2;
+    pts.forEach(p => {
+      if (p.y !== null) return;
+      ctx.beginPath();
+      ctx.arc(p.x, midY, 2, 0, Math.PI * 2);
+      ctx.strokeStyle = color + '35';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+  }
+
+  // ── Hover wiring ──────────────────────────────────────────────────────────
+  function attachHover(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    canvas.addEventListener('mousemove', e => {
+      const m = _meta[canvasId];
+      if (!m) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const n = m.data.length;
+      const step = n > 1 ? (rect.width - 8) / (n - 1) : rect.width;
+      const idx = Math.max(0, Math.min(n - 1, Math.round((x - 4) / step)));
+      const val = m.data[idx];
+      const date = m.dates[idx] || '';
+
+      if (val !== null) {
+        const formatted = val.toFixed(m.decimals);
+        _tt.innerHTML =
+          `<span style="color:${m.color};font-weight:700;">${formatted}</span>` +
+          `<span style="color:var(--text-muted,.8);"> ${m.unit}</span>` +
+          `<span style="color:var(--text-muted,.5);font-size:9px;"> · ${date}</span>`;
+      } else {
+        _tt.innerHTML =
+          `<span style="color:var(--text-muted,.5);">no data · ${date}</span>`;
+      }
+
+      _tt.style.display = 'block';
+      // Keep tooltip inside viewport
+      const ttW = _tt.offsetWidth;
+      const left = e.clientX + 14 + ttW > window.innerWidth
+        ? e.clientX - ttW - 10 : e.clientX + 14;
+      _tt.style.left = left + 'px';
+      _tt.style.top  = (e.clientY - 28) + 'px';
+    });
+
+    canvas.addEventListener('mouseleave', () => { _tt.style.display = 'none'; });
+  }
+
+  // ── Labels ────────────────────────────────────────────────────────────────
+  function renderLabels(containerId, dates) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const n = dates.length;
+    el.innerHTML = dates.map((d, i) => {
+      const show = i === 0 || i === n - 1 || i === Math.floor(n / 2);
+      return `<span style="font-family:'JetBrains Mono',monospace;font-size:7px;` +
+             `color:var(--text-muted);opacity:${show ? 1 : 0.15};">${d}</span>`;
+    }).join('');
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let _trendData = null;
+
+  function redraw() {
+    if (!_trendData) return;
+    const { dates, distance, energy, efficiency } = _trendData;
+
+    drawSparkline('ft-dist-chart',   distance,   '#22c55e');
+    drawSparkline('ft-energy-chart', energy,     '#3b82f6');
+    drawSparkline('ft-eff-chart',    efficiency, '#f59e0b');
+
+    // Update hover meta so tooltips show correct values
+    _meta['ft-dist-chart']   = { data: distance,   dates, unit: 'km',     decimals: 1, color: '#22c55e' };
+    _meta['ft-energy-chart'] = { data: energy,     dates, unit: 'kWh',    decimals: 1, color: '#3b82f6' };
+    _meta['ft-eff-chart']    = { data: efficiency, dates, unit: 'kWh/km', decimals: 3, color: '#f59e0b' };
+
+    renderLabels('ft-dist-labels',   dates);
+    renderLabels('ft-energy-labels', dates);
+    renderLabels('ft-eff-labels',    dates);
+  }
+
+  // One-time hover setup
+  ['ft-dist-chart', 'ft-energy-chart', 'ft-eff-chart'].forEach(attachHover);
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+  function applyTrendData(data) {
+    _trendData = data;
+    const { dates, distance, energy, efficiency } = data;
+
+    if (dates && dates.length) {
+      const el = document.getElementById('ftDateRange');
+      if (el) el.textContent = `${dates[0]} – ${dates[dates.length - 1]}`;
+    }
+
+    const lastVal = arr => {
+      for (let i = arr.length - 1; i >= 0; i--) if (arr[i] !== null) return arr[i];
+      return null;
+    };
+    const dv = lastVal(distance), ev = lastVal(energy), fv = lastVal(efficiency);
+    const distEl   = document.getElementById('ft-dist-val');
+    const energyEl = document.getElementById('ft-energy-val');
+    const effEl    = document.getElementById('ft-eff-val');
+    if (distEl)   distEl.textContent = dv !== null ? dv.toFixed(1)  : '—';
+    if (energyEl) energyEl.textContent = ev !== null ? ev.toFixed(1) : '—';
+    if (effEl)    effEl.textContent = fv !== null ? fv.toFixed(3)    : '—';
+
+    requestAnimationFrame(() => requestAnimationFrame(redraw));
+  }
+
+  // Bake the project into the URL at render time so the API always gets the right SPV
+  // regardless of session/redirect timing when the user switches projects.
+  const _TREND_BASE = '/livetracker/api/fleet-trend/?spv={{ selected_project|urlencode }}';
+
+  window.loadFleetTrend = function() {
+    const backBtn = document.getElementById('ftBackBtn');
+    const labelEl = document.getElementById('ftLabel');
+    const vLabel  = document.getElementById('ftVehicleLabel');
+    if (backBtn) backBtn.style.display = 'none';
+    if (labelEl) labelEl.textContent = 'FLEET TREND';
+    if (vLabel)  vLabel.style.display = 'none';
+
+    fetch(_TREND_BASE)
+      .then(r => r.json()).then(applyTrendData).catch(() => {});
+  };
+
+  window.loadVehicleTrend = function(vehicleNo) {
+    const backBtn = document.getElementById('ftBackBtn');
+    const labelEl = document.getElementById('ftLabel');
+    const vLabel  = document.getElementById('ftVehicleLabel');
+    if (backBtn) backBtn.style.display = 'inline';
+    if (labelEl) labelEl.textContent = 'VEHICLE';
+    if (vLabel)  { vLabel.textContent = vehicleNo; vLabel.style.display = 'block'; }
+
+    fetch(`${_TREND_BASE}&vehicle_no=${encodeURIComponent(vehicleNo)}`)
+      .then(r => r.json()).then(applyTrendData).catch(() => {});
+  };
+
+  window.ftRedraw = redraw;
+  window.addEventListener('resize', () => requestAnimationFrame(redraw));
+  document.addEventListener('DOMContentLoaded', window.loadFleetTrend);
+})();
+
+// ── Fleet Analytics bar collapse ──────────────────────────────────────────
+(function () {
+  let _open = true;
+  const OPEN_H  = '152px';
+  const CLOSE_H = '30px';
+
+  window.toggleFleetTrendBar = function () {
+    _open = !_open;
+    const bar     = document.getElementById('fleetTrendBar');
+    const chevron = document.getElementById('ftCollapseChevron');
+    if (!bar) return;
+
+    bar.style.height = _open ? OPEN_H : CLOSE_H;
+
+    if (chevron) {
+      // Rotate 180° when collapsed so the single chevron-down points up
+      chevron.style.transform = _open ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+
+    // After CSS transition (220ms), fix map size and redraw charts
+    if (_open) {
+      setTimeout(() => {
+        if (window.map && typeof window.map.invalidateSize === 'function') {
+          window.map.invalidateSize({ pan: true });
+        }
+        if (typeof window.ftRedraw === 'function') {
+          requestAnimationFrame(() => requestAnimationFrame(window.ftRedraw));
+        }
+      }, 240);
+    } else {
+      setTimeout(() => {
+        if (window.map && typeof window.map.invalidateSize === 'function') {
+          window.map.invalidateSize({ pan: true });
+        }
+      }, 240);
+    }
+  };
+})();
+</script>
+
+</div><!-- end outer flex-col -->
 {% endblock %}

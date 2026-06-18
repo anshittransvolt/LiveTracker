@@ -34,6 +34,8 @@ from .session_detectors import (
     detect_stoppage_sessions,
 )
 
+from .fetch_geo_utils import fetch_timebox_data_from_fetch_geo
+
 __all__ = [
     # TWINS Adapter
     'TwinsAPIAdapter',
@@ -54,4 +56,5 @@ __all__ = [
     # Session detectors
     'detect_charging_sessions',
     'detect_stoppage_sessions',
+    'fetch_timebox_data_from_fetch_geo',
 ]

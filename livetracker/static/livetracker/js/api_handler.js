@@ -770,16 +770,16 @@ export async function fetchVehicleOneDay(reg_no, date = null) {
       return [];
     }
 
-    // Sort newest-first by timestamp
+    // Sort oldest-first so charts and playback progress left→right (chronological)
     points.sort((a, b) => {
       const ta = a.last_connected ? new Date(a.last_connected).getTime() : 0;
       const tb = b.last_connected ? new Date(b.last_connected).getTime() : 0;
-      return tb - ta;
+      return ta - tb;
     });
-    
+
     // Calculate vector-based heading for the latest point if not available
     if (points.length >= 2) {
-      const latest = points[0];
+      const latest = points[points.length - 1];
       
       if (!latest.heading && latest.latitude && latest.longitude) {
         try {

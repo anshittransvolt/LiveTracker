@@ -6,7 +6,6 @@ from .vendor_spv_list import VENDOR_SPV_LIST
 PROJECT_SCOPED_NAMESPACES = {
     "alarms",
     "battery",
-    "globaltracker",
     "livenotif",
     "livetracker",
     "mis",

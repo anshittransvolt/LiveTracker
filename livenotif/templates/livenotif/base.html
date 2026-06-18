@@ -187,21 +187,10 @@ body:not(.dark-theme) #actionNotesModal .lt-modal-btn-submit { background: #2563
 body:not(.dark-theme) #actionNotesModal .lt-modal-btn-submit:hover { background: #1d4ed8; }
 </style>
 
-<!-- Stacked Alerts at Top Right (Below Navbar) -->
-<div class="fixed top-20 right-4 z-[9999]">
-    <!-- Stack Counter Badge -->
-    <div id="livetracker-stack-counter"
-         class="hidden absolute -top-2 -left-2 z-[10] bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow pointer-events-none">
-        0
-    </div>
-    <!-- Stacked Alerts Container -->
-    <div id="livetracker-toast-stack" class="relative max-h-[calc(100vh-5rem-170px)] overflow-y-auto overflow-x-visible pr-1">
-    </div>
-</div>
-
-<!-- Active Alert Popup (Bottom Right) -->
-<div id="livetracker-toast-active" class="fixed bottom-4 right-4 z-[10100]">
-</div>
+<!-- LiveNotif containers kept in DOM for JS compatibility but visually hidden -->
+<div id="livetracker-stack-counter" class="hidden"></div>
+<div id="livetracker-toast-stack" style="display:none;"></div>
+<div id="livetracker-toast-active" style="display:none;"></div>
 
 <!-- Action Notes Modal -->
 <div id="actionNotesModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] hidden flex items-center justify-center p-4">
@@ -326,34 +315,37 @@ class LiveToastManager {
     }
 
     showActiveToast(toast, isUserExpanded = false) {
-        if (this.activeTimer) {
-            clearTimeout(this.activeTimer);
-            this.activeTimer = null;
+        // Route to alert sidebar if available
+        if (typeof window.pushAlertToSidebar === 'function') {
+            this.toasts.set(toast.id, { element: null, data: toast, isActive: false });
+            window.pushAlertToSidebar(toast, 'livenotif');
+            this.activeToast = null;
+            this.processQueue();
+            return;
         }
+        // Fallback: original overlay behaviour
+        if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
         const toastEl = this.createActiveToastElement(toast);
         this.activeContainer.innerHTML = '';
         this.activeContainer.appendChild(toastEl);
         this.refreshLucideIcons();
-
         this.activeToast = toast.id;
         this.toasts.set(toast.id, { element: toastEl, data: toast, isActive: true, isUserExpanded });
-
         requestAnimationFrame(() => {
             toastEl.classList.remove('opacity-0', 'translate-y-6');
             toastEl.classList.add('opacity-100', 'translate-y-0');
         });
-
         if (!this.pinnedToasts.has(toast.id)) {
             const displayTime = isUserExpanded ? this.userExpandedDisplayTime : this.activeDisplayTime;
-            this.activeTimer = setTimeout(() => {
-                this.moveToStack(toast.id);
-            }, displayTime);
+            this.activeTimer = setTimeout(() => { this.moveToStack(toast.id); }, displayTime);
         }
     }
 
     moveToStack(toastId) {
         const toastData = this.toasts.get(toastId);
-        if (!toastData || !toastData.isActive) return;
+        if (!toastData) return;
+        // When sidebar is active, toast was already pushed there — nothing to stack
+        if (!toastData.isActive) return;
         if (this.pinnedToasts.has(toastId)) return;
 
         const activeEl = toastData.element;

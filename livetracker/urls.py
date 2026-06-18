@@ -31,24 +31,6 @@ urlpatterns = [
     path(
         "api/alerts/deviation/", views.report_deviation_alert, name="report_deviation_alert"
     ),  # /livetracker/api/alerts/deviation/
-    # Avg delay time series for TIME BOX
-    path(
-        "api/timebox/avg-delay-series/",
-        views.timebox_avg_delay_series,
-        name="timebox_avg_delay_series",
-    ),
-    # ⚡ OPTIMIZED trend graph API (v2) - uses pre-computed delays from CalculatedTrip
-    path(
-        "api/timebox/avg-delay-series/v2/",
-        views.timebox_avg_delay_series_v2,
-        name="timebox_avg_delay_series_v2",
-    ),
-    # 🆕 Phase-wise delay breakdown API for analytics
-    path(
-        "api/timebox/phase-breakdown/",
-        views.timebox_phase_breakdown_api,
-        name="timebox_phase_breakdown",
-    ),
     path(
         "api/alerts/<int:alert_id>/seen/", views.mark_alert_seen, name="mark_alert_seen"
     ),  # /livetracker/api/alerts/<id>/seen/
@@ -59,15 +41,14 @@ urlpatterns = [
     path(
         "api/twins/24hr-route/", views.twins_24hr_route_proxy, name="twins_24hr_route"
     ),  # /livetracker/api/twins/24hr-route/?registration_number=ABC123
-    # New TIME BOX route (preferred)
-    path("timebox/", views.timeline_table_view, name="timebox"),  # /livetracker/timebox/
-    # Removed legacy /timeline/ route (migrated to /timebox/)
+    path(
+        "api/twins/temp-soc/", views.twins_temp_soc_proxy, name="twins_temp_soc"
+    ),  # /livetracker/api/twins/temp-soc/?registration_number=ABC123&start_time=YYYY-MM-DD&end_time=YYYY-MM-DD
     path(
         "vehicle/<str:registration_number>/history/<str:date>/", 
         views.vehicle_history_view, 
         name="vehicle_history"
     ),  # /livetracker/vehicle/<id>/history/<date>/
-    path("logs/", views.logs_view, name="logs"),  # /livetracker/logs
     path(
         "api/feedback/submit/", views.submit_feedback, name="submit_feedback"
     ),  # /livetracker/api/feedback/submit/
@@ -93,4 +74,5 @@ urlpatterns = [
     ),
     path("api/geofences/", views.geofences_list_create, name="geofences_list"),
     path("api/geofences/<int:pk>/", views.geofence_detail, name="geofence_detail"),
+    path("api/fleet-trend/", views.fleet_trend_api, name="fleet_trend_api"),
 ]

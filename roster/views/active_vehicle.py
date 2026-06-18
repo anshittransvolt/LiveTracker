@@ -6,7 +6,7 @@ from django.conf import settings
 from ..models import HorseTrolleyAssignment, TransportMaster
 import logging
 from livetracker.timebox import build_timebox_for_vehicle
-from livetracker.views import fetch_timebox_data_from_fetch_geo
+from livetracker.data_sources import fetch_timebox_data_from_fetch_geo
 
 logger = logging.getLogger(__name__)
 

@@ -45,7 +45,7 @@
 
     /* CSS Variables for sidebar width — single value kept in sync with the aside element */
     :root {
-      --sidebar-width: 360px;
+      --sidebar-width: 268px;
       --sidebar-gap: 0.75rem;
       --analytics-width: 360px;
     }
@@ -67,19 +67,6 @@
       }
     }
 
-    /* Playback Controls - Responsive positioning */
-    #playbackControls {
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 2rem);
-      max-width: 80rem;
-    }
-
-    @media (min-width: 1280px) {
-      #playbackControls {
-        width: calc(100% - var(--sidebar-width) - var(--sidebar-width) - 4rem);
-      }
-    }
 
     /* Custom scrollbar (WebKit only) */
     ::-webkit-scrollbar {
@@ -135,12 +122,6 @@
     }
     body:not(.dark-theme) .tv-popup .leaflet-popup-content {
       color: #0f172a !important;
-    }
-
-    /* Custom bus icon - ensure no background */
-    .custom-bus-icon {
-      background: transparent !important;
-      border: none !important;
     }
 
     /* Leaflet panes — allow marker SVGs and ping rings to overflow the pane bounds */
@@ -313,52 +294,20 @@
     }
 
     /* Vehicle cards (dynamically injected) */
-    body.dark-theme .vehicle-card {
-      background: #0c1221 !important;
-      border-top-color: #1e2433 !important;
-      border-right-color: #1e2433 !important;
-      border-bottom-color: #1e2433 !important;
-      border-radius: 8px !important;
+    .vehicle-card {
+      outline: none;
     }
-    body.dark-theme .vehicle-card:hover {
-      border-top-color: #1e3a5f !important;
-      border-right-color: #1e3a5f !important;
-      border-bottom-color: #1e3a5f !important;
-      background: #131929 !important;
+    .vehicle-card:hover {
+      background: rgba(255,255,255,0.03) !important;
+      border-color: rgba(255,255,255,0.12) !important;
     }
-    body.dark-theme .vehicle-card h3 {
-      font-size: 12px !important;
-      font-weight: 600 !important;
-      color: #e2e8f0 !important;
+    .vehicle-card:focus-visible {
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.45);
     }
-    body.dark-theme .vehicle-card .text-slate-500,
-    body.dark-theme .vehicle-card .text-slate-600 {
-      color: #94a3b8 !important;
-      font-size: 10px !important;
-    }
-    body.dark-theme .vehicle-card .border-t,
-    body.dark-theme .vehicle-card .border-slate-100 {
-      border-color: #1e2433 !important;
-    }
-    body.dark-theme .vehicle-soc-track {
-      background: #1e2433 !important;
-    }
-    /* Status pill dark overrides */
-    body.dark-theme .vehicle-card .bg-green-100 { background: rgba(34,197,94,0.15) !important; }
-    body.dark-theme .vehicle-card .text-green-700 { color: #4ade80 !important; }
-    body.dark-theme .vehicle-card .border-green-300 { border-color: rgba(34,197,94,0.3) !important; }
-    body.dark-theme .vehicle-card .bg-blue-100 { background: rgba(59,130,246,0.15) !important; }
-    body.dark-theme .vehicle-card .text-blue-700 { color: #60a5fa !important; }
-    body.dark-theme .vehicle-card .border-blue-300 { border-color: rgba(59,130,246,0.3) !important; }
-    body.dark-theme .vehicle-card .bg-red-50 { background: rgba(239,68,68,0.15) !important; }
-    body.dark-theme .vehicle-card .text-red-700 { color: #f87171 !important; }
-    body.dark-theme .vehicle-card .border-red-200 { border-color: rgba(239,68,68,0.3) !important; }
-    body.dark-theme .vehicle-card .text-green-600 { color: #4ade80 !important; }
-    body.dark-theme .vehicle-card .text-yellow-600 { color: #fbbf24 !important; }
-    body.dark-theme #vehicleList,
-    body.dark-theme #mobileVehicleList,
-    body.dark-theme .flex-1.overflow-y-auto {
-      background: #0d1117 !important;
+    .vehicle-card.vc-selected {
+      background: rgba(34,197,94,0.07) !important;
+      border-color: rgba(34,197,94,0.35) !important;
+      border-left-color: #4ade80 !important;
     }
 
     /* Quick analytics panel */
@@ -436,13 +385,6 @@
       background: rgba(13,17,23,0.85) !important;
       border-color: #1e2433 !important;
     }
-    /* Map style toggle button itself */
-    body.dark-theme #mapStyleToggle {
-      background: #1a2035 !important;
-      border-color: #1e2433 !important;
-      color: #f59e0b !important;
-      border-radius: 6px !important;
-    }
 
     /* Map overlay floating buttons (route filters, back, menu toggle) */
     body.dark-theme #mobileMenuToggle,
@@ -514,28 +456,29 @@
       --avatar-bg: #eff6ff; --avatar-border: rgba(37,99,235,0.25); --avatar-text: #2563eb;
     }
     body.dark-theme {
-      --bg-base: #060a12; --bg-surface: #080c18; --bg-card: #0c1221; --bg-hover: #101829;
-      --border: #0f1829; --border-mid: #1a2540;
-      --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #475569; --text-faint: #1e293b;
+      --bg-base: #06100b; --bg-surface: #0a160f; --bg-card: #0d1b13; --bg-hover: #0f2018;
+      --border: #16271d; --border-mid: #203328;
+      --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #7a8fa8; --text-faint: #16271d;
       --c-moving-bg: rgba(34,197,94,0.12); --c-stopped-bg: rgba(239,68,68,0.12);
       --c-charging-bg: rgba(59,130,246,0.12); --c-idling-bg: rgba(245,158,11,0.12);
-      --nav-bg: #080c18; --nav-border: #0f1829; --nav-shadow: 0 1px 0 #0f1829;
-      --nav-text: #e2e8f0; --nav-text-muted: #475569;
-      --nav-btn-bg: #0c1221; --nav-btn-border: #0f1829; --nav-btn-text: #94a3b8; --nav-btn-hover: #101829;
-      --sidebar-bg: #07090f; --sidebar-border: #0f1829; --sidebar-shadow: none;
-      --card-bg: #0c1221; --card-bg-hover: #101829; --card-border: #0f1829;
+      --nav-bg: #0a160f; --nav-border: #16271d; --nav-shadow: 0 1px 0 #16271d;
+      --nav-text: #e2e8f0; --nav-text-muted: #7a8fa8;
+      --nav-btn-bg: #0d1b13; --nav-btn-border: #16271d; --nav-btn-text: #94a3b8; --nav-btn-hover: #0f2018;
+      --sidebar-bg: #061009; --sidebar-border: #16271d; --sidebar-shadow: none;
+      --card-bg: #0d1b13; --card-bg-hover: #0f2018; --card-border: #16271d;
       --card-shadow: none; --card-shadow-hover: none;
-      --input-bg: #0c1221; --input-border: #0f1829;
-      --stat-bg: #0c1221; --stat-border: #0f1829; --stat-hover: #101829;
-      --veh-list-bg: #060a12;
+      --input-bg: #0d1b13; --input-border: #16271d;
+      --stat-bg: #0d1b13; --stat-border: #16271d; --stat-hover: #0f2018;
+      --veh-list-bg: #06100b;
       --logo-filter: invert(1) brightness(10);
       --live-wrap-bg: rgba(34,197,94,0.08); --live-wrap-border: rgba(34,197,94,0.2); --live-text: #22c55e;
-      --dropdown-bg: #0c1221; --dropdown-border: #0f1829; --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      --project-text: #94a3b8; --project-hover: #101829;
-      --project-active-bg: #0c1f3a; --project-active-text: #60a5fa;
-      --soc-track: #0f1829;
+      --dropdown-bg: #0d1b13; --dropdown-border: #16271d; --dropdown-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      --project-text: #94a3b8; --project-hover: #0f2018;
+      --project-active-bg: #0a2218; --project-active-text: #4ade80;
+      --soc-track: #16271d;
       --alert-btn-bg: var(--nav-btn-bg); --alert-btn-border: var(--nav-btn-border); --alert-btn-text: #f87171;
-      --avatar-bg: #0c1221; --avatar-border: rgba(37,99,235,0.3); --avatar-text: #60a5fa;
+      --avatar-bg: #0d1b13; --avatar-border: rgba(37,99,235,0.3); --avatar-text: #60a5fa;
+      --signal: #22c55e;
     }
 
     /* ── Navbar ───────────────────────────────────────────────────── */
@@ -579,13 +522,6 @@
     }
     .lv-reports-menu a:hover { background: var(--project-hover) !important; color: var(--nav-text) !important; }
     .lv-reports-menu .lv-divider { border-color: var(--nav-border) !important; }
-    /* Alert button */
-    .lv-alert-btn {
-      background: var(--alert-btn-bg) !important;
-      border-color: var(--alert-btn-border) !important;
-      color: var(--alert-btn-text) !important;
-    }
-    .lv-alert-btn:hover { background: var(--nav-btn-hover) !important; }
     /* User avatar */
     .lv-avatar {
       background: var(--avatar-bg) !important;
@@ -628,7 +564,7 @@
     }
 
     /* ── Sidebar ───────────────────────────────────────────────────── */
-    aside { width: 360px !important; }
+    aside { width: var(--sidebar-width) !important; }
     aside {
       background: var(--sidebar-bg) !important;
       border-right-color: var(--sidebar-border) !important;
@@ -649,63 +585,45 @@
     aside input::placeholder { color: var(--text-muted) !important; }
     .lv-vehicle-list-bg { background: var(--veh-list-bg) !important; }
 
-    /* ── Sidebar stat cards ───────────────────────────────────────── */
-    .lv-stat-card {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 8px 6px; gap: 4px; border-radius: 8px;
-      background: var(--stat-bg) !important;
-      border: 1px solid var(--stat-border) !important;
-      transition: background 0.15s ease; cursor: pointer;
+    /* ── Fleet meter ──────────────────────────────────────────────── */
+    .lv-fleet-leg {
+      display: flex; align-items: center; gap: 4px;
+      background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+      transition: background 0.12s ease;
     }
-    .lv-stat-card:hover { background: var(--stat-hover) !important; }
-    .lv-stat-icon { display: flex; align-items: center; justify-content: center; }
-    .lv-stat-val { font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-    .lv-stat-lbl {
-      font-size: 8px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.4px; color: var(--text-muted);
+    .lv-fleet-leg:hover { background: var(--stat-hover); }
+    .lv-fleet-leg.lv-active { background: var(--stat-hover); }
+    .lv-fleet-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .lv-fleet-cnt { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; line-height: 1; }
+    .lv-fleet-lbl { font-size: 9px; font-weight: 500; color: var(--text-muted); letter-spacing: .03em; }
+    .lv-fleet-refresh {
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: none; cursor: pointer; padding: 2px; border-radius: 4px;
+      color: var(--text-muted); transition: color 0.12s ease, background 0.12s ease;
     }
+    .lv-fleet-refresh:hover { color: var(--text-primary); background: var(--stat-hover); }
 
     /* ── Vehicle cards ────────────────────────────────────────────── */
-    .lv-card {
-      background: var(--card-bg) !important;
-      border: 1px solid var(--card-border) !important;
-      border-left-width: 3px;
-      border-radius: 8px;
-      padding: 8px 10px;
-      margin-bottom: 5px;
-      transition: background 0.15s ease;
-      cursor: pointer;
+    /* Alert filter chips */
+    .alert-chip {
+      background: transparent;
+      color: var(--text-muted);
     }
-    .lv-card:hover { background: var(--card-bg-hover) !important; }
-    .lv-card .lv-vehicle-id { color: var(--text-primary); }
-    .lv-card .lv-driver-name { color: var(--text-muted); }
-    .lv-card .lv-timestamp { color: var(--text-secondary); }
-    .lv-card .lv-metric-text { color: var(--text-secondary); }
-    .lv-card .lv-soc-track { background: var(--soc-track) !important; }
-    /* Left border status accents */
-    .lv-card[data-status="Moving"]   { border-left-color: #22c55e !important; }
-    .lv-card[data-status="Stopped"]  { border-left-color: #ef4444 !important; }
-    .lv-card[data-status="Charging"] { border-left-color: #3b82f6 !important; }
+    .alert-chip:hover {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+    }
+    .alert-chip--active {
+      background: rgba(255,255,255,0.08) !important;
+      color: var(--text-primary) !important;
+      border-color: rgba(255,255,255,0.15) !important;
+    }
     .lv-card[data-status="Idling"]   { border-left-color: #f59e0b !important; }
-
-    /* ── Alert card (map overlay) ─────────────────────────────────── */
-    #lv-alert-card {
-      position: absolute; bottom: 16px; right: 16px; z-index: 800;
-      max-width: 220px;
-      background: var(--card-bg);
-      border: 1px solid rgba(239,68,68,0.35);
-      border-radius: 10px;
-      padding: 10px 12px;
-      display: none;
-      animation: alertSlideIn .25s ease;
-    }
-    body:not(.dark-theme) #lv-alert-card { border-color: #fca5a5; background: #fef2f2; }
-    @keyframes alertSlideIn { from{transform:translateY(8px);opacity:0} to{transform:translateY(0);opacity:1} }
 
     /* ── Toastr dark mode overrides ──────────────────────────────────── */
     body.dark-theme #toast-container .toast {
-      background: #0c1221 !important;
-      border: 1px solid #1a2540 !important;
+      background: #0d1b13 !important;
+      border: 1px solid #203328 !important;
       border-radius: 8px !important;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
       color: #e2e8f0 !important;
@@ -730,9 +648,9 @@
       width: 100%;
       overflow: hidden;
     }
-    body.dark-theme #noDataModal .ndm-card { background: #0c1221; border-color: #1a2540; box-shadow: 0 20px 60px rgba(0,0,0,0.7); }
+    body.dark-theme #noDataModal .ndm-card { background: #0d1b13; border-color: #203328; box-shadow: 0 20px 60px rgba(0,0,0,0.7); }
     body:not(.dark-theme) #noDataModal .ndm-card { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
-    body.dark-theme #noDataModal .ndm-header { background: #080c18; border-color: #0f1829; }
+    body.dark-theme #noDataModal .ndm-header { background: #0a160f; border-color: #16271d; }
     body:not(.dark-theme) #noDataModal .ndm-header { background: linear-gradient(135deg, #fef2f2, #fff7ed); border-color: #fecaca; }
     body.dark-theme #noDataModal .ndm-icon-wrap { background: rgba(239,68,68,0.12); }
     body:not(.dark-theme) #noDataModal .ndm-icon-wrap { background: #fee2e2; }
@@ -754,10 +672,10 @@
     body:not(.dark-theme) #noDataModal .ndm-info-title { color: #1e40af; }
     body.dark-theme #noDataModal .ndm-info-list li { color: #60a5fa; }
     body:not(.dark-theme) #noDataModal .ndm-info-list li { color: #3b82f6; }
-    body.dark-theme #noDataModal .ndm-footer { background: #07090f; border-color: #0f1829; }
+    body.dark-theme #noDataModal .ndm-footer { background: #09140d; border-color: #16271d; }
     body:not(.dark-theme) #noDataModal .ndm-footer { background: #f8faff; border-color: #e2e8f0; }
-    body.dark-theme #noDataModal .ndm-btn-close { background: #0c1221; border: 1px solid #1a2540; color: #94a3b8; }
-    body.dark-theme #noDataModal .ndm-btn-close:hover { background: #101829; color: #e2e8f0; }
+    body.dark-theme #noDataModal .ndm-btn-close { background: #0d1b13; border: 1px solid #203328; color: #94a3b8; }
+    body.dark-theme #noDataModal .ndm-btn-close:hover { background: #0f2018; color: #e2e8f0; }
     body:not(.dark-theme) #noDataModal .ndm-btn-close { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; }
     body:not(.dark-theme) #noDataModal .ndm-btn-close:hover { background: #e2e8f0; }
     body.dark-theme #noDataModal .ndm-btn-view { background: #2563eb; color: #fff; }
@@ -766,21 +684,6 @@
     body:not(.dark-theme) #noDataModal .ndm-btn-view:hover { background: #1d4ed8; }
 
     /* ── Sidebar utility buttons ─────────────────────────────────── */
-    .lv-refresh-btn {
-      color: var(--text-secondary);
-      border: 1px solid var(--sidebar-border);
-    }
-    .lv-refresh-btn:hover { background: var(--stat-hover); color: var(--text-primary); }
-    .lv-lowsoc-btn {
-      background: rgba(251,146,60,0.1);
-      border: 1px solid rgba(251,146,60,0.3);
-      color: #ea580c;
-    }
-    body.dark-theme .lv-lowsoc-btn {
-      background: rgba(124,45,18,0.4);
-      border-color: rgba(154,52,18,0.4);
-      color: #fb923c;
-    }
 
     /* ── Global transitions ───────────────────────────────────────── */
     button, a, .lv-card, .lv-stat-card, select, input {
@@ -815,30 +718,32 @@
   </script>
 
   <!-- Premium Navigation Bar -->
-  <nav class="lv-nav fixed top-0 left-0 right-0 z-[1000] bg-[#070b14]/95 backdrop-blur-md border-b border-[#1e2433] shadow-[0_2px_16px_rgba(0,0,0,0.4)]">
-    <div class="flex items-center justify-between px-4 lg:px-5 h-[46px]">
+  <nav class="lv-nav fixed top-0 left-0 right-0 z-[2000] bg-[#0a160f]/95 backdrop-blur-md border-b border-[#16271d] shadow-[0_2px_16px_rgba(0,0,0,0.4)]">
+    <div class="grid grid-cols-3 items-center px-4 lg:px-5 h-[46px]">
       <!-- Logo -->
       <a href="{% url 'dashboard:dashboard' %}" class="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
-        <svg width="12" height="16" viewBox="0 0 12 16" fill="none"><path d="M7 1L1 9h5l-1 6 7-8H7L7 1z" fill="#22c55e"/></svg>
+        <svg width="9" height="18" viewBox="0 0 9 18" fill="none"><path d="M5.5 1L0.5 10h4l-1 7L9 8H5.5L5.5 1z" fill="var(--signal,#22c55e)"/></svg>
         <div class="flex flex-col leading-none">
-          <span class="text-[12px] font-bold tracking-tight" style="color:var(--nav-text)">TRANSVOLT</span>
-          <span class="text-[11px] font-normal" style="color:var(--text-muted)">LiveTracker</span>
+          <span class="bname" style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--nav-text)">TRANSVOLT</span>
+          <span class="bsub" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)">LiveTracker</span>
         </div>
       </a>
 
-      <!-- Center: Live indicator + project dropdown -->
-      <div class="flex items-center gap-2">
+      <!-- Center: Live indicator + clock + project dropdown -->
+      <div class="flex items-center justify-center gap-2">
         <!-- Pulsing live dot -->
         <div class="lv-live-wrap flex items-center gap-1.5 px-2.5 py-1 rounded-full border">
           <span class="lv-live-dot"></span>
           <span class="lv-live-text text-[10px] font-semibold uppercase tracking-widest">Live</span>
         </div>
+        <!-- Live IST clock -->
+        <span id="lv-ist-clock" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;opacity:.85;min-width:64px;text-align:center;">--:--:--</span>
         <!-- Project switcher -->
         {% block topbar_project_switcher %}{% endblock %}
       </div>
 
       <!-- Right: geofence, reports, style toggle, alerts, avatar -->
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center justify-end gap-1.5">
         {% block topbar_geofence_btn %}{% endblock %}
 
         <!-- Reports Dropdown -->
@@ -865,15 +770,6 @@
 
         {% block topbar_map_style_toggle %}{% endblock %}
 
-        <!-- Alert button -->
-        <button id="alertToggleBtn" onclick="toggleLiveAlerts()" title="Live Alerts"
-          class="lv-alert-btn relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-150"
-          style="font-size:10px;font-weight:600;border-radius:6px;padding:3px 9px;">
-          <i data-lucide="bell" class="w-3 h-3"></i>
-          <span class="text-[10px] font-semibold hidden sm:inline">Alerts</span>
-          <span id="alertCountBadge" class="hidden absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">0</span>
-        </button>
-
         <!-- User avatar -->
         <div class="lv-avatar w-7 h-7 rounded-full border flex items-center justify-center cursor-pointer transition-all duration-150">
           <i data-lucide="user" class="w-3.5 h-3.5"></i>
@@ -883,7 +779,7 @@
   </nav>
 
   <!-- Main Content with top padding for fixed navbar -->
-  <div id="app" class="h-full pt-16">
+  <div id="app" class="h-full pt-[46px]">
     {% block content %}{% endblock %}
   </div>
 
@@ -892,39 +788,38 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/boldtrn-leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
-  
   <!-- Leaflet MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <!-- Environment Variables (must load before modules) -->
   <script>
- 
+    window.CURRENT_PROJECT = "{{ selected_project }}";
+
     window.showLoading = function (message = 'Please wait') {
-      // console.log('📢 showLoading called with message:', message);
       const overlay = document.getElementById('loadingOverlay');
       const messageEl = document.getElementById('loadingMessage');
       if (overlay) {
         overlay.classList.remove('hidden');
-        if (messageEl && message) {
-          messageEl.textContent = message;
-        }
-        // console.log('✅ Loading overlay shown');
-      } else {
-        console.error('❌ Loading overlay element not found!');
+        if (messageEl && message) messageEl.textContent = message;
       }
     };
 
     window.hideLoading = function () {
-      // console.log('📢 hideLoading called');
       const overlay = document.getElementById('loadingOverlay');
-      if (overlay) {
-        overlay.classList.add('hidden');
-        // console.log('✅ Loading overlay hidden');
-      } else {
-        console.error('❌ Loading overlay element not found!');
-      }
+      if (overlay) overlay.classList.add('hidden');
     };
+
+    // Live IST clock
+    (function () {
+      function tickClock() {
+        const el = document.getElementById('lv-ist-clock');
+        if (!el) return;
+        const ist = new Date(Date.now() + 5.5 * 3600000);
+        el.textContent = ist.toISOString().slice(11, 19);
+      }
+      tickClock();
+      setInterval(tickClock, 1000);
+    })();
   </script>
 
   <!-- Leaflet Heatmap Plugin (must be loaded before vehicle_playback.js) -->
@@ -941,60 +836,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       lucide.createIcons();
-      
-      // Load saved alert state from localStorage
-      loadAlertState();
     });
 
-    // Toggle Live Alerts visibility with localStorage persistence
-    let alertsVisible = true;
-    
-    // Load alert state from localStorage
-    function loadAlertState() {
-      const savedState = localStorage.getItem('liveAlertsVisible');
-      if (savedState !== null) {
-        alertsVisible = savedState === 'true';
-      } else {
-        alertsVisible = true; // Default to visible if no saved state
-      }
-      
-      // Apply the saved state to UI
-      applyAlertState(false);
-    }
-    
-    // Apply alert state to UI
-    function applyAlertState(animate = true) {
-      const stackContainer = document.querySelector('#livetracker-toast-stack')?.parentElement;
-      const activeContainer = document.getElementById('livetracker-toast-active');
-      const toggleBtn = document.getElementById('alertToggleBtn');
-
-      if (!toggleBtn) return;
-
-      if (alertsVisible) {
-        if (stackContainer) stackContainer.classList.remove('hidden');
-        if (activeContainer) activeContainer.classList.remove('hidden');
-        toggleBtn.style.opacity = '1';
-        toggleBtn.setAttribute('aria-checked', 'true');
-        toggleBtn.title = 'Hide Live Alerts';
-      } else {
-        if (stackContainer) stackContainer.classList.add('hidden');
-        if (activeContainer) activeContainer.classList.add('hidden');
-        toggleBtn.style.opacity = '0.45';
-        toggleBtn.setAttribute('aria-checked', 'false');
-        toggleBtn.title = 'Show Live Alerts';
-      }
-    }
-    
-    function toggleLiveAlerts() {
-      alertsVisible = !alertsVisible;
-      
-      // Save to localStorage
-      localStorage.setItem('liveAlertsVisible', alertsVisible.toString());
-      
-      // Apply state to UI with animation
-      applyAlertState(true);
-    }
-    
     // Toggle Reports Dropdown
     function toggleReportsDropdown() {
       const menu = document.getElementById('reportsDropdownMenu');
@@ -1137,70 +980,6 @@
 
   <!-- LiveNotif Toast Notifications System -->
   {% include "livenotif/base.html" %}
-
-<!-- Global Driver Assignment Button - Sleek & Compact -->
-<button
-  id="globalDriverAssignBtn"
-  class="fixed top-1/2 right-0 -translate-y-[calc(50%+120px)]
-         bg-gradient-to-br from-blue-600 to-blue-700
-         text-white
-         w-10 h-24
-         px-2 py-3
-         rounded-l-xl
-         shadow-lg
-         hover:from-blue-700 hover:to-blue-800
-         hover:w-11
-         hover:shadow-xl hover:shadow-blue-500/30
-         active:scale-95
-         transition-all duration-200 ease-out
-         z-[99999]
-         group
-         border-l-2 border-blue-400/50"
-  onclick="openGlobalDriverAssignment()"
-  title="Assign Driver to Truck"
-  style="position: fixed !important; z-index: 99999 !important;"
->
-  <div class="flex flex-col items-center justify-center gap-1 h-full">
-    <i data-lucide="user-plus" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
-    <span
-      class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
-      style="writing-mode: vertical-rl; text-orientation: mixed;">
-      Assign
-    </span>
-  </div>
-</button>
-
-<!-- Global Feedback Button - Below Driver Assignment -->
-<button
-  id="globalFeedbackBtn"
-  class="fixed top-1/2 right-0 -translate-y-1/2
-         bg-gradient-to-br from-purple-600 to-purple-700
-         text-white
-         w-10 h-24
-         px-2 py-3
-         rounded-l-xl
-         shadow-lg
-         hover:from-purple-700 hover:to-purple-800
-         hover:w-11
-         hover:shadow-xl hover:shadow-purple-500/30
-         active:scale-95
-         transition-all duration-200 ease-out
-         z-[99999]
-         group
-         border-l-2 border-purple-400/50"
-  onclick="openFeedbackSidebar()"
-  title="Report Bug or Request Feature"
-  style="position: fixed !important; z-index: 99999 !important;"
->
-  <div class="flex flex-col items-center justify-center gap-1 h-full">
-    <i data-lucide="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform duration-150"></i>
-    <span
-      class="text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity"
-      style="writing-mode: vertical-rl; text-orientation: mixed;">
-      Feedback
-    </span>
-  </div>
-</button>
 
   <!-- Global Driver Assignment Sidebar -->
   <div id="globalDriverAssignmentSidebar" class="fixed top-0 right-0 h-full w-full md:w-[420px] bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-out z-[100001] overflow-y-auto" style="z-index: 100001 !important;">
@@ -1787,27 +1566,6 @@
 
   {% block extra_scripts %}{% endblock %}
 
-  <script>
-    // Global shortcut: Alt+B → navigate to TIME BOX page
-    (function(){
-      const TIMEBOX_URL = "{% url 'livetracker:timebox' %}";
-      document.addEventListener('keydown', function(e){
-        if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-        const tag = (e.target.tagName || '').toLowerCase();
-        const isEditable = e.target.isContentEditable || ['input','textarea','select'].includes(tag);
-        if (isEditable) return;
-        if ((e.key || '').toLowerCase() === 'b') {
-          // Do not navigate on analytics page; page-specific handler manages Alt+B
-          const p = window.location.pathname || '';
-          if (p.startsWith('/livetracker/') && !p.includes('/livetracker/timebox')) {
-            return;
-          }
-          e.preventDefault();
-          try { window.location.href = TIMEBOX_URL; } catch(_) {}
-        }
-      });
-    })();
-  </script>
 </body>
 
 </html>

@@ -1,6 +1,5 @@
 """
 Django settings for vehicletracker project.
-Standalone vehicle tracking system: livetracker + globaltracker.
 """
 
 import os
@@ -47,9 +46,8 @@ INSTALLED_APPS = [
     "email_service",
     "livenotif",
     "livetracker",
-    "globaltracker",
     "roster",
-    "mis",
+    "mis",  # scheduler only — no models/migrations
 ]
 
 MIDDLEWARE = [

@@ -37,7 +37,7 @@ export function addGeofences(map, spv = '') {
   function addMarker(lat, lng, type, popupHtml) {
     const marker = L.marker([lat, lng], {
       icon: makeIcon(type, map.getZoom()),
-      zIndexOffset: 1000,
+      zIndexOffset: -1000,
       riseOnHover: true,
     }).addTo(map);
     marker.bindPopup(popupHtml);

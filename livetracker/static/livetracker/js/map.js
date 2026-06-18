@@ -28,11 +28,7 @@ function toggleLoading(show = true, message = 'Loading vehicle data...') {
   } else {
     window.hideLoading?.();
   }
-  // console.log(show ? `🌀 Showing loading: ${message}` : '✅ Hiding loading.');
 }
-
-// Export for compatibility
-export const showSpinner = toggleLoading;
 
 // =======================
 // 2️⃣ MAP + SEARCH BAR SETUP
@@ -40,17 +36,15 @@ export const showSpinner = toggleLoading;
 const mapEl = document.getElementById('map');
 const refreshBtn = document.getElementById('refreshBtn');
 
-let map, markers = {}, polylines = {}, allVehicles = [];
+let map, markers = {}, polylines = {};
 let sidebarSearchInput;
-let geofenceLayerGroup = null; // To manage geofence visibility
-let markerClusterGroup = null; // Marker cluster group for grouping nearby vehicles
+let markerClusterGroup = null;
 
 // Check if we're on a vehicle-specific page (not the main fleet view)
 const isVehiclePage = window.location.pathname.match(/\/livetracker\/[^\/]+\/?$/);
 
 // Skip map initialization if on vehicle page (vehicle_playback.js will handle it)
 if (mapEl && !isVehiclePage) {
-  // console.log('🗺️ Initializing main fleet map...');
 
   // =======================
   // GEOCODING CACHE - Prevent excessive API calls
@@ -89,13 +83,11 @@ if (mapEl && !isVehiclePage) {
       const cacheKey = getGeocodeKey(lat, lng);
       const cached = geocodingCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp < GEOCODING_CACHE_TTL)) {
-        // console.log(`✅ Geocoding cache hit: ${cacheKey}`);
         return cached.address;
       }
       
       // Deduplicate simultaneous requests for same coordinates
       if (pendingGeocodeRequests.has(cacheKey)) {
-        // console.log(`⏳ Reusing pending geocode request: ${cacheKey}`);
         return pendingGeocodeRequests.get(cacheKey);
       }
       
@@ -103,7 +95,6 @@ if (mapEl && !isVehiclePage) {
       const geocodePromise = (async () => {
         // Use Django backend proxy to avoid CORS issues
         const url = `/livetracker/api/geocode/?lat=${lat}&lon=${lng}`;
-        // console.log(`🌐 Fetching geocode via backend proxy: ${cacheKey}`);
         
         // Add timeout to fetch request (20 seconds to account for backend retries)
         const controller = new AbortController();
@@ -138,7 +129,6 @@ if (mapEl && !isVehiclePage) {
       }
       
         const data = await response.json();
-        // console.log('📍 Geocoding response:', data);
         
         if (!data.success) {
           console.error('❌ Geocoding API error:', data.error);
@@ -204,13 +194,15 @@ if (mapEl && !isVehiclePage) {
   // 3️⃣ MAP SETUP
   // =======================
   const TILE_LAYERS = {
-    day: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
+    day: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 20,
-      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiler.com/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
     }),
-    dark: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 20,
-      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiler.com/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
     }),
   };
 
@@ -263,116 +255,136 @@ if (mapEl && !isVehiclePage) {
   });
   
   map.addLayer(markerClusterGroup);
-  console.log('✅ Marker clustering enabled (5+ vehicles)');
 
-  // ── Vehicle truck icon ───────────────────────────────────────────────
+  // ── Vehicle icon (truck or arrow) ────────────────────────────────────
+  if (!document.getElementById('pingRingStyle')) {
+    const st = document.createElement('style'); st.id = 'pingRingStyle';
+    st.textContent = `@keyframes pingRing{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.5);opacity:0}}`;
+    document.head.appendChild(st);
+  }
+
   function getVehicleIcon(status, heading = 0) {
     const s = (status || '').toLowerCase();
+    const isDark = document.body.classList.contains('dark-theme');
+    const hl = isDark
+      ? { beam1: 'rgba(255,250,140,.13)', beam2: 'rgba(255,250,140,.22)', halo: 'rgba(255,252,160,.28)', mid: 'rgba(255,254,200,.75)', core: '#fffde0' }
+      : { beam1: 'rgba(200,130,0,.28)', beam2: 'rgba(210,145,0,.45)', halo: 'rgba(225,155,0,.40)', mid: 'rgba(240,170,0,.88)', core: '#a86800' };
     const colors = {
-      moving:   { body: '#1a2f50', front: '#1e3a6e', stroke: '#2563eb', bolt: '#22c55e' },
+      moving:   { body: '#0d2240', front: '#112a52', stroke: '#2563eb', bolt: '#22c55e' },
       stopped:  { body: '#2a0d0d', front: '#3a1010', stroke: '#7f1d1d', bolt: '#ef4444' },
       charging: { body: '#0d1f3c', front: '#112347', stroke: '#1d4ed8', bolt: '#3b82f6' },
       idling:   { body: '#251800', front: '#2e1f00', stroke: '#92400e', bolt: '#f59e0b' },
     };
     const c = colors[s] || colors.stopped;
+    const style = localStorage.getItem('markerStyle') || 'truck';
+
+    if (style === 'arrow') {
+      const pingHTML = (s === 'moving' || s === 'charging') ? `
+        <div style="position:absolute;inset:0;border-radius:50%;border:1.5px solid ${c.bolt};opacity:.5;animation:pingRing 2s infinite;pointer-events:none"></div>` : '';
+      const arrowSVG = `<svg width="22" height="30" viewBox="0 0 22 30" fill="none" overflow="visible">
+        <g transform="rotate(${heading},11,15)">
+          <path d="M11 2 L21 28 L11 21 L1 28 Z" fill="rgba(0,0,0,.3)" transform="translate(0.8,1)"/>
+          <path d="M11 2 L21 28 L11 21 L1 28 Z" fill="${c.bolt}" stroke="rgba(255,255,255,.35)" stroke-width="1.2" stroke-linejoin="round"/>
+          <line x1="11" y1="11" x2="11" y2="21" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+        </g>
+      </svg>`;
+      return L.divIcon({
+        html: `<div style="position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center">${pingHTML}${arrowSVG}</div>`,
+        className: '',
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        popupAnchor: [0, -24]
+      });
+    }
+
+    // Slimmed truck
     const pingHTML = (s === 'moving' || s === 'charging') ? `
-      <div style="position:absolute;inset:-4px;border-radius:50%;border:1.5px solid ${c.bolt};opacity:.5;animation:pingRing 2s infinite;pointer-events:none"></div>
-      <div style="position:absolute;inset:-12px;border-radius:50%;border:1px solid ${c.bolt};opacity:.2;animation:pingRing 2s .6s infinite;pointer-events:none"></div>` : '';
-    const truckSVG = `<svg width="38" height="62" viewBox="0 0 38 62" fill="none" overflow="visible">
-      <g transform="rotate(${heading},19,31)">
-        <rect x="6" y="4" width="26" height="54" rx="5" fill="${c.body}" stroke="${c.stroke}" stroke-width="1.5"/>
-        <rect x="8" y="4" width="22" height="10" rx="4" fill="${c.front}"/>
-        <rect x="10" y="5.5" width="18" height="6" rx="2" fill="${c.stroke}" opacity=".4"/>
-        <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-        <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-        <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-        <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-        <rect x="8" y="19" width="22" height="1" rx=".5" fill="${c.stroke}" opacity=".2"/>
-        <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="${c.bolt}" opacity=".95"/>
+      <div style="position:absolute;inset:-2px;border-radius:50%;border:1.5px solid ${c.bolt};opacity:.5;animation:pingRing 2s infinite;pointer-events:none"></div>
+      <div style="position:absolute;inset:-10px;border-radius:50%;border:1px solid ${c.bolt};opacity:.2;animation:pingRing 2s .6s infinite;pointer-events:none"></div>` : '';
+    const truckSVG = `<svg width="26" height="46" viewBox="0 0 26 46" fill="none" overflow="visible">
+      <g transform="rotate(${heading},13,23)">
+        <path d="M7.5 4 L-6 -22 L18 -22 Z" fill="${hl.beam1}"/>
+        <path d="M7.5 4 L-1 -14 L15 -14 Z" fill="${hl.beam2}"/>
+        <path d="M18.5 4 L8  -22 L32 -22 Z" fill="${hl.beam1}"/>
+        <path d="M18.5 4 L11 -14 L27 -14 Z" fill="${hl.beam2}"/>
+        <rect x="5" y="4" width="16" height="38" rx="3" fill="${c.body}" stroke="${c.stroke}" stroke-width="1.5"/>
+        <rect x="6.5" y="4" width="13" height="8" rx="2.5" fill="${c.front}"/>
+        <rect x="8" y="5.5" width="10" height="5" rx="1.5" fill="${c.stroke}" opacity=".45"/>
+        <rect x="1"  y="10" width="4" height="8" rx="1.5" fill="#09140d" stroke="${c.stroke}" stroke-width=".7" opacity=".85"/>
+        <rect x="21" y="10" width="4" height="8" rx="1.5" fill="#09140d" stroke="${c.stroke}" stroke-width=".7" opacity=".85"/>
+        <rect x="1"  y="29" width="4" height="8" rx="1.5" fill="#09140d" stroke="${c.stroke}" stroke-width=".7" opacity=".85"/>
+        <rect x="21" y="29" width="4" height="8" rx="1.5" fill="#09140d" stroke="${c.stroke}" stroke-width=".7" opacity=".85"/>
+        <path d="M14.5 17l-5 9h5l-4 9 10-11h-6z" fill="${c.bolt}" opacity=".92"/>
+        <circle cx="7.5"  cy="4" r="4"   fill="${hl.halo}"/>
+        <circle cx="7.5"  cy="4" r="1.8" fill="${hl.mid}"/>
+        <circle cx="7.5"  cy="4" r=".85" fill="${hl.core}"/>
+        <circle cx="18.5" cy="4" r="4"   fill="${hl.halo}"/>
+        <circle cx="18.5" cy="4" r="1.8" fill="${hl.mid}"/>
+        <circle cx="18.5" cy="4" r=".85" fill="${hl.core}"/>
       </g>
     </svg>`;
-    if (!document.getElementById('pingRingStyle')) {
-      const st = document.createElement('style'); st.id = 'pingRingStyle';
-      st.textContent = `@keyframes pingRing{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.5);opacity:0}}`;
-      document.head.appendChild(st);
-    }
     return L.divIcon({
-      html: `<div style="position:relative;width:74px;height:74px;display:flex;align-items:center;justify-content:center">${pingHTML}${truckSVG}</div>`,
+      html: `<div style="position:relative;width:52px;height:52px;display:flex;align-items:center;justify-content:center">${pingHTML}${truckSVG}</div>`,
       className: '',
-      iconSize: [74, 74],
-      iconAnchor: [37, 37],
-      popupAnchor: [0, -42]
+      iconSize: [52, 52],
+      iconAnchor: [26, 26],
+      popupAnchor: [0, -30]
     });
   }
 
-  // Add organization watermark - Constrained to map area only (excluding sidebar)
+  // Toggle marker style and re-render all live markers
+  window.toggleMarkerStyle = function() {
+    const next = (localStorage.getItem('markerStyle') || 'truck') === 'truck' ? 'arrow' : 'truck';
+    localStorage.setItem('markerStyle', next);
+    const btn = document.getElementById('markerStyleToggle');
+    const lbl = document.getElementById('markerStyleLabel');
+    if (btn) {
+      const icon = btn.querySelector('i[data-lucide]');
+      if (icon) { icon.setAttribute('data-lucide', next === 'arrow' ? 'navigation' : 'truck'); }
+    }
+    if (lbl) lbl.textContent = next === 'arrow' ? 'Arrow' : 'Truck';
+    // Re-render all existing markers
+    Object.entries(markers).forEach(([reg, marker]) => {
+      marker.setIcon(getVehicleIcon(marker.vehicleState || 'stopped', marker.heading || 0));
+    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  };
+
+  // Init button label on load
+  (function() {
+    const cur = localStorage.getItem('markerStyle') || 'truck';
+    const lbl = document.getElementById('markerStyleLabel');
+    const btn = document.getElementById('markerStyleToggle');
+    if (lbl) lbl.textContent = cur === 'arrow' ? 'Arrow' : 'Truck';
+    if (btn) {
+      const icon = btn.querySelector('i[data-lucide]');
+      if (icon) icon.setAttribute('data-lucide', cur === 'arrow' ? 'navigation' : 'truck');
+    }
+  })();
+
+  // Watermark — contained entirely within the Leaflet map element
   const watermarkControl = L.Control.extend({
-    options: {
-      position: 'bottomleft'
-    },
-    onAdd: function(map) {
+    options: { position: 'bottomleft' },
+    onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-watermark-pattern');
-      
-      // Sidebar width - adjust based on your sidebar width (typically 320px on desktop)
-      const sidebarWidth = window.innerWidth >= 1024 ? '320px' : '0px'; // No sidebar on mobile
-      
-      // Create evenly distributed watermarks across map area (excluding sidebar)
+
+      // Outer container fills the map tile area (position:absolute is already set by Leaflet)
+      container.style.cssText = 'position:absolute;inset:0;pointer-events:none;user-select:none;z-index:400;overflow:hidden;';
+
       let watermarkHTML = '';
-      const rows = 4; // Number of rows to cover full height
-      const cols = 4; // Number of columns to cover full width
-      
-      for (let i = 0; i < rows; i++) {
-        watermarkHTML += `
-          <div style="
-            display: flex;
-            gap: 120px;
-            margin-bottom: ${i < rows - 1 ? '80px' : '0'};
-            justify-content: space-evenly;
-            align-items: center;
-          ">`;
-        
-        for (let j = 0; j < cols; j++) {
-          watermarkHTML += `
-            <img src="/static/livetracker/images/transvolt_logo.svg" alt="Transvolt" style="width: 180px; height: auto; opacity: 0.2;" />
-          `;
+      for (let i = 0; i < 4; i++) {
+        watermarkHTML += '<div style="display:flex;justify-content:space-evenly;align-items:center;flex:1;">';
+        for (let j = 0; j < 4; j++) {
+          watermarkHTML += '<img src="/static/livetracker/images/transvolt_logo.svg" alt="" style="width:160px;height:auto;opacity:0.18;">';
         }
-        
-        watermarkHTML += `</div>`;
+        watermarkHTML += '</div>';
       }
-      
-      container.innerHTML = `
-        <div style="
-          position: fixed;
-          top: 0;
-          left: ${sidebarWidth};
-          right: 0;
-          bottom: 0;
-          pointer-events: none;
-          user-select: none;
-          z-index: 400;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-evenly;
-          padding: 40px;
-          overflow: hidden;
-        ">
-          ${watermarkHTML}
-        </div>
-      `;
-      
-      // Make container cover the map area only (exclude sidebar)
-      container.style.position = 'absolute';
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.width = '100%';
-      container.style.height = '100%';
-      container.style.pointerEvents = 'none';
-      container.style.zIndex = '400';
-      
+
+      container.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:32px;">${watermarkHTML}</div>`;
       return container;
     }
   });
-  
+
   map.addControl(new watermarkControl());
 
   // =======================
@@ -406,31 +418,6 @@ if (mapEl && !isVehiclePage) {
       return 'rgb(177, 133, 167)'; // Purple - Dhule to Dhar (northward)
     }
   }
-
-
-function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
-  const lowerStatus = (status || '').toLowerCase();
-  let color, dotSize, shadow, pulseClass;
-
-  if (lowerStatus === 'charging') {
-    color = '#3b82f6'; dotSize = 12; shadow = 'rgba(59,130,246,0.4)'; pulseClass = 'charging-pulse';
-  } else if (lowerStatus === 'moving') {
-    color = '#22c55e'; dotSize = 12; shadow = 'rgba(34,197,94,0.3)'; pulseClass = '';
-  } else {
-    color = '#ef4444'; dotSize = 10; shadow = 'rgba(239,68,68,0.2)'; pulseClass = '';
-  }
-
-  const outer = dotSize + 8;
-  return L.divIcon({
-    className: 'custom-vehicle-dot',
-    html: `<div class="${pulseClass}" style="width:${outer}px;height:${outer}px;display:flex;align-items:center;justify-content:center;"><div style="width:${dotSize}px;height:${dotSize}px;background:${color};border-radius:50%;border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 0 3px ${shadow};"></div></div>`,
-    iconSize: [outer, outer],
-    iconAnchor: [outer / 2, outer / 2],
-    popupAnchor: [0, -(outer / 2)],
-  });
-}
-
-
 
 
   // Add geofences to the map — project-specific
@@ -565,7 +552,7 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     }
   }
 
-  // Status filter buttons
+  // Status filter buttons (fleet meter legend + hidden all/lowsoc)
   const filterButtons = {
     filterAll: 'all',
     filterCharging: 'charging',
@@ -580,24 +567,10 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       btn.addEventListener('click', () => {
         currentStatusFilter = filterType;
 
-        // Update button styles
-        Object.keys(filterButtons).forEach(id => {
+        // Update active state on visible legend buttons
+        ['filterMoving','filterStopped','filterCharging'].forEach(id => {
           const button = document.getElementById(id);
-          if (button) {
-            if (id === btnId) {
-              // Active state
-              button.classList.add('bg-slate-100', 'border-slate-300');
-              button.classList.remove('bg-white', 'hover:bg-green-50', 'hover:bg-blue-50', 'hover:bg-red-50', 'hover:bg-orange-50');
-            } else {
-              // Inactive state
-              button.classList.remove('bg-slate-100', 'border-slate-300');
-              button.classList.add('bg-white');
-              if (id === 'filterCharging') button.classList.add('hover:bg-green-50');
-              if (id === 'filterMoving') button.classList.add('hover:bg-blue-50');
-              if (id === 'filterStopped') button.classList.add('hover:bg-red-50');
-              if (id === 'filterLowSoc') button.classList.add('hover:bg-orange-50');
-            }
-          }
+          if (button) button.classList.toggle('lv-active', id === btnId);
         });
 
         applyFilters();
@@ -607,12 +580,10 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
 
   // Route filter buttons (handles both mobile and desktop with data attributes)
   const routeFilterButtons = document.querySelectorAll('.route-filter-btn');
-  console.log(`🔘 Found ${routeFilterButtons.length} route filter buttons`);
 
   routeFilterButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const filterType = btn.getAttribute('data-route-filter');
-      console.log(`🎯 Route filter clicked: ${filterType}`);
       currentRouteFilter = filterType;
 
       // Update all route filter button styles (both mobile and desktop)
@@ -647,7 +618,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     const searchTerm = sidebarSearchInput?.value.trim().toUpperCase() || '';
     const vehicleCards = document.querySelectorAll('#vehicleList > div');
 
-    console.log(`🔍 Applying filters - Status: ${currentStatusFilter}, Route: ${currentRouteFilter}, Search: "${searchTerm}"`);
 
     // Track which vehicles should be visible on map
     const visibleVehicles = new Set();
@@ -665,9 +635,8 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
           const soc = parseInt(socElement?.getAttribute('data-soc') || '100');
           matchesStatus = soc < 30;
         } else {
-          const statusBadge = card.querySelector('span[class*="rounded-full"]');
-          const statusText = statusBadge?.textContent.trim().toLowerCase() || '';
-          matchesStatus = statusText === currentStatusFilter;
+          const cardStatus = (card.getAttribute('data-status') || '').toLowerCase();
+          matchesStatus = cardStatus === currentStatusFilter;
         }
       }
 
@@ -680,7 +649,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
           matchesRoute = vehicleRoute === currentRouteFilter;
           
           if (!matchesRoute) {
-            console.log(`❌ ${displayNumber} filtered out - heading: ${heading}°, route: ${vehicleRoute}, filter: ${currentRouteFilter}`);
           }
         } else {
           console.warn(`⚠️ ${displayNumber} - No marker found for ${actualRegNumber}`);
@@ -697,7 +665,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       }
     });
 
-    console.log(`✅ Visible vehicles after filter: ${visibleVehicles.size}`);
 
     // Update map markers and polylines visibility
     updateMapVisibility(visibleVehicles);
@@ -969,18 +936,15 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       window.lastPayload = payload;
 
       const activeRegs = new Set();
-      allVehicles = [];
-      const bounds = []; // Track all vehicle positions for bounds fitting
+      const bounds = [];
 
       for (const key in payload) {
         const { registration_number, points } = payload[key];
         if (!points?.length) continue;
 
-        // Map trolley to truck number for display
         const displayNumber = getDisplayVehicleNumber(registration_number);
 
         activeRegs.add(registration_number);
-        allVehicles.push(displayNumber);  // Store display number for UI
 
         const trail = points.slice(0, 5);
         const latest = trail[0];
@@ -991,7 +955,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
         // Get heading from GPS data (default to 0 if not available)
         const heading = parseFloat(latest.gps_heading || latest.heading || 0);
 
-        // console.log(`🚛 ${displayNumber}: heading = ${heading}°, speed = ${latest.speed} km/h, lat = ${lat}`);
 
         bounds.push([lat, lng]); // Add to bounds array
 
@@ -1127,13 +1090,14 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     updateElement('countStopped', counts.stopped);
     updateElement('countLowSoc', counts.lowsoc);
 
-    // (map chips and bottom strip removed)
-
-    // Show/hide Low SOC filter button based on count
-    const lowSocBtn = document.getElementById('filterLowSoc');
-    if (lowSocBtn) {
-      lowSocBtn.classList.toggle('hidden', counts.lowsoc === 0);
-    }
+    // Update fleet meter bar widths (time-proportional to fleet size)
+    const total = counts.all || 1;
+    const barMoving   = document.getElementById('barMoving');
+    const barStopped  = document.getElementById('barStopped');
+    const barCharging = document.getElementById('barCharging');
+    if (barMoving)   barMoving.style.width   = `${(counts.moving   / total * 100).toFixed(1)}%`;
+    if (barStopped)  barStopped.style.width  = `${(counts.stopped  / total * 100).toFixed(1)}%`;
+    if (barCharging) barCharging.style.width = `${(counts.charging / total * 100).toFixed(1)}%`;
 
 
     if (vehicles.length === 0) {
@@ -1180,7 +1144,7 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     return {
       state: 'Stopped',
       class: 'bg-red-50 text-red-700 border-red-200',
-      icon: 'octagon'
+      icon: 'circle-minus'
     };
   }
 
@@ -1219,82 +1183,59 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
   // Helper: Create vehicle card HTML
   function createVehicleCard(vehicle) {
     const latest = vehicle.points[0];
-    const speed = latest.gps_speed ?? latest.speed ?? 0;
-    const soc = latest.soc ?? 0;
-    const { state, class: stateClass, icon: stateIcon } = getVehicleState(latest);
-    const { primary, secondary } = getStateMetrics(state, speed, soc);
-    const lastUpdate = formatTimeAgo(latest.last_connected || latest.gps_time);
-    
-    // Map trolley to truck number for display
+    const speed   = latest.gps_speed ?? latest.speed ?? 0;
+    const socRaw  = latest.soc;
+    const soc     = socRaw ?? 0;
+    const hasSoc  = socRaw !== null && socRaw !== undefined;
+    const { state, icon: stateIcon } = getVehicleState(latest);
+    const lastUpdate    = formatTimeAgo(latest.last_connected || latest.gps_time);
     const displayNumber = getDisplayVehicleNumber(vehicle.registration_number);
 
-    const driverName = latest.driver_name || latest.driver || '';
-    const socBarColor = soc >= 60 ? '#22c55e' : soc >= 30 ? '#f59e0b' : '#ef4444';
-    // Status pill colors — work on both light and dark backgrounds
-    const stateColors = {
-      Moving:  { pill:'rgba(34,197,94,0.12)',  text:'#16a34a', border:'rgba(34,197,94,0.3)',  textDark:'#4ade80' },
-      Stopped: { pill:'rgba(239,68,68,0.1)',   text:'#dc2626', border:'rgba(239,68,68,0.3)',  textDark:'#f87171' },
-      Charging:{ pill:'rgba(59,130,246,0.1)',  text:'#2563eb', border:'rgba(59,130,246,0.3)', textDark:'#60a5fa' },
+    const STATE_STYLE = {
+      Moving:   { pill:'rgba(34,197,94,0.13)',  text:'#4ade80', border:'rgba(34,197,94,0.28)'  },
+      Stopped:  { pill:'rgba(239,68,68,0.11)',  text:'#f87171', border:'rgba(239,68,68,0.28)'  },
+      Charging: { pill:'rgba(59,130,246,0.11)', text:'#60a5fa', border:'rgba(59,130,246,0.28)' },
     };
-    const sc = stateColors[state] || stateColors.Stopped;
-    const isDark = document.body.classList.contains('dark-theme');
-    const pillText = isDark ? sc.textDark : sc.text;
+    const sc = STATE_STYLE[state] || STATE_STYLE.Stopped;
 
-    const truckColors = {
-      Moving:   { body: '#1a2f50', front: '#1e3a6e', stroke: '#2563eb', bolt: '#22c55e' },
-      Stopped:  { body: '#2a0d0d', front: '#3a1010', stroke: '#7f1d1d', bolt: '#ef4444' },
-      Charging: { body: '#0d1f3c', front: '#112347', stroke: '#1d4ed8', bolt: '#3b82f6' },
-      Idling:   { body: '#251800', front: '#2e1f00', stroke: '#92400e', bolt: '#f59e0b' },
-    };
-    const tc = truckColors[state] || truckColors.Stopped;
-    const statusLabel = { Moving: 'Moving', Stopped: 'Stopped', Charging: 'Charging', Idling: 'Idling' };
-
-    const truckBadge = `<svg width="24" height="38" viewBox="0 0 38 62" fill="none">
-      <rect x="6" y="4" width="26" height="54" rx="5" fill="${tc.body}" stroke="${tc.stroke}" stroke-width="1.5"/>
-      <rect x="8" y="4" width="22" height="10" rx="4" fill="${tc.front}"/>
-      <rect x="10" y="5.5" width="18" height="6" rx="2" fill="${tc.stroke}" opacity=".4"/>
-      <rect x="1"    y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-      <rect x="31.5" y="9"  width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-      <rect x="1"    y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-      <rect x="31.5" y="39" width="5.5" height="14" rx="2" fill="#080c14" stroke="#1a2640" stroke-width=".8"/>
-      <rect x="8" y="19" width="22" height="1" rx=".5" fill="${tc.stroke}" opacity=".2"/>
-      <path d="M21 23l-6 11h6l-5 12 12-14h-7z" fill="${tc.bolt}" opacity=".95"/>
-    </svg>`;
+    // Battery: red <25, amber 25-55, green >55
+    const socColor = soc > 55 ? '#4ade80' : soc >= 25 ? '#f59e0b' : '#f87171';
+    const socIcon  = soc > 55 ? 'battery-full' : soc >= 25 ? 'battery-medium' : 'battery-low';
 
     return `
-      <div class="vehicle-card lv-card cursor-pointer rounded-lg"
+      <div class="vehicle-card"
+           tabindex="0"
            data-vehicle="${vehicle.registration_number}"
            data-soc="${soc}"
            data-status="${state}"
-           style="border-left:3px solid ${pillText};padding:10px 12px;border-radius:8px;"
+           style="border:0.5px solid var(--border);border-left:2.5px solid ${sc.text};
+                  padding:6px 9px;border-radius:8px;cursor:pointer;
+                  transition:background .15s,border-color .15s;"
            onclick="showQuickAnalyticsFromList('${vehicle.registration_number}', ${JSON.stringify(latest).replace(/"/g, '&quot;')})">
 
-        <!-- Top row: truck badge + vehicle info -->
-        <div style="display:flex;align-items:flex-start;gap:9px;margin-bottom:8px;">
-          <div style="flex-shrink:0;width:32px;height:44px;border-radius:8px;background:${sc.pill};border:1px solid ${sc.border};display:flex;align-items:center;justify-content:center;">
-            ${truckBadge}
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
-              <div class="lv-vehicle-id" style="font-size:12px;font-weight:700;line-height:1.1;">${displayNumber}</div>
-              <span class="lv-timestamp" style="font-size:9px;letter-spacing:0.01em;flex-shrink:0;">${lastUpdate}</span>
-            </div>
-            ${driverName ? `<div class="lv-driver-name" style="font-size:10px;margin-top:2px;letter-spacing:0.01em;">${driverName}</div>` : ''}
-            <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;background:${sc.pill};color:${pillText};border:1px solid ${sc.border};letter-spacing:0.04em;">${statusLabel[state] || state}</span>
-          </div>
+        <!-- Row 1: plate + status pill -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;
+                       letter-spacing:.02em;color:var(--text-primary);line-height:1;">${displayNumber}</span>
+          <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:500;
+                       padding:2px 6px;border-radius:10px;background:${sc.pill};color:${sc.text};
+                       border:0.5px solid ${sc.border};white-space:nowrap;flex-shrink:0;line-height:1.5;">
+            <i data-lucide="${stateIcon}" style="width:8px;height:8px;flex-shrink:0;pointer-events:none;"></i>
+            ${state}
+          </span>
         </div>
 
-        <!-- Metrics row -->
-        <div class="lv-metric-text" style="display:flex;gap:12px;margin-bottom:8px;font-size:11px;">
-          ${primary}
-        </div>
-
-        <!-- SOC bar with gradient fill -->
-        <div style="display:flex;align-items:center;gap:7px;">
-          <div class="lv-soc-track" style="flex:1;height:4px;border-radius:9999px;overflow:hidden;">
-            <div style="width:${soc}%;height:100%;background:linear-gradient(90deg,${socBarColor}cc,${socBarColor});border-radius:9999px;transition:width 0.5s ease;"></div>
-          </div>
-          <span style="font-size:9px;font-weight:700;color:${socBarColor};min-width:26px;text-align:right;">${soc}%</span>
+        <!-- Row 2: battery+SoC · speed · time -->
+        <div style="display:flex;align-items:center;gap:7px;margin-top:4px;">
+          ${hasSoc ? `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:500;color:${socColor};">
+            <i data-lucide="${socIcon}" style="width:10px;height:10px;flex-shrink:0;pointer-events:none;"></i>
+            ${soc}%
+          </span>` : ''}
+          <span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;color:var(--text-muted);">
+            <i data-lucide="gauge" style="width:9px;height:9px;flex-shrink:0;pointer-events:none;"></i>
+            ${speed} km/h
+          </span>
+          <span style="margin-left:auto;font-size:9px;color:var(--text-muted);">${lastUpdate}</span>
         </div>
       </div>
     `;
@@ -1397,7 +1338,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       return;
     }
     
-    console.log(`🚀 Fetching driver info for ${registrationNumbers.length} vehicles...`);
     
     try {
       const response = await fetch('/livetracker/api/drivers/bulk/', {
@@ -1421,7 +1361,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       }
       
       driversLoaded = true;
-      console.log(`✅ Loaded driver info for ${Object.keys(driversData).length} vehicles`);
       
     } catch (error) {
       console.error('❌ Error fetching bulk driver info:', error);
@@ -1487,13 +1426,9 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     const displayNumber = getDisplayVehicleNumber(registrationNumber);
 
     // Highlight the selected vehicle card
-    document.querySelectorAll('.vehicle-card').forEach(card => {
-      card.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500', 'bg-blue-50');
-    });
+    document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('vc-selected'));
     const selectedCard = document.querySelector(`.vehicle-card[data-vehicle="${registrationNumber}"]`);
-    if (selectedCard) {
-      selectedCard.classList.add('ring-2', 'ring-blue-500', 'border-blue-500', 'bg-blue-50');
-    }
+    if (selectedCard) selectedCard.classList.add('vc-selected');
 
     // Pan/zoom map to selected vehicle — avoid a big zoom jump that forces tile reload
     const marker = markers[registrationNumber];
@@ -1564,7 +1499,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       }
     }
 
-    // console.log(`📍 Quick Analytics coordinates for ${registrationNumber}: lat=${lat}, lng=${lng}`);
 
     // Display driver information from cache (instant, no API call)
     const driverInfo = getDriverInfo(registrationNumber);
@@ -1589,12 +1523,10 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     const addressEl = document.getElementById('quickAddress');
     if (lat !== 'N/A' && lng !== 'N/A' && latNum !== null && lngNum !== null) {
       addressEl.textContent = 'Loading address...';
-      // console.log(`🌍 Fetching address for: ${latNum}, ${lngNum}`);
       
       fetchReverseGeocode(latNum, lngNum)
         .then(address => {
           if (address) {
-            // console.log(`✅ Address found: ${address}`);
             addressEl.textContent = address;
           } else {
             console.warn('⚠️ No address returned from geocoding API');
@@ -1621,6 +1553,11 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
+    // Update fleet trend bottom bar with this vehicle's 7-day trend
+    if (typeof window.loadVehicleTrend === 'function') {
+      window.loadVehicleTrend(registrationNumber);
+    }
+
     setupAnalyticsHandlers(registrationNumber);
   }
 
@@ -1638,9 +1575,12 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       }, 300); // Match transition duration
       
       // Remove highlight when closing
-      document.querySelectorAll('.vehicle-card').forEach(card => {
-        card.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500', 'bg-blue-50');
-      });
+      document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('vc-selected'));
+
+      // Restore fleet-wide trend in the bottom bar
+      if (typeof window.loadFleetTrend === 'function') {
+        window.loadFleetTrend();
+      }
     };
 
     // Copy coordinates handler
@@ -1687,10 +1627,15 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       };
     }
 
+    // Preserve project prefix so the vehicle page opens under the correct SPV
+    // (avoids the middleware redirecting to whatever is in session, which may be wrong)
+    const _parts = window.location.pathname.split('/').filter(Boolean);
+    const _projectPrefix = (_parts.length >= 2 && _parts[1] === 'livetracker') ? `/${_parts[0]}` : '';
+
     const handlers = {
       closeQuickAnalytics: closeHandler,
-      viewFullAnalytics: () => window.open(`/livetracker/${encodeURIComponent(registrationNumber)}/`, '_blank'),
-      viewHistoricalData: () => openHistoricalDatePicker(registrationNumber)
+      viewFullAnalytics: () => window.open(`${_projectPrefix}/livetracker/${encodeURIComponent(registrationNumber)}/`, '_blank'),
+      viewHistoricalData: () => openHistoricalDatePicker(registrationNumber, _projectPrefix)
     };
 
     Object.entries(handlers).forEach(([id, handler]) => {
@@ -1702,7 +1647,7 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
   // =======================
   // HISTORICAL DATE PICKER
   // =======================
-  function openHistoricalDatePicker(registrationNumber) {
+  function openHistoricalDatePicker(registrationNumber, projectPrefix = '') {
     const modal = document.getElementById('historicalDatePickerModal');
     const dateInput = document.getElementById('historicalDateInput');
     const loadBtn = document.getElementById('loadHistoricalData');
@@ -1714,7 +1659,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
       return;
     }
 
-    // console.log('📅 Opening historical date picker for:', registrationNumber);
 
     // Set max date to today
     const today = new Date().toISOString().split('T')[0];
@@ -1734,8 +1678,7 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     loadBtn.onclick = () => {
       const selectedDate = dateInput.value;
       if (selectedDate) {
-        // console.log(`Loading historical data for ${registrationNumber} on ${selectedDate}`);
-        window.open(`/livetracker/vehicle/${encodeURIComponent(registrationNumber)}/history/${selectedDate}/`, '_blank');
+        window.open(`${projectPrefix}/livetracker/vehicle/${encodeURIComponent(registrationNumber)}/history/${selectedDate}/`, '_blank');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
       } else {
@@ -1772,7 +1715,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
   // Manual refresh button with visual feedback
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      // console.log('🔄 Manual refresh triggered by user');
       
       // Visual feedback: spin the icon
       const icon = refreshBtn.querySelector('i[data-lucide="refresh-cw"]');
@@ -1800,19 +1742,16 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     
     // Set up new interval for 2 minutes
     autoRefreshInterval = setInterval(() => {
-      // console.log('🔄 Auto-refresh: Updating vehicle data (2-minute interval)');
       lastRefreshTime = Date.now();
       loadAll(true); // Silent refresh - no loading overlay
     }, 120000); // 2 minutes = 120000ms
     
-    // console.log('✅ Auto-refresh enabled: Updates every 2 minutes');
   }
   
   function resetAutoRefreshTimer() {
     // Reset the timer when manual refresh is triggered
     lastRefreshTime = Date.now();
     startAutoRefresh();
-    // console.log('🔄 Auto-refresh timer reset');
   }
 
   // Stop auto-refresh (useful for cleanup)
@@ -1820,7 +1759,6 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     if (autoRefreshInterval) {
       clearInterval(autoRefreshInterval);
       autoRefreshInterval = null;
-      // console.log('⏸️ Auto-refresh stopped');
     }
   }
 
@@ -2176,8 +2114,5 @@ function createBusIcon(zoom, heading = 0, latitude = 0, status = 'Stopped') {
     stopAutoRefresh
   };
   
-  // Export loading function for other modules
-  window.showSpinner = toggleLoading;
 } else if (isVehiclePage) {
-  // console.log('🚗 Vehicle page detected - skipping main map initialization (vehicle_playback.js will handle it)');
 }

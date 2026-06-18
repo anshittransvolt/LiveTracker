@@ -46,8 +46,8 @@ from livetracker.alertService.alert_constants import (
     JHULWANIA_TO_DHULE_TOL,
 )
 import dateutil.parser
-from mis.services.route_corridor import load_corridor
-from mis.services.route_deviation import point_to_polyline_distance_m
+from livetracker.services.route_corridor import load_corridor
+from livetracker.services.route_deviation import point_to_polyline_distance_m
 
 
 def parse_gps(gps_location: str) -> Tuple[Optional[float], Optional[float]]:

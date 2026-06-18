@@ -3,15 +3,7 @@
 {% load vehicle_filters %}
 {% block title %}LiveTracker — {{ registration_number|display_vehicle_number }}{% endblock %}
 
-{% block topbar_project_switcher %}
-<nav id="va-breadcrumb" class="flex items-center gap-1.5" style="font-family:'Space Grotesk',sans-serif;font-size:11px;">
-  <a href="{% url 'dashboard:dashboard' %}" class="va-bc-link">Dashboard</a>
-  <span class="va-bc-sep">/</span>
-  <a href="{% url 'livetracker:all' %}" class="va-bc-link">All Vehicles</a>
-  <span class="va-bc-sep">/</span>
-  <span class="va-bc-plate">{{ registration_number|display_vehicle_number }}</span>
-</nav>
-{% endblock %}
+{% block topbar_project_switcher %}{% endblock %}
 
 {% block content %}
 {% include "livetracker/includes/chartjs_cdn.html" %}
@@ -49,12 +41,12 @@
   --soc-track: #e2e8f0;
 }
 body.dark-theme {
-  --va-bg:     #070a0f;
-  --va-panel:  #0b0f17;
-  --va-panel2: #0e131d;
-  --va-inset:  #070a11;
-  --va-line:   #161c28;
-  --va-line2:  #1f2736;
+  --va-bg:     #06100b;
+  --va-panel:  #0a160f;
+  --va-panel2: #0d1b13;
+  --va-inset:  #061009;
+  --va-line:   #16271d;
+  --va-line2:  #203328;
   --va-ink:    #e6edf6;
   --va-ink2:   #aab4c4;
   --va-ink3:   #7a8699;
@@ -70,10 +62,10 @@ body.dark-theme {
   --va-ch-bg:  #0f2138;
   --va-warn:   #2e2008;
   /* global design tokens — dark */
-  --bg-base: #060a12; --bg-surface: #080c18; --bg-card: #0c1221; --bg-hover: #101829;
-  --border: #0f1829; --border-mid: #1a2540;
+  --bg-base: #06100b; --bg-surface: #0a160f; --bg-card: #0d1b13; --bg-hover: #0f2018;
+  --border: #16271d; --border-mid: #203328;
   --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #475569;
-  --soc-track: #0f1829;
+  --soc-track: #16271d;
 }
 
 /* ── BREADCRUMB ────────────────────────────────────────────────────── */
@@ -129,7 +121,7 @@ body.dark-theme {
 .va-card {
   background: var(--va-panel) !important;
   border: 1px solid var(--va-line) !important;
-  border-radius: 6px; padding: 12px 14px;
+  border-radius: 6px; padding: 8px 10px;
   transition: background .15s;
 }
 .va-card:hover { background: var(--va-panel2) !important; }
@@ -137,11 +129,11 @@ body.dark-theme {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 9px; font-weight: 600; letter-spacing: 0.8px;
   text-transform: uppercase; color: var(--va-ink3);
-  margin-bottom: 9px; display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
 }
 .va-row {
   display: flex; justify-content: space-between; align-items: baseline;
-  padding: 5px 0; border-bottom: 1px solid var(--va-line);
+  padding: 3px 0; border-bottom: 1px solid var(--va-line);
 }
 .va-row:last-child { border-bottom: none !important; }
 .va-lbl {
@@ -178,13 +170,6 @@ body.dark-theme {
   font-size: 10px; font-variant: small-caps;
   color: var(--va-ink4); text-align: center; padding: 6px 0;
 }
-
-/* SOC Chart card */
-.va-soc-card { background: var(--va-panel) !important; border: 1px solid var(--va-line) !important; border-radius: 6px; padding: 11px 12px 9px; }
-#socGraph, #socGraphZoom { background: transparent !important; }
-.va-soc-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; }
-.va-soc-legend span { font-family: 'Space Grotesk', sans-serif; font-size: 9px; color: var(--va-ink3); display: flex; align-items: center; gap: 4px; }
-.va-soc-legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 
 /* Buttons */
 .va-dl-btn {
@@ -254,51 +239,22 @@ body.dark-theme #tripReplayPanel { box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
 .va-chevron-toggle { color: var(--va-ink3); }
 .va-chevron-toggle.open { transform: rotate(180deg); }
 
-/* Playback controls bar */
+/* Playback controls bar — single-row full-width */
 #playbackControls {
   background: var(--bg-surface, #080c18);
   border-top: 1px solid var(--border, #0f1829);
-  height: 60px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  padding: 6px 14px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  transform: none;
+  left: auto;
+  position: static;
 }
 body:not(.dark-theme) #playbackControls {
   background: #ffffff;
   border-top-color: #d1daf5;
 }
-/* Scrubber */
-#scrubberTrack { height: 7px; border-radius: 4px; background: var(--soc-track, #0f1829); }
-#progressIndicator { height: 100%; background: #3b82f6; border-radius: 4px; }
-#scrubberThumb {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #e2e8f0; border: 2px solid #3b82f6;
-  cursor: grab;
-  box-shadow: none;
-}
-/* Play button */
-#playBtn {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: #0c2a1a; border: 1px solid #166834; color: #22c55e;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all 0.15s ease;
-}
-body:not(.dark-theme) #playBtn { background: #dcfce7; border-color: #16a34a; color: #166834; }
-/* Other control buttons */
-.playback-btn {
-  width: 26px; height: 26px; border-radius: 5px;
-  background: #0c1221; border: 1px solid #0f1829; color: #475569;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 10px;
-}
-body:not(.dark-theme) .playback-btn { background: #f1f5f9; border-color: #d1daf5; color: #64748b; }
-/* Speed select */
-#speedSelect {
-  background: #0c1221; border: 1px solid #0f1829; color: #475569;
-  font-size: 10px; border-radius: 5px; padding: 2px 4px;
-}
-body:not(.dark-theme) #speedSelect { background: #ffffff; border-color: #d1daf5; color: #334155; }
 
 /* Vehicle info header — hide, driver is in rail */
 #vehicleInfoHeader { display: none !important; }
@@ -311,30 +267,9 @@ body.dark-theme #corridorToggleBtn {
   border-color: var(--va-line) !important;
 }
 
-/* Dock toggle */
-#analyticsDockToggle {
-  background: var(--va-panel) !important;
-  color: var(--va-ink3) !important;
-  border: 1px solid var(--va-line) !important;
-  font-family: 'Space Grotesk', sans-serif;
-}
-
-/* SOC zoom modal */
-#socChartZoomModal .va-zoom-inner {
-  background: var(--va-panel);
-  border: 1px solid var(--va-line);
-}
-#socChartZoomModal .va-zoom-body { background: var(--va-inset); }
-#socChartZoomModal .va-zoom-footer { background: var(--va-panel2); border-top: 1px solid var(--va-line); }
-
 /* Date picker modal */
 #datePickerModal .va-dp-inner { background: var(--va-panel); border: 1px solid var(--va-line); }
 #datePickerModal .va-dp-footer { background: var(--va-panel2); border-top: 1px solid var(--va-line); }
-
-/* Dock shell */
-#analyticsDockShell { background: var(--va-panel) !important; border-color: var(--va-line) !important; }
-#analyticsDockHeader { background: var(--va-panel2) !important; border-color: var(--va-line) !important; }
-#analyticsFrames { background: var(--va-panel) !important; }
 
 /* ── B4: FONT RENDERING + SPACING ─────────────────────────────────── */
 .va-rail, .va-card, .va-soc-card, #playbackControls {
@@ -353,7 +288,8 @@ body.dark-theme #corridorToggleBtn {
 }
 </style>
 
-<div class="flex h-full">
+<div class="flex flex-col h-full">
+<div class="flex flex-1 min-h-0 overflow-hidden">
 
   <!-- ═══ MOBILE OVERLAY ═══════════════════════════════════════════ -->
   <div id="mobileAnalyticsOverlay" class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998] hidden">
@@ -372,7 +308,7 @@ body.dark-theme #corridorToggleBtn {
   <aside class="va-rail hidden md:flex w-[296px] lg:w-[316px] flex-col overflow-hidden flex-shrink-0">
 
     <!-- Vehicle Header -->
-    <div class="va-rail-hdr px-4 py-3">
+    <div class="va-rail-hdr px-3 py-2">
       <div class="flex items-start justify-between mb-2.5">
         <div>
           <div class="va-plate">{{ registration_number|display_vehicle_number }}</div>
@@ -401,11 +337,6 @@ body.dark-theme #corridorToggleBtn {
           <button id="refreshAnalytics" class="lv-nav-btn" title="Refresh" style="padding:4px 7px;">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
           </button>
-          <a id="openTimeBoxDock"
-             href="{% url 'livetracker:timebox' %}?vehicle={{ registration_number }}&embed=1"
-             class="lv-nav-btn inline-flex items-center" title="TIME BOX" style="padding:4px 7px;">
-            <i data-lucide="route" class="w-3.5 h-3.5"></i>
-          </a>
         </div>
       </div>
     </div>
@@ -437,7 +368,7 @@ body.dark-theme #corridorToggleBtn {
     </div>
 
     <!-- Analytics Scroll Area -->
-    <div class="flex-1 overflow-y-auto p-3 space-y-2" id="desktopAnalyticsContent">
+    <div class="flex-1 overflow-y-auto p-2 space-y-1.5" id="desktopAnalyticsContent">
 
       <!-- Error banner -->
       <div id="analytics-error" class="hidden rounded-md px-3 py-2 text-xs" role="alert"
@@ -513,7 +444,6 @@ body.dark-theme #corridorToggleBtn {
         </div>
       </div>
 
-      <!-- SOC Chart (Energy card omitted per spec — no reliable data) -->
       <!-- Hidden elements kept for JS compatibility -->
       <span id="energyConsumed" style="display:none;"></span>
       <span id="energyEfficiency" style="display:none;"></span>
@@ -521,69 +451,20 @@ body.dark-theme #corridorToggleBtn {
       <span id="socStart" style="display:none;"></span>
       <span id="socEnd" style="display:none;"></span>
 
-      <div class="va-soc-card" id="mc-soc-chart">
-        <div class="va-card-hdr">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--va-signal)" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-          SOC · Charging/Discharging
-          <button id="zoomSocChart" class="ml-auto p-0.5 rounded hover:opacity-70" title="Expand">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--va-ink3)" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          </button>
-        </div>
-        <div style="width:100%;min-width:0;">
-          <canvas id="socGraph" style="width:100%;max-width:100%;height:170px;display:block;"></canvas>
-        </div>
-        <div class="va-soc-legend">
-          <span><i style="background:rgba(59,130,246,0.75)"></i>Charging</span>
-          <span><i style="background:rgba(61,220,132,0.75)"></i>Moving</span>
-          <span><i style="background:rgba(105,105,105,0.8)"></i>Stopped</span>
-          <span><i style="background:rgba(255,117,24,0.8)"></i>SOC&lt;30%</span>
-        </div>
-        <div class="flex flex-col gap-1 mt-2.5">
-          <button id="downloadChargingReport" class="va-dl-btn va-dl-charge">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Charging Report
-          </button>
-          <button id="downloadStoppageReport" class="va-dl-btn va-dl-stop">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Stoppage Report
-          </button>
-        </div>
+      <div class="flex flex-col gap-1" style="margin-top:4px;">
+        <button id="downloadChargingReport" class="va-dl-btn va-dl-charge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Charging Report
+        </button>
+        <button id="downloadStoppageReport" class="va-dl-btn va-dl-stop">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Stoppage Report
+        </button>
       </div>
 
     </div><!-- /desktopAnalyticsContent -->
   </aside>
 
-  <!-- ═══ SOC ZOOM MODAL ══════════════════════════════════════════ -->
-  <div id="socChartZoomModal"
-       class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] hidden flex items-center justify-center p-4">
-    <div class="va-zoom-inner rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-      <div class="flex items-center justify-between p-5" style="border-bottom:1px solid var(--va-line);">
-        <div class="flex items-center gap-3">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--va-signal)" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-          <div>
-            <h2 class="text-base font-semibold" style="color:var(--va-ink);font-family:'Space Grotesk',sans-serif;">SOC Analysis</h2>
-            <p class="text-xs mt-0.5" style="color:var(--va-ink3);font-family:'JetBrains Mono',monospace;">{{ registration_number|display_vehicle_number }}</p>
-          </div>
-        </div>
-        <button id="closeSocZoomModal" class="p-2 rounded-lg hover:opacity-70" style="color:var(--va-ink3)" title="Close">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-      <div class="va-zoom-body flex-1 p-4 overflow-auto">
-        <div class="rounded-lg p-3 h-full flex items-center justify-center">
-          <canvas id="socGraphZoom" class="w-full" style="max-height:520px;"></canvas>
-        </div>
-      </div>
-      <div class="va-zoom-footer p-3">
-        <div class="flex flex-wrap items-center justify-center gap-4 text-xs" style="color:var(--va-ink3);font-family:'Space Grotesk',sans-serif;">
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:rgba(59,130,246,0.75)"></span>Charging</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:rgba(61,220,132,0.75)"></span>Moving</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:rgba(105,105,105,0.8)"></span>Stopped</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:rgba(255,117,24,0.8)"></span>SOC &lt; 30%</span>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- ═══ MAIN MAP ════════════════════════════════════════════════ -->
   <main class="flex-1 relative va-map-bg">
@@ -619,13 +500,6 @@ body.dark-theme #corridorToggleBtn {
     <!-- Map container -->
     <div id="map" class="absolute inset-0"></div>
 
-    <!-- Playback Controls -->
-    <div id="playbackControls"
-      class="fixed bottom-4 md:bottom-5 z-[10000] transition-all duration-200"
-      style="left:50%;transform:translateX(-50%);padding:11px 16px;border-radius:12px;min-width:340px;max-width:88vw;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-      <!-- vehicle_playback.js renders here -->
-    </div>
-
     <!-- rideSummaryPanel kept hidden for JS compatibility -->
     <div id="rideSummaryPanel" style="display:none!important;position:absolute;">
       <span id="summaryTotalRideTime"></span>
@@ -635,40 +509,97 @@ body.dark-theme #corridorToggleBtn {
     </div>
 
   </main>
-</div>
+</div><!-- end inner flex-row (rail + map) -->
 
-<!-- ═══ CROSS-VIEW DOCK ════════════════════════════════════════════════ -->
-<button id="analyticsDockToggle" class="fixed bottom-3 right-3 z-[10050] px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg transition" title="Show Dock">
-  <span class="inline-flex items-center gap-1">
-    <i data-lucide="layers" class="w-3 h-3"></i>
-    <span>Dock <span id="analyticsCount">0</span></span>
-  </span>
-</button>
+<!-- ═══ TELEMETRY CHARTS BAR ══════════════════════════════════════════ -->
+<div id="telemetryBar" style="flex-shrink:0;height:30px;border-top:1px solid var(--va-line);
+     background:var(--va-panel);display:flex;flex-direction:column;
+     overflow:hidden;transition:height .22s ease;">
 
-<div id="analyticsDockPanel" class="fixed bottom-12 right-3 z-[10050] hidden">
-  <div class="relative w-[90vw] max-w-[1600px] h-[70vh] rounded-lg shadow-2xl flex flex-col overflow-hidden" id="analyticsDockShell">
-    <div id="analyticsDockHeader" class="flex items-center justify-between border-b px-2 py-1.5 cursor-move select-none">
-      <div class="flex items-center gap-2 min-w-0">
-        <div id="analyticsTabs" class="flex items-center gap-1 overflow-x-auto"></div>
-        <div class="flex items-center gap-1 ml-2 shrink-0">
-          <button id="minimizeAnalytics" class="px-2 py-1 text-[11px] rounded lv-nav-btn inline-flex items-center gap-1" title="Minimize">
-            <i data-lucide="minus" class="w-3 h-3"></i><span>Minimize</span>
-          </button>
-        </div>
+  <!-- Handle row -->
+  <div id="telemetryHandle" onclick="window.toggleTelemetryBar()" title="Toggle Telemetry Charts"
+    style="height:30px;flex-shrink:0;display:flex;align-items:center;padding:0 14px;gap:10px;
+           border-bottom:1px solid var(--va-line);cursor:pointer;user-select:none;">
+
+    <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;
+                border-radius:6px;flex-shrink:0;background:var(--va-inset,rgba(255,255,255,0.06));">
+      <i id="telemetryChevron" data-lucide="chevron-down"
+         style="width:13px;height:13px;color:var(--va-ink3);pointer-events:none;
+                transition:transform .22s ease;display:block;transform:rotate(180deg);"></i>
+    </div>
+    <span style="font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+                 color:var(--va-ink3);flex-shrink:0;">Telemetry Charts</span>
+
+    <!-- Right: status chips -->
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;"
+         onclick="event.stopPropagation()">
+      <span id="telemetryStatus" style="font-size:10px;color:var(--va-signal);">—</span>
+    </div>
+  </div>
+
+  <!-- Charts area -->
+  <div id="telemetryCharts"
+    style="flex:1;display:flex;align-items:stretch;overflow:hidden;min-height:0;">
+
+    <!-- SOC -->
+    <div style="flex:1;border-right:1px solid var(--va-line);padding:4px 10px;
+                display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--va-ink3);">State of Charge</span>
+        <span id="tc-soc-val" style="font-family:'JetBrains Mono',monospace;font-size:13px;
+                                     font-weight:600;color:#3b82f6;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--va-ink3);">%</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="tc-soc-canvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
       </div>
     </div>
-    <div id="analyticsFrames" class="flex-1 relative"></div>
-    <div class="dock-resize dock-resize-n" data-dir="n"></div>
-    <div class="dock-resize dock-resize-s" data-dir="s"></div>
-    <div class="dock-resize dock-resize-e" data-dir="e"></div>
-    <div class="dock-resize dock-resize-w" data-dir="w"></div>
-    <div class="dock-resize dock-resize-ne" data-dir="ne"></div>
-    <div class="dock-resize dock-resize-nw" data-dir="nw"></div>
-    <div class="dock-resize dock-resize-se" data-dir="se"></div>
-    <div class="dock-resize dock-resize-sw" data-dir="sw"></div>
-  </div>
-  <div id="dockOverlay" class="fixed inset-0 bg-black bg-opacity-0 hidden z-[10040] pointer-events-none"></div>
+
+    <!-- Temperature -->
+    <div style="flex:1;border-right:1px solid var(--va-line);padding:4px 10px;
+                display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--va-ink3);">Temperature</span>
+        <span id="tc-temp-val" style="font-family:'JetBrains Mono',monospace;font-size:13px;
+                                      font-weight:600;color:#f59e0b;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--va-ink3);">°C</span>
+        <span style="font-size:8px;color:var(--va-ink3);margin-left:2px;"
+              title="Battery (solid) · Ambient (dashed)">bat · amb</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="tc-temp-canvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+
+    <!-- Voltage -->
+    <div style="flex:1;padding:4px 10px;display:flex;flex-direction:column;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px;flex-shrink:0;">
+        <span style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+                     color:var(--va-ink3);">Voltage</span>
+        <span id="tc-volt-val" style="font-family:'JetBrains Mono',monospace;font-size:13px;
+                                      font-weight:600;color:#a78bfa;margin-left:auto;">—</span>
+        <span style="font-size:9px;color:var(--va-ink3);">V</span>
+      </div>
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="tc-volt-canvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+
+  </div><!-- end charts area -->
+</div><!-- end telemetryBar -->
+
+<!-- ═══ PLAYBACK CONTROLS ═══════════════════════════════════════════════ -->
+<div id="playbackControls" style="flex-shrink:0;">
+  <!-- vehicle_playback.js renders here -->
 </div>
+
+<style>
+#telemetryChevron { transition: transform .22s ease; }
+</style>
+
+</div><!-- end outer flex-col -->
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -725,8 +656,18 @@ document.addEventListener("DOMContentLoaded", function () {
                            window.loadVehicleAnalytics &&
                            window.populateRideSummary;
         if (!modulesReady) { console.error("❌ Modules not loaded."); return; }
-        window.initializeVehiclePlayback(regNo).then(() => {
+        window.initializeVehiclePlayback(regNo).then((pbData) => {
             window.loadVehicleAnalytics(regNo);
+            // Refine telemetry date from first route point if different from today
+            const pts = Array.isArray(pbData) ? pbData : [];
+            const firstGps = pts[0]?.gps_time;
+            if (firstGps) {
+                const routeDate = firstGps.slice(0, 10);
+                const todayIST  = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+                if (routeDate !== todayIST && window.initTelemetryFromPlayback) {
+                    window.initTelemetryFromPlayback(pts);
+                }
+            }
         }).catch(err => console.error("❌ Playback init failed:", err));
     }, 150);
 
@@ -768,120 +709,6 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById('closeMobileAnalytics')?.addEventListener('click', () => mobileOverlay?.classList.add('hidden'));
     mobileOverlay?.addEventListener('click', e => { if (e.target === mobileOverlay) mobileOverlay.classList.add('hidden'); });
 
-    // ── SOC Zoom Modal ──────────────────────────────────────────────
-    const socModal = document.getElementById('socChartZoomModal');
-    document.getElementById('zoomSocChart')?.addEventListener('click', () => {
-        socModal?.classList.remove('hidden');
-        socModal?.classList.add('flex');
-        setTimeout(() => {
-            window.renderSocChartZoom?.();
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }, 100);
-    });
-    const closeSoc = () => { socModal?.classList.add('hidden'); socModal?.classList.remove('flex'); };
-    document.getElementById('closeSocZoomModal')?.addEventListener('click', closeSoc);
-    socModal?.addEventListener('click', e => { if (e.target === socModal) closeSoc(); });
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && socModal && !socModal.classList.contains('hidden')) closeSoc();
-    });
-
-    // ── Cross-View Dock ─────────────────────────────────────────────
-    (function(){
-        const dockToggle  = document.getElementById('analyticsDockToggle');
-        const dockPanel   = document.getElementById('analyticsDockPanel');
-        const tabsEl      = document.getElementById('analyticsTabs');
-        const framesEl    = document.getElementById('analyticsFrames');
-        const countEl     = document.getElementById('analyticsCount');
-        const minimizeBtn = document.getElementById('minimizeAnalytics');
-        const panelShell  = document.getElementById('analyticsDockShell');
-        const dockHeader  = document.getElementById('analyticsDockHeader');
-        const dockPanelEl = document.getElementById('analyticsDockPanel');
-        const openMap = new Map();
-        let activeKey = null;
-        const updateCount = () => { if (countEl) countEl.textContent = String(openMap.size); };
-        function setActive(key) {
-            activeKey = key;
-            openMap.forEach((e, k) => {
-                if (k === key) { e.tabEl.classList.add('bg-blue-600','text-white'); e.frameEl.classList.remove('hidden'); }
-                else { e.tabEl.classList.remove('bg-blue-600','text-white'); e.tabEl.classList.add('bg-slate-200','text-slate-700'); e.frameEl.classList.add('hidden'); }
-            });
-        }
-        function ensureLT() {
-            if (!dockPanelEl) return;
-            const s = window.getComputedStyle(dockPanelEl);
-            if (s.bottom !== 'auto' || s.right !== 'auto') {
-                const r = dockPanelEl.getBoundingClientRect();
-                dockPanelEl.style.left = `${r.left}px`; dockPanelEl.style.top = `${r.top}px`;
-                dockPanelEl.style.bottom = 'auto'; dockPanelEl.style.right = 'auto';
-                dockPanelEl.classList.remove('bottom-12','right-3');
-            }
-        }
-        function ensureFrame(key, url) {
-            if (openMap.has(key)) { setActive(key); return; }
-            const tab = document.createElement('button');
-            tab.className = 'px-2 py-1 text-[11px] rounded bg-slate-200 text-slate-700 hover:bg-slate-300 inline-flex items-center gap-1';
-            tab.innerHTML = `<i data-lucide="layout" class="w-3 h-3"></i><span>${key}</span><button class="ml-1 close-tab text-[10px] rounded px-1 bg-slate-300 hover:bg-slate-400">×</button>`;
-            tabsEl.appendChild(tab);
-            const frame = document.createElement('iframe');
-            frame.src = url;
-            frame.className = 'absolute inset-0 w-full h-full border-0 hidden';
-            framesEl.appendChild(frame);
-            frame.addEventListener('load', () => {
-                try {
-                    const cw = frame.contentWindow; const cd = frame.contentDocument || cw.document; if (!cd) return;
-                    cd.querySelectorAll('a').forEach(a => a.target = '_self');
-                    cw.open = function(u){ try { cw.location.href = u; } catch(_) {} return null; };
-                    cd.addEventListener('click', ev => {
-                        const p = ev.composedPath ? ev.composedPath() : [];
-                        const a = p.find && p.find(n => n && n.tagName === 'A');
-                        if (!a) return; const h = a.getAttribute('href');
-                        if (!h || h.startsWith('#') || h.startsWith('javascript:')) return;
-                        ev.preventDefault(); try { cw.location.href = h; } catch(_) {}
-                    }, true);
-                } catch(_) {}
-            });
-            openMap.set(key, { tabEl: tab, frameEl: frame }); updateCount();
-            tab.addEventListener('click', ev => { if (ev.target?.classList.contains('close-tab')) return; setActive(key); });
-            tab.querySelector('.close-tab').addEventListener('click', ev => {
-                ev.stopPropagation(); framesEl.removeChild(frame); tabsEl.removeChild(tab); openMap.delete(key); updateCount();
-                if (activeKey === key) { const n = openMap.keys().next(); if (!n.done) setActive(n.value); else activeKey = null; }
-            });
-            setActive(key); if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
-        const showDock = () => { dockPanel.classList.remove('hidden'); };
-        const hideDock = () => { dockPanel.classList.add('hidden'); };
-        dockToggle?.addEventListener('click', () => { dockPanel.classList.contains('hidden') ? showDock() : hideDock(); });
-        minimizeBtn?.addEventListener('click', hideDock);
-        // Drag
-        if (dockHeader && dockPanelEl) {
-            let dr=false,sx=0,sy=0,sl=0,st=0;
-            const mv=e=>{ if(!dr) return; const nl=Math.min(window.innerWidth-panelShell.offsetWidth-8,Math.max(8,sl+e.clientX-sx)); const nt=Math.min(window.innerHeight-panelShell.offsetHeight-8,Math.max(8,st+e.clientY-sy)); dockPanelEl.style.left=`${nl}px`; dockPanelEl.style.top=`${nt}px`; };
-            const up=()=>{ if(!dr) return; dr=false; document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); };
-            dockHeader.addEventListener('mousedown', e=>{ const t=(e.target.tagName||'').toLowerCase(); if(['button','select','input','a'].includes(t)) return; e.preventDefault(); ensureLT(); dr=true; sx=e.clientX; sy=e.clientY; sl=dockPanelEl.offsetLeft; st=dockPanelEl.offsetTop; document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up); });
-        }
-        // Resize
-        (function(){ const mw=480,mh=300,xw=Math.floor(window.innerWidth*.95),xh=Math.floor(window.innerHeight*.9); let rs=false,d='',sx=0,sy=0,s={w:0,h:0,l:0,t:0};
-            const om=e=>{ if(!rs) return; const dx=e.clientX-sx,dy=e.clientY-sy; let w=s.w,h=s.h,l=s.l,t=s.t; if(d.includes('e')) w=Math.min(xw,Math.max(mw,s.w+dx)); if(d.includes('s')) h=Math.min(xh,Math.max(mh,s.h+dy)); if(d.includes('w')){w=Math.min(xw,Math.max(mw,s.w-dx));l=Math.min(s.l+s.w-mw,Math.max(8,s.l+dx));} if(d.includes('n')){h=Math.min(xh,Math.max(mh,s.h-dy));t=Math.min(s.t+s.h-mh,Math.max(8,s.t+dy));} panelShell.style.width=`${w}px`;panelShell.style.height=`${h}px`;dockPanelEl.style.left=`${l}px`;dockPanelEl.style.top=`${t}px`; };
-            const ou=()=>{ if(!rs) return; rs=false;d='';document.removeEventListener('mousemove',om);document.removeEventListener('mouseup',ou); };
-            document.querySelectorAll('#analyticsDockShell .dock-resize').forEach(h=>{ h.addEventListener('mousedown',e=>{ e.preventDefault();ensureLT();rs=true;d=h.getAttribute('data-dir')||'';sx=e.clientX;sy=e.clientY;s={w:panelShell.offsetWidth,h:panelShell.offsetHeight,l:dockPanelEl.offsetLeft,t:dockPanelEl.offsetTop};document.addEventListener('mousemove',om);document.addEventListener('mouseup',ou); }); });
-        })();
-        document.getElementById('openTimeBoxDock')?.addEventListener('click', e=>{
-            e.preventDefault(); const url=`/livetracker/timebox/?vehicle=${encodeURIComponent(regNo)}&embed=1`;
-            ensureFrame(regNo, url); showDock(); setActive(regNo);
-        });
-        document.addEventListener('keydown', e => {
-            if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-            const t=(e.target.tagName||'').toLowerCase();
-            if (e.target.isContentEditable || ['input','textarea','select'].includes(t)) return;
-            if ((e.key||'').toLowerCase() === 'b') {
-                e.preventDefault();
-                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                const url=`/livetracker/timebox/?vehicle=${encodeURIComponent(regNo)}&embed=1`;
-                ensureFrame(regNo, url); showDock(); setActive(regNo);
-            }
-        });
-    })();
-
     // Embed mode
     try {
         if (new URLSearchParams(window.location.search).get('embed') === '1') {
@@ -892,15 +719,349 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 
-<style>
-.dock-resize { position: absolute; z-index: 5; }
-.dock-resize-n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: n-resize; }
-.dock-resize-s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: s-resize; }
-.dock-resize-e  { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: e-resize; }
-.dock-resize-w  { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: w-resize; }
-.dock-resize-ne { top: -4px; right: -4px; width: 10px; height: 10px; cursor: nesw-resize; }
-.dock-resize-nw { top: -4px; left: -4px; width: 10px; height: 10px; cursor: nwse-resize; }
-.dock-resize-se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
-.dock-resize-sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
-</style>
+<!-- ═══ TELEMETRY BAR JS ══════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  const REG = '{{ registration_number }}';
+
+  // Mirror getSPVFromContext() from api_handler.js (path-based, with query param fallback)
+  const SPV = (function() {
+    const qs = new URLSearchParams(window.location.search).get('spv');
+    if (qs) return qs;
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    if (parts.length >= 2 && parts[1] === 'livetracker') {
+      const m = { ultratech:'ULTRATECH', umt:'UMT', mbmt:'MBMT',
+                  nagpur:'NAGPUR', vecv:'VECV', star_cement:'STAR_CEMENT', 'star-cement':'STAR_CEMENT' };
+      return m[parts[0].toLowerCase()] || '';
+    }
+    return '';
+  })();
+  const OPEN_H = '172px';
+  const SHUT_H = '30px';
+
+  // ── Collapse / expand ─────────────────────────────────────────────
+  let _tbOpen = false;
+  window.toggleTelemetryBar = function () {
+    _tbOpen = !_tbOpen;
+    const bar  = document.getElementById('telemetryBar');
+    const chev = document.getElementById('telemetryChevron');
+    if (bar)  bar.style.height = _tbOpen ? OPEN_H : SHUT_H;
+    if (chev) chev.style.transform = _tbOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+    setTimeout(() => {
+      window.playbackMap?.invalidateSize();
+      if (_tbOpen) {
+        Object.values(_charts).forEach(c => c?.resize());
+        _drawPlayhead();
+      }
+    }, 240);
+  };
+
+  // ── Chart instances + point cache ─────────────────────────────────
+  const _charts = { soc: null, temp: null, volt: null };
+  let _allPoints   = [];   // sorted by gps_time, cached across pages
+  let _chartsBuilt = false;
+
+  // ── Shared chart config ────────────────────────────────────────────
+  const MONO  = "'JetBrains Mono', monospace";
+  const MUTED = 'rgba(148,163,184,0.5)';
+  const GRID  = 'rgba(255,255,255,0.05)';
+
+  function _fmtMs(ms) {
+    const d = new Date(ms);
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+
+  function _baseOpts() {
+    return {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(10,18,38,0.92)',
+          borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: 1,
+          titleFont: { family: MONO, size: 9 },
+          bodyFont:  { family: MONO, size: 9 },
+          padding: 7,
+          callbacks: {
+            title: (items) => {
+              const ms = items[0]?.parsed?.x;
+              return ms != null ? _fmtMs(ms) : '';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          grid: { color: GRID },
+          ticks: {
+            color: MUTED, font: { family: MONO, size: 8 }, maxTicksLimit: 8,
+            callback: (v) => _fmtMs(v),
+          },
+        },
+        y: {
+          grid: { color: GRID },
+          ticks: { color: MUTED, font: { family: MONO, size: 8 }, maxTicksLimit: 5 },
+        },
+      },
+    };
+  }
+
+  // ── Playhead plugin ────────────────────────────────────────────────
+  let _playheadMs = null;
+
+  const playheadPlugin = {
+    id: 'playhead',
+    afterDraw(chart) {
+      if (_playheadMs === null) return;
+      const { ctx, scales, chartArea } = chart;
+      const xs = scales.x;
+      if (!xs) return;
+      const x = xs.getPixelForValue(_playheadMs);
+      if (x < chartArea.left || x > chartArea.right) return;
+      ctx.save();
+
+      // Vertical dashed line
+      ctx.strokeStyle = 'rgba(251,191,36,0.85)';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+
+      // Dot on the data line at the playhead position
+      const meta = chart.getDatasetMeta(0);
+      if (meta?.data?.length) {
+        let closest = null, minDist = Infinity;
+        meta.data.forEach(pt => {
+          const d = Math.abs(pt.x - x);
+          if (d < minDist) { minDist = d; closest = pt; }
+        });
+        if (closest && minDist < 40 && closest.y >= chartArea.top && closest.y <= chartArea.bottom) {
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(closest.x, closest.y, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251,191,36,0.95)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+
+      ctx.restore();
+    }
+  };
+
+  function _drawPlayhead() {
+    Object.values(_charts).forEach(c => c?.update('none'));
+  }
+
+  // ── Build charts from scratch ─────────────────────────────────────
+  function _buildCharts(points) {
+    if (!points.length) {
+      document.getElementById('telemetryStatus').textContent = 'No data';
+      return;
+    }
+
+    Object.keys(_charts).forEach(k => { _charts[k]?.destroy(); _charts[k] = null; });
+
+    // Sort globally then decimate; use {x,y} objects so Chart.js linear scale positions are unambiguous
+    const sorted = [...points].sort((a, b) => new Date(a.gps_time) - new Date(b.gps_time));
+    const MAX_PTS = 300;
+    const step = sorted.length > MAX_PTS ? Math.ceil(sorted.length / MAX_PTS) : 1;
+    const disp = sorted.filter((_, i) => i % step === 0 || i === sorted.length - 1);
+
+    const toMs  = p => new Date(p.gps_time).getTime();
+    const socPts  = disp.map(p => ({ x: toMs(p), y: p.soc                != null ? +p.soc                : null }));
+    const tempPts = disp.map(p => ({ x: toMs(p), y: p.battery_temperature != null ? +p.battery_temperature : null }));
+    const voltPts = disp.map(p => ({ x: toMs(p), y: p.battery_voltage     != null ? +p.battery_voltage     : null }));
+
+    const mkDs = (data, color) => ({
+      data, borderColor: color,
+      borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3,
+      tension: 0, fill: false, spanGaps: true, parsing: false,
+    });
+
+    const getCtx = id => document.getElementById(id)?.getContext('2d');
+
+    try {
+      const socCtx = getCtx('tc-soc-canvas');
+      if (socCtx) {
+        _charts.soc = new Chart(socCtx, {
+          type: 'line',
+          data: { datasets: [mkDs(socPts, '#3b82f6')] },
+          options: _baseOpts(),
+          plugins: [playheadPlugin],
+        });
+      }
+
+      const tempCtx = getCtx('tc-temp-canvas');
+      if (tempCtx) {
+        _charts.temp = new Chart(tempCtx, {
+          type: 'line',
+          data: { datasets: [mkDs(tempPts, '#f59e0b')] },
+          options: _baseOpts(),
+          plugins: [playheadPlugin],
+        });
+      }
+
+      const voltCtx = getCtx('tc-volt-canvas');
+      if (voltCtx) {
+        _charts.volt = new Chart(voltCtx, {
+          type: 'line',
+          data: { datasets: [mkDs(voltPts, '#a78bfa')] },
+          options: _baseOpts(),
+          plugins: [playheadPlugin],
+        });
+      }
+
+      _chartsBuilt = true;
+      _updateStatus();
+    } catch(err) {
+      console.error('❌ Telemetry chart build failed:', err);
+      const el = document.getElementById('telemetryStatus');
+      if (el) el.textContent = 'Chart error: ' + err.message;
+    }
+  }
+
+  // ── Rebuild charts after each page (ensures decimation stays correct) ─
+  function _appendToCharts() {
+    if (!_allPoints.length) return;
+    _chartsBuilt = false;
+    _buildCharts(_allPoints.slice());
+  }
+
+  function _updateStatus() {
+    const el = document.getElementById('telemetryStatus');
+    if (el && _allPoints.length) {
+      const built = _chartsBuilt ? '✓' : '…';
+      el.textContent = `${_allPoints.length} pts ${built}`;
+    }
+  }
+
+  // ── Incremental page fetch ─────────────────────────────────────────
+  function _loadPage(dateStr, cursor, isFirst) {
+    // Compute next day using UTC arithmetic to avoid IST midnight shifting the date
+    const [_y, _mo, _d] = dateStr.split('-').map(Number);
+    const endDate = new Date(Date.UTC(_y, _mo - 1, _d + 1)).toISOString().slice(0, 10);
+
+    const params = new URLSearchParams({
+      registration_number: REG,
+      start_time: dateStr,
+      end_time:   endDate,
+      page_size:  1000,
+    });
+    if (SPV)    params.set('spv', SPV);
+    if (cursor) params.set('cursor', cursor);
+
+    const _setStatus = (t) => { const el = document.getElementById('telemetryStatus'); if (el) el.textContent = t; };
+
+    fetch(`/livetracker/api/twins/temp-soc/?${params}`)
+      .then(r => {
+        if (!r.ok) { _setStatus(`HTTP ${r.status}`); throw new Error('HTTP ' + r.status); }
+        return r.json();
+      })
+      .then(data => {
+        if (data.error) { _setStatus('API: ' + data.error); return; }
+        const newPts = (data.points || []).filter(p => p.gps_time);
+        newPts.sort((a, b) => new Date(a.gps_time) - new Date(b.gps_time));
+
+        if (!newPts.length && isFirst) {
+          _setStatus('No data for ' + dateStr);
+          return;
+        }
+
+        _allPoints.push(...newPts);
+        _setStatus(_allPoints.length + ' pts · building…');
+
+        if (isFirst) {
+          _buildCharts(_allPoints.slice());
+        } else {
+          _appendToCharts();
+        }
+
+        if (data.has_more && data.next_cursor) {
+          setTimeout(() => _loadPage(dateStr, data.next_cursor, false), 300);
+        }
+      })
+      .catch(err => {
+        if (isFirst) _setStatus('Fetch error: ' + err.message);
+      });
+  }
+
+  function _fetchTelemetry(dateStr) {
+    const el = document.getElementById('telemetryStatus');
+    if (el) el.textContent = 'Loading ' + dateStr + '…';
+    if (typeof Chart === 'undefined') {
+      if (el) el.textContent = 'Chart.js not loaded';
+      return;
+    }
+    _allPoints   = [];
+    _chartsBuilt = false;
+    _loadPage(dateStr, null, true);
+  }
+
+  // ── Self-start: load telemetry automatically ─────────────────────
+  (function _autoStart() {
+    const pathMatch = window.location.pathname.match(/\/history\/(\d{4}-\d{2}-\d{2})\//);
+    // Use local date in IST (UTC+5:30) rather than UTC to match API
+    const now = new Date(Date.now() + 5.5 * 3600000);
+    const todayIST = now.toISOString().slice(0, 10);
+    const dateStr = pathMatch ? pathMatch[1] : todayIST;
+    setTimeout(() => _fetchTelemetry(dateStr), 500);
+  })();
+
+  // ── Entry point: allow playback to refine date if needed ──────────
+  window.initTelemetryFromPlayback = function (playbackData) {
+    const pathMatch = window.location.pathname.match(/\/history\/(\d{4}-\d{2}-\d{2})\//);
+    if (pathMatch) return; // already started with history date
+    const firstGps = playbackData?.[0]?.gps_time;
+    if (!firstGps) return; // auto-start already handles today
+    const pbDate = firstGps.slice(0, 10);
+    const now = new Date(Date.now() + 5.5 * 3600000);
+    const todayIST = now.toISOString().slice(0, 10);
+    if (pbDate !== todayIST) _fetchTelemetry(pbDate); // different day — reload
+  };
+
+  // ── Sync playhead + live readouts ─────────────────────────────────
+  document.addEventListener('va:frame', (e) => {
+    const { timeMs } = e.detail;
+    _playheadMs = timeMs;
+    _drawPlayhead();
+
+    if (!_allPoints.length || timeMs == null) return;
+
+    // Binary search: find closest cached telemetry point
+    let lo = 0, hi = _allPoints.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (new Date(_allPoints[mid].gps_time).getTime() < timeMs) lo = mid + 1;
+      else hi = mid;
+    }
+    const pt = _allPoints[lo] || _allPoints[0];
+    if (!pt) return;
+
+    const socEl  = document.getElementById('tc-soc-val');
+    const tempEl = document.getElementById('tc-temp-val');
+    const voltEl = document.getElementById('tc-volt-val');
+    if (socEl  && pt.soc                != null) socEl.textContent  = Number(pt.soc).toFixed(0);
+    if (tempEl && pt.battery_temperature != null) tempEl.textContent = Number(pt.battery_temperature).toFixed(1);
+    if (voltEl && pt.battery_voltage     != null) voltEl.textContent = Number(pt.battery_voltage).toFixed(1);
+  });
+
+  window.addEventListener('resize', () => {
+    Object.values(_charts).forEach(c => c?.resize());
+  });
+
+})();
+</script>
+
 {% endblock %}
