@@ -30,13 +30,13 @@ class TwinsAPIAdapter:
             auth_token: JWT Bearer token for TWINS API authentication
                        If not provided, will use TWINS_API_TOKEN from settings
         """
-        self.api_url = getattr(settings, 'TWINS_API_URL', 'http://127.0.0.1:9000/latest_points_combined')
-        # Be resilient to base URL in settings/env; append latest_points_combined endpoint if needed
+        self.api_url = getattr(settings, 'TWINS_API_URL', 'http://127.0.0.1:9000/latest_points')
+        # Be resilient to base URL in settings/env; append latest_points endpoint if needed
         try:
             if isinstance(self.api_url, str):
                 url = self.api_url.strip()
-                if url.endswith('/') and 'latest_points_combined' not in url:
-                    self.api_url = url.rstrip('/') + '/latest_points_combined'
+                if url.endswith('/') and 'latest_points' not in url:
+                    self.api_url = url.rstrip('/') + '/latest_points'
         except Exception:
             pass
         # Default query param values (can be overridden per call)
@@ -65,14 +65,13 @@ class TwinsAPIAdapter:
             Dictionary keyed by registration_number with transformed vehicle data
         """
         try:
-            # Build query params
+            # /latest_points doesn't accept a spv filter and mixes all of a vendor's
+            # SPVs together — fetch by vendor only and filter by spv locally below.
             params = {}
             vendor_q = vendor if vendor is not None else self.default_vendor
             spv_q = spv if spv is not None else self.default_spv
             if vendor_q:
                 params['vendor'] = vendor_q
-            if spv_q:
-                params['spv'] = spv_q
             if limit:
                 params['limit'] = limit
 
@@ -113,15 +112,20 @@ class TwinsAPIAdapter:
             logger.info(f"Received TWINS API response (type: {type(raw_data).__name__})")
             
             # Handle both list and dict responses
+            spv_upper = (spv_q or '').strip().upper()
             if isinstance(raw_data, dict):
                 # If response is {'vehicles': {'reg_no': [...]}}
                 vehicles_dict = raw_data.get('vehicles', {})
                 if isinstance(vehicles_dict, dict):
-                    # Flatten to list
+                    # Flatten to list, keeping only points matching the requested spv
+                    # (a vendor's /latest_points response mixes all its SPVs together)
                     all_points = []
                     for reg_no, points in vehicles_dict.items():
-                        if isinstance(points, list):
-                            all_points.extend(points)
+                        if not isinstance(points, list):
+                            continue
+                        if spv_upper:
+                            points = [p for p in points if (p.get('spv') or '').strip().upper() == spv_upper]
+                        all_points.extend(points)
                     raw_data = all_points
                 else:
                     raw_data = [raw_data]

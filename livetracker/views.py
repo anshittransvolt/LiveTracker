@@ -201,9 +201,12 @@ def vehicle_analytics_api(request, registration_number):
                     _now_a = datetime.now(_ist_a)
                     _start_a = _now_a.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%dT%H:%M:%S')
                     _end_a = _now_a.strftime('%Y-%m-%dT%H:%M:%S')
-                    # Use TWINS fetch_geo endpoint for 24hr GPS data (lat/lon/speed/heading)
+                    # Use TWINS fetch_geo endpoint for 24hr GPS data (lat/lon/speed/heading).
+                    # 'eim' rejects its own spv values here (upstream allowlist bug) — the
+                    # registration_number filter already scopes to one vehicle, so omit spv.
+                    _spv_qs = f"spv={_spv}&" if _vendor != 'eim' else ""
                     api_url = (
-                        f"{twins_url}fetch_geo?spv={_spv}&vendor={_vendor}"
+                        f"{twins_url}fetch_geo?{_spv_qs}vendor={_vendor}"
                         f"&page_size=5000&registration_number={registration_number}"
                         f"&start_time={_start_a}&end_time={_end_a}"
                     )
@@ -1452,12 +1455,10 @@ def twins_api_proxy(request):
         
         vendor, spv = _resolve_twins_project(request.GET.get('spv', ''))
 
-        # 'eim' only exposes /latest_points (no spv filter, no combined endpoint) and
-        # mixes all its SPVs (JM_BAXI, GTI, ...) together — filter by spv after fetching.
-        if vendor == 'eim':
-            api_url = f"{twins_url}latest_points?vendor={vendor}"
-        else:
-            api_url = f"{twins_url}latest_points_combined?vendor={vendor}&spv={spv}&limit={limit}"
+        # /latest_points doesn't accept a spv filter and mixes all of a vendor's
+        # SPVs together (e.g. intangles -> ULTRATECH/UMT/MBMT/VECV) — fetch by
+        # vendor only and filter by spv locally.
+        api_url = f"{twins_url}latest_points?vendor={vendor}&limit={limit}"
 
         logger.info(f"🔄 Proxying TWINS API request: vendor={vendor}, spv={spv}, limit={limit}")
         
@@ -1480,15 +1481,15 @@ def twins_api_proxy(request):
 
         vehicles_raw = data.get('vehicles', {})
 
-        # 'eim' /latest_points returns all its SPVs mixed together — keep only
-        # vehicles whose latest point matches the requested spv (e.g. JM_BAXI, GTI).
-        if vendor == 'eim':
-            vehicles_raw = {
-                reg: pts for reg, pts in vehicles_raw.items()
-                if isinstance(pts, list) and pts and pts[0].get('spv') == spv
-            }
-            data['vehicles'] = vehicles_raw
-            data['total_vehicles'] = len(vehicles_raw)
+        # Keep only vehicles whose latest point's spv matches the requested project
+        # (spv casing varies by vendor in the raw API, e.g. 'ultratech' vs 'ULTRATECH').
+        spv_upper = (spv or '').strip().upper()
+        vehicles_raw = {
+            reg: pts for reg, pts in vehicles_raw.items()
+            if isinstance(pts, list) and pts and (pts[0].get('spv') or '').strip().upper() == spv_upper
+        }
+        data['vehicles'] = vehicles_raw
+        data['total_vehicles'] = len(vehicles_raw)
 
         logger.info(f"✅ TWINS API response: {data.get('total_vehicles', '?')} vehicles (spv={spv})")
 
@@ -1622,8 +1623,11 @@ def twins_24hr_route_proxy(request):
 
         # fetch_geo returns GPS track points (lat/lon/speed/heading) for a vehicle over a time range.
         # fetch_points only has BMS/telemetry data (SOC, odometer) and has no GPS coordinates.
+        # 'eim' rejects its own spv values here (upstream allowlist bug) — the
+        # registration_number filter already scopes to one vehicle, so omit spv.
+        _spv_qs = f"spv={_spv}&" if _vendor != 'eim' else ""
         api_url = (
-            f"{twins_url}fetch_geo?spv={_spv}&vendor={_vendor}"
+            f"{twins_url}fetch_geo?{_spv_qs}vendor={_vendor}"
             f"&page_size=5000&registration_number={registration_number}"
             f"&start_time={_start_str}&end_time={_end_str}"
         )
