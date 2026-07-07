@@ -18,22 +18,22 @@ from .models import EventType, Event
 from datetime import datetime
 
 
-def high(alert_code, content, timestamp=None, lat=None, lon=None):
+def high(alert_code, content, timestamp=None, lat=None, lon=None, spv=None):
     """Push HIGH priority alert"""
-    return _push_alert(alert_code, content, 'high', timestamp, lat, lon)
+    return _push_alert(alert_code, content, 'high', timestamp, lat, lon, spv=spv)
 
 
-def medium(alert_code, content, timestamp=None, lat=None, lon=None):
+def medium(alert_code, content, timestamp=None, lat=None, lon=None, spv=None):
     """Push MEDIUM priority alert"""
-    return _push_alert(alert_code, content, 'medium', timestamp, lat, lon)
+    return _push_alert(alert_code, content, 'medium', timestamp, lat, lon, spv=spv)
 
 
-def low(alert_code, content, timestamp=None, lat=None, lon=None):
+def low(alert_code, content, timestamp=None, lat=None, lon=None, spv=None):
     """Push LOW priority alert"""
-    return _push_alert(alert_code, content, 'low', timestamp, lat, lon)
+    return _push_alert(alert_code, content, 'low', timestamp, lat, lon, spv=spv)
 
 
-def _push_alert(alert_code, content, severity, timestamp=None, lat=None, lon=None):
+def _push_alert(alert_code, content, severity, timestamp=None, lat=None, lon=None, spv=None):
     """Internal function to push alerts with specified severity and location"""
     # Parse timestamp
     if timestamp is None:
@@ -105,9 +105,10 @@ def _push_alert(alert_code, content, severity, timestamp=None, lat=None, lon=Non
     event = Event.objects.create(
         event_type=event_type,
         is_active=True,
-        source='alert_service',  # Source of this event
+        source='alert_service',
         latitude=lat,
-        longitude=lon
+        longitude=lon,
+        spv=spv or '',
     )
     
     return event

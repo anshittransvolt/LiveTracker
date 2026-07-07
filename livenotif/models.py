@@ -52,11 +52,17 @@ class Event(models.Model):
         help_text="Latitude coordinate of the event location"
     )
     longitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=7, 
-        null=True, 
+        max_digits=10,
+        decimal_places=7,
+        null=True,
         blank=True,
         help_text="Longitude coordinate of the event location"
+    )
+    spv = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="SPV/project identifier (e.g., 'ULTRATECH', 'MBMT')"
     )
 
     class Meta:

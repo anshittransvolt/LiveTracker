@@ -167,7 +167,7 @@ def log_alert_counts(alerts_generated: list, throttled_counts: dict):
 
 
 @transaction.atomic
-def process_batch(records: list) -> list:
+def process_batch(records: list, spv: str = None) -> list:
     """
     Main batch processor entry point.
 
@@ -178,13 +178,14 @@ def process_batch(records: list) -> list:
 
     After batch processing:
     4. Detect feed-gap for vehicles not in this batch
-    
+
     Rate Limiting:
     - Stops processing after MAX_ALERTS_PER_MINUTE to prevent alert storms
     - Logs warning when limit is reached
 
     Args:
         records: List of vehicle records from API
+        spv: SPV/project identifier for alert tagging
 
     Returns:
         List of alert dicts for UI consumption
@@ -196,7 +197,7 @@ def process_batch(records: list) -> list:
         # Global rate limiter: stop if we've hit the max alerts per cycle
         if len(alerts_generated) >= MAX_ALERTS_PER_MINUTE:
             break
-        
+
         vehicle_id = record.get("vehicle_id")
 
         # Load or create state
@@ -214,7 +215,7 @@ def process_batch(records: list) -> list:
         )
 
         # Process record: all checks and state updates happen here
-        process_vehicle_record(state, record, alerts_generated, throttled_counts)
+        process_vehicle_record(state, record, alerts_generated, throttled_counts, spv=spv)
 
         # Save updated state
         state.save()

@@ -280,7 +280,9 @@ class LiveToastManager {
 
     async loadToasts() {
         try {
-            const response = await fetch('/livenotif/api/toasts/');
+            const spv = document.getElementById('projectSwitcher')?.value || '';
+            const toastUrl = spv ? `/livenotif/api/toasts/?spv=${encodeURIComponent(spv)}` : '/livenotif/api/toasts/';
+            const response = await fetch(toastUrl);
             const data = await response.json();
 
             data.toasts.forEach(toast => {

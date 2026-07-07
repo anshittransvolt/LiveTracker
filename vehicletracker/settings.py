@@ -214,6 +214,10 @@ TWINS_VECV_VENDOR = os.getenv("TWINS_VECV_VENDOR", "intangles")
 TWINS_VECV_SPV = os.getenv("TWINS_VECV_SPV", "VECV")
 TWINS_STAR_CEMENT_VENDOR = os.getenv("TWINS_STAR_CEMENT_VENDOR", "propel")
 TWINS_STAR_CEMENT_SPV = os.getenv("TWINS_STAR_CEMENT_SPV", "STAR_CEMENT")
+TWINS_JM_BAXI_VENDOR = os.getenv("TWINS_JM_BAXI_VENDOR", "eim")
+TWINS_JM_BAXI_SPV = os.getenv("TWINS_JM_BAXI_SPV", "JM_BAXI")
+TWINS_GTI_VENDOR = os.getenv("TWINS_GTI_VENDOR", "eim")
+TWINS_GTI_SPV = os.getenv("TWINS_GTI_SPV", "GTI")
 
 # Telemetry API
 TELEMETRY_API_URL = os.getenv("TELEMETRY_API_URL")
@@ -237,6 +241,7 @@ VEHICLE_MASTER_TABLE = os.environ.get("VEHICLE_MASTER_TABLE", "Vehicle_Master2")
 RECAPTCHA_PUBLIC_KEY = os.getenv("CAPTCHA_SITE_KEY", "")
 RECAPTCHA_PRIVATE_KEY = os.getenv("CAPTCHA_SECRET_KEY", "")
 SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
+RECAPTCHA_TESTING = os.getenv("PROJECT_ENVIRONMENT", "dev") == "dev"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

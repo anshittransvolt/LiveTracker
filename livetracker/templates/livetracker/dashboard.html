@@ -17,6 +17,8 @@
     <option value="NAGPUR">Nagpur (EKA)</option>
     <option value="VECV">VECV</option>
     <option value="STAR_CEMENT">Star Cement</option>
+    <option value="JM_BAXI">JM Baxi</option>
+    <option value="GTI">GTI</option>
   </select>
   <button id="lv-project-trigger" class="lv-project-trigger flex items-center gap-2 px-3 py-1.5 rounded-lg"
     onclick="window.toggleProjectDropdown()">
@@ -30,6 +32,8 @@
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="NAGPUR" data-label="EKA" onclick="window.selectProject(this)">Nagpur (EKA)</button>
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="MBMT" data-label="MBMT" onclick="window.selectProject(this)">MBMT</button>
     <button class="lv-project-option w-full text-left px-3 py-2" data-project="STAR_CEMENT" data-label="Star" onclick="window.selectProject(this)">Star Cement</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="JM_BAXI" data-label="JM Baxi" onclick="window.selectProject(this)">JM Baxi</button>
+    <button class="lv-project-option w-full text-left px-3 py-2" data-project="GTI" data-label="GTI" onclick="window.selectProject(this)">GTI</button>
   </div>
 </div>
 {% endblock %}
@@ -338,10 +342,12 @@
   const KEY_TO_SLUG = {
     ULTRATECH: 'ultratech', UMT: 'umt', MBMT: 'mbmt',
     NAGPUR: 'nagpur', VECV: 'vecv', STAR_CEMENT: 'star_cement',
+    JM_BAXI: 'jm_baxi', GTI: 'gti',
   };
   const KEY_TO_LABEL = {
     ULTRATECH: 'Ultratech', UMT: 'UMT', MBMT: 'MBMT',
     NAGPUR: 'EKA', VECV: 'VECV', STAR_CEMENT: 'Star',
+    JM_BAXI: 'JM Baxi', GTI: 'GTI',
   };
   const SLUG_TO_KEY = {};
   Object.entries(KEY_TO_SLUG).forEach(([k, v]) => { SLUG_TO_KEY[v] = k; SLUG_TO_KEY[v.replace('_','-')] = k; });

@@ -12,11 +12,11 @@ from livetracker.models import LiveTrackerAlertAction
 @require_http_methods(["GET"])
 def get_active_toasts(request):
     """Get all active events for toast display"""
-    events = list(
-        Event.objects.filter(is_active=True)
-        .select_related("event_type")
-        .order_by("-created_at")
-    )
+    spv = request.GET.get('spv', '').strip()
+    qs = Event.objects.filter(is_active=True).select_related("event_type")
+    if spv:
+        qs = qs.filter(spv=spv)
+    events = list(qs.order_by("-created_at"))
 
     # Resolve vehicle numbers from event content
     vehicle_numbers = set()

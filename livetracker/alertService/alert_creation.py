@@ -57,6 +57,7 @@ def send_unified_notification(
     vehicle_id: str,
     vehicle_no: str,
     additional_data: dict = None,
+    spv: str = None,
 ):
     """
     Send alert through unified notification service (livenotif + telegram + webhook).
@@ -83,6 +84,7 @@ def send_unified_notification(
             vehicle_no=vehicle_no,
             event_trigger_timestamp=event_trigger_timestamp,
             additional_data=additional_data,
+            spv=spv,
         )
         
         logger.debug(
@@ -107,9 +109,10 @@ def create_alert_row(
     lat: Optional[float],
     lon: Optional[float],
     soc: Optional[int],
-    event_id: str,  # Changed from alert_type to event_id
+    event_id: str,
     text: str,
     context: dict = None,
+    spv: str = None,
 ) -> dict:
     """Send alert notification through all channels (LiveNotif, Telegram, Webhook).
     Does NOT save to local database - only sends notifications.
@@ -272,6 +275,7 @@ def create_alert_row(
             vehicle_id=vehicle_id or "",
             vehicle_no=vehicle_no or "",
             additional_data=webhook_metadata,
+            spv=spv,
         )
     except Exception:
         pass  # Silent failure

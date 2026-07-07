@@ -289,8 +289,12 @@ def vehicle_analytics_api(request, registration_number):
                                 'account_name': point.get('account_name'),
                                 'spv': point.get('spv'),
                                 'vendor': point.get('vendor'),
-                                # Set vehicle_status based on speed heuristic if not provided
-                                'vehicle_status': point.get('vehicle_status', 'moving' if speed > 1 else 'stopped'),
+                                # Determine vehicle_status: use API value first, then charging_status, then speed heuristic
+                                'vehicle_status': (
+                                    point.get('vehicle_status') or
+                                    ('Charging' if point.get('charging_status') == 1 else None) or
+                                    ('moving' if speed > 1 else 'stopped')
+                                ),
                                 'raw': point
                             }
                             vehicle_data.append(mapped_point)
@@ -414,6 +418,7 @@ def get_recent_alerts(request):
         # Optional filters
         alert_type = request.GET.get("alert_type")
         vehicle_no = request.GET.get("vehicle_no")
+        spv = request.GET.get("spv", "").strip()
         limit = int(request.GET.get("limit", 50))
 
         # Fetch recent alerts with optional filters
@@ -422,6 +427,8 @@ def get_recent_alerts(request):
             qs = qs.filter(alert_type=alert_type)
         if vehicle_no:
             qs = qs.filter(vehicle_no=vehicle_no)
+        if spv:
+            qs = qs.filter(spv=spv)
         recent_alerts = qs.order_by("-created_at")[: max(1, min(limit, 200))]
 
         # Convert to list of dicts
@@ -810,6 +817,7 @@ def report_deviation_alert(request):
         message = payload.get("message") or "Route deviation detected"
         soc = payload.get("soc")
         vehicle_id = payload.get("vehicle_id")
+        spv = payload.get("spv", "")
 
         if not vehicle_no or lat is None or lon is None:
             return JsonResponse({"error": "vehicle_no, lat and lon are required"}, status=400)
@@ -828,6 +836,7 @@ def report_deviation_alert(request):
             alert_type="route_deviation",
             text=alert_text,
             priority="high",
+            spv=spv,
         )
 
         try:
@@ -1399,6 +1408,10 @@ def _resolve_twins_project(spv_param):
                         getattr(settings, 'TWINS_VECV_SPV',           'VECV')),
         'STAR_CEMENT': (getattr(settings, 'TWINS_STAR_CEMENT_VENDOR', 'propel'),
                         getattr(settings, 'TWINS_STAR_CEMENT_SPV',    'STAR_CEMENT')),
+        'JM_BAXI':     (getattr(settings, 'TWINS_JM_BAXI_VENDOR',     'eim'),
+                        getattr(settings, 'TWINS_JM_BAXI_SPV',        'JM_BAXI')),
+        'GTI':         (getattr(settings, 'TWINS_GTI_VENDOR',        'eim'),
+                        getattr(settings, 'TWINS_GTI_SPV',           'GTI')),
     }
     key = (spv_param or '').strip().upper() or 'ULTRATECH'
     return mapping.get(key, mapping['ULTRATECH'])
@@ -1438,7 +1451,13 @@ def twins_api_proxy(request):
             )
         
         vendor, spv = _resolve_twins_project(request.GET.get('spv', ''))
-        api_url = f"{twins_url}latest_points_combined?vendor={vendor}&spv={spv}&limit={limit}"
+
+        # 'eim' only exposes /latest_points (no spv filter, no combined endpoint) and
+        # mixes all its SPVs (JM_BAXI, GTI, ...) together — filter by spv after fetching.
+        if vendor == 'eim':
+            api_url = f"{twins_url}latest_points?vendor={vendor}"
+        else:
+            api_url = f"{twins_url}latest_points_combined?vendor={vendor}&spv={spv}&limit={limit}"
 
         logger.info(f"🔄 Proxying TWINS API request: vendor={vendor}, spv={spv}, limit={limit}")
         
@@ -1458,13 +1477,25 @@ def twins_api_proxy(request):
         response.raise_for_status()
 
         data = response.json()
+
+        vehicles_raw = data.get('vehicles', {})
+
+        # 'eim' /latest_points returns all its SPVs mixed together — keep only
+        # vehicles whose latest point matches the requested spv (e.g. JM_BAXI, GTI).
+        if vendor == 'eim':
+            vehicles_raw = {
+                reg: pts for reg, pts in vehicles_raw.items()
+                if isinstance(pts, list) and pts and pts[0].get('spv') == spv
+            }
+            data['vehicles'] = vehicles_raw
+            data['total_vehicles'] = len(vehicles_raw)
+
         logger.info(f"✅ TWINS API response: {data.get('total_vehicles', '?')} vehicles (spv={spv})")
 
         # Normalize gps_time in every point to IST ISO string so the
         # frontend hover card and sidebar show the same time as playback.
         import pytz as _pytz
         _ist_tz = _pytz.timezone('Asia/Kolkata')
-        vehicles_raw = data.get('vehicles', {})
         for reg, pts in vehicles_raw.items():
             if not isinstance(pts, list):
                 continue

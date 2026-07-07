@@ -10,7 +10,7 @@ import numpy as np
 from typing import Dict
 
 # Default battery capacity in kWh (can be overridden)
-BATTERY_KWH = 280.0
+BATTERY_KWH = 282.0
 
 
 def compute_energy_and_eff(

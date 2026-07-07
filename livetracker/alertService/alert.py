@@ -74,7 +74,7 @@ class alertService:
             self.logger.error(f"Error fetching vehicle data from TWINS API: {e}", exc_info=True)
             return None
 
-    def process_vehicle_data(self, data: List[Dict[str, Any]]):
+    def process_vehicle_data(self, data: List[Dict[str, Any]], spv: str = None):
         """
         Run the alert processor against a list of vehicle records.
 
@@ -87,7 +87,7 @@ class alertService:
             return
 
         try:
-            alerts = process_batch(data)
+            alerts = process_batch(data, spv=spv)
             self.logger.info(f"Alert processor returned {len(alerts) if alerts else 0} alert(s)")
         except Exception as e:
             self.logger.error(f"Error processing vehicle data: {e}", exc_info=True)
@@ -115,7 +115,7 @@ class alertService:
                 data = self.fetch_vehicle_data()
 
                 if data:
-                    self.process_vehicle_data(data)
+                    self.process_vehicle_data(data, spv=self._spv)
                 else:
                     self.logger.warning(
                         "Failed to fetch data, will retry in 60 seconds"

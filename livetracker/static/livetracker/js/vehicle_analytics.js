@@ -74,7 +74,7 @@ export async function loadVehicleAnalytics(registrationNumber, historicalDate = 
     if (!spv) {
       const parts = window.location.pathname.split('/').filter(Boolean);
       if (parts.length >= 2 && parts[1] === 'livetracker') {
-        const slugMap = { ultratech:'ULTRATECH', umt:'UMT', mbmt:'MBMT', nagpur:'NAGPUR', vecv:'VECV', star_cement:'STAR_CEMENT', 'star-cement':'STAR_CEMENT' };
+        const slugMap = { ultratech:'ULTRATECH', umt:'UMT', mbmt:'MBMT', nagpur:'NAGPUR', vecv:'VECV', star_cement:'STAR_CEMENT', 'star-cement':'STAR_CEMENT', jm_baxi:'JM_BAXI', 'jm-baxi':'JM_BAXI', gti:'GTI' };
         spv = slugMap[parts[0].toLowerCase()] || '';
       }
     }

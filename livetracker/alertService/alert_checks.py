@@ -86,7 +86,7 @@ def create_alert_with_throttling(state, event_id, now_ts, *args, **kwargs):
 
 
 def process_vehicle_record(
-    state: VehicleState, record: dict, alerts_generated: list, throttled_counts: dict = None
+    state: VehicleState, record: dict, alerts_generated: list, throttled_counts: dict = None, spv: str = None
 ) -> None:
     """
     Process a single vehicle record and update state with all checks.
@@ -180,6 +180,7 @@ def process_vehicle_record(
                             soc,
                             event_id,
                             text,
+                        spv=spv,
                         )
                         update_alert_timestamp(state, alert_type, now_ts)
                         alerts_generated.append(a)
@@ -211,6 +212,7 @@ def process_vehicle_record(
                             soc,
                             event_id,
                             text,
+                        spv=spv,
                         )
                         update_alert_timestamp(state, alert_type, now_ts)
                         alerts_generated.append(a)
@@ -253,6 +255,7 @@ def process_vehicle_record(
                             soc,
                             event_id,
                             text,
+                        spv=spv,
                         )
                         update_alert_timestamp(state, alert_type, now_ts)
                         alerts_generated.append(a)
@@ -280,6 +283,7 @@ def process_vehicle_record(
                 soc,
                 status,
                 alerts_generated,
+            spv=spv,
             )
 
         # SOC 100% stuck check
@@ -299,6 +303,7 @@ def process_vehicle_record(
                 soc,
                 alerts_generated,
                 throttled_counts,
+            spv=spv,
             )
 
         # Dwell checks
@@ -317,6 +322,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
         if should_send_alert("loading_dwell", dwell_context("Loading Area")):
             _check_loading_dwell(
@@ -330,6 +336,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
         if should_send_alert("tarpaulin_dwell", dwell_context("Tarpulien")):
             _check_tarpaulin_dwell(
@@ -343,6 +350,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
         if should_send_alert("maha_border_dwell", dwell_context("Maha Border")):
             _check_maha_border_dwell(
@@ -356,6 +364,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
         if should_send_alert("unloading_dwell", dwell_context("Dhule Circle Geofence")):
             _check_unloading_dwell(
@@ -369,6 +378,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
 
         # Transit checks
@@ -392,6 +402,7 @@ def process_vehicle_record(
                 lon,
                 soc,
                 alerts_generated,
+            spv=spv,
             )
 
     # ===== CHECKS WHEN OUTSIDE GEOFENCE =====
@@ -414,6 +425,7 @@ def process_vehicle_record(
                 status,
                 alerts_generated,
                 throttled_counts,
+            spv=spv,
             )
 
         # Route deviation check against nearest corridor segment when Moving
@@ -450,6 +462,7 @@ def process_vehicle_record(
                                 soc,
                                 EventIDs.ROUTE_DEVIATION,
                                 text,
+                            spv=spv,
                             )
                             alerts_generated.append(a)
                             update_alert_timestamp(state, 'route_deviation', now_ts)
@@ -490,6 +503,7 @@ def _check_charging_dwell(
     soc,
     status,
     alerts_generated,
+    spv=None,
 ):
     """Check for charging overrun."""
     if state.current_geofence and status == "Charging":
@@ -510,6 +524,7 @@ def _check_charging_dwell(
                     soc,
                     EventIDs.CHARGING_OVERRUN,
                     text,
+                spv=spv,
                 )
                 alerts_generated.append(a)
     else:
@@ -528,6 +543,7 @@ def _check_soc_100_stuck(
     soc,
     alerts_generated,
     throttled_counts,
+    spv=None,
 ):
     """Check for SOC stuck at 100%."""
     from livetracker.alertService.alert_processor import should_throttle_alert, update_alert_timestamp
@@ -557,6 +573,7 @@ def _check_soc_100_stuck(
                         soc,
                         EventIDs.CHARGING_FULL_STUCK,
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
                     
@@ -577,6 +594,7 @@ def _check_weighing_dwell(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check for weighing area dwell overrun."""
     if state.current_geofence == "Weighing Area" and state.last_status == "Stop":
@@ -593,6 +611,7 @@ def _check_weighing_dwell(
                 soc,
                 EventIDs.TARE_WEIGHT_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
         if inside_duration >= GROSS_DWELL_SECONDS:
@@ -608,6 +627,7 @@ def _check_weighing_dwell(
                 soc,
                 EventIDs.GROSS_WEIGHT_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -623,6 +643,7 @@ def _check_loading_dwell(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check for loading area dwell overrun."""
     from livetracker.alertService.alert_processor import should_throttle_alert, update_alert_timestamp
@@ -647,6 +668,7 @@ def _check_loading_dwell(
                 soc,
                 EventIDs.LOADING_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
             
@@ -665,6 +687,7 @@ def _check_tarpaulin_dwell(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check for tarpaulin area dwell overrun."""
     from livetracker.alertService.alert_processor import should_throttle_alert, update_alert_timestamp
@@ -689,6 +712,7 @@ def _check_tarpaulin_dwell(
                 soc,
                 EventIDs.TARPAULIN_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
             update_alert_timestamp(state, 'tarpaulin_dwell', now_ts)
@@ -705,6 +729,7 @@ def _check_maha_border_dwell(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check for Maha border dwell overrun."""
     from livetracker.alertService.alert_processor import should_throttle_alert, update_alert_timestamp
@@ -729,6 +754,7 @@ def _check_maha_border_dwell(
                 soc,
                 EventIDs.MAHA_BORDER_DWELL,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
             update_alert_timestamp(state, 'maha_border_dwell', now_ts)
@@ -745,6 +771,7 @@ def _check_unloading_dwell(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check for unloading area dwell overrun."""
     from livetracker.alertService.alert_processor import should_throttle_alert, update_alert_timestamp
@@ -772,6 +799,7 @@ def _check_unloading_dwell(
                 soc,
                 EventIDs.UNLOADING_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
             update_alert_timestamp(state, 'unloading_dwell', now_ts)
@@ -788,6 +816,7 @@ def _check_transit(
     lon,
     soc,
     alerts_generated,
+    spv=None,
 ):
     """Check transit SLA compliance."""
     if state.last_departure_ts:
@@ -818,6 +847,7 @@ def _check_transit(
                         soc,
                         EventIDs.TRANSIT_BREACH_MANAWAR_JHULWANIA,
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
                 state.last_departure_ts = None
@@ -847,6 +877,7 @@ def _check_transit(
                         soc,
                         EventIDs.TRANSIT_BREACH_JHULWANIA_DHULE,
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
                 state.last_departure_ts = None
@@ -866,6 +897,7 @@ def _check_unplanned_stop(
     status,
     alerts_generated,
     throttled_counts,
+    spv=None,
 ):
     """Check for unplanned stop outside geofence with throttling."""
     # Import throttling functions here to avoid circular imports
@@ -894,6 +926,7 @@ def _check_unplanned_stop(
                     soc,
                     EventIDs.UNPLANNED_STOP_OUTSIDE_GEOFENCE,
                     text,
+                spv=spv,
                 )
                 alerts_generated.append(a)
                 
@@ -933,6 +966,7 @@ def handle_charging_dwell(
                     soc,
                     EventIDs.CHARGING_OVERRUN,
                     text,
+                spv=spv,
                 )
                 alerts_generated.append(a)
     else:
@@ -971,6 +1005,7 @@ def handle_soc_100_stuck(
                         soc,
                         EventIDs.CHARGING_FULL_STUCK,
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
     else:
@@ -1003,6 +1038,7 @@ def handle_weighing_dwell(
                 soc,
                 EventIDs.TARE_WEIGHT_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
         if inside_duration >= GROSS_DWELL_SECONDS:
@@ -1018,6 +1054,7 @@ def handle_weighing_dwell(
                 soc,
                 EventIDs.GROSS_WEIGHT_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -1048,6 +1085,7 @@ def handle_loading_dwell(
                 soc,
                 EventIDs.LOADING_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -1078,6 +1116,7 @@ def handle_tarpaulin_dwell(
                 soc,
                 EventIDs.TARPAULIN_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -1108,6 +1147,7 @@ def handle_maha_border_dwell(
                 soc,
                 EventIDs.MAHA_BORDER_DWELL,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -1141,6 +1181,7 @@ def handle_unloading_dwell(
                 soc,
                 EventIDs.UNLOADING_OVERRUN,
                 text,
+            spv=spv,
             )
             alerts_generated.append(a)
 
@@ -1184,6 +1225,7 @@ def handle_transit_checks(
                         soc,
                         "transit_breach_manawar_jhulwania",
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
                 state.last_departure_ts = None
@@ -1212,6 +1254,7 @@ def handle_transit_checks(
                         soc,
                         "transit_breach_jhulwania_dhule",
                         text,
+                    spv=spv,
                     )
                     alerts_generated.append(a)
                 state.last_departure_ts = None

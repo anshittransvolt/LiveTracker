@@ -202,9 +202,13 @@ class DataSourceManager:
 
             speed = _safe_float(loc_rec.get('speed'), 0)
             soc = _safe_int(bms_rec.get('soc') or bms_rec.get('state_of_charge'), 0, 100)
+            current = _safe_float(bms_rec.get('current') or bms_rec.get('pack_current'))
 
             if speed and speed > 0:
                 status = 'Move'
+            elif current is not None and current > 0:
+                # Positive current = charging (battery pack convention: charging is positive)
+                status = 'Charging'
             elif soc and soc > 0:
                 status = 'Stop'
             else:

@@ -19,6 +19,12 @@ class VehicleAlert(models.Model):
         default="medium",
         help_text="Priority of the alert",
     )
+    spv = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="SPV/project identifier (e.g., 'ULTRATECH', 'MBMT')",
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):

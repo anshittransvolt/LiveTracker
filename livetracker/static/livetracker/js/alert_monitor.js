@@ -101,7 +101,9 @@ class AlertMonitor {
      */
     async fetchAlerts() {
         try {
-            const response = await fetch('/livetracker/api/alerts/?minutes=1');
+            const spv = document.getElementById('projectSwitcher')?.value || '';
+            const spvParam = spv ? `&spv=${encodeURIComponent(spv)}` : '';
+            const response = await fetch(`/livetracker/api/alerts/?minutes=1${spvParam}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

@@ -112,6 +112,7 @@ function getSPVFromContext() {
       ultratech: 'ULTRATECH', umt: 'UMT', mbmt: 'MBMT',
       nagpur: 'NAGPUR', vecv: 'VECV',
       star_cement: 'STAR_CEMENT', 'star-cement': 'STAR_CEMENT',
+      jm_baxi: 'JM_BAXI', 'jm-baxi': 'JM_BAXI', gti: 'GTI',
     };
     return slugMap[parts[0].toLowerCase()] || '';
   }

@@ -102,13 +102,18 @@ def detect_charging_sessions(
         if dt is None:
             continue
 
-        # Detect charging: stationary (speed <= 1) AND SOC increasing
+        # Detect charging: primary = vehicle_status contains 'charg'; secondary = SOC increasing
         is_charging = False
         soc_gain = 0
-        
-        if spd is not None and spd <= 1.0 and s is not None and prev_soc is not None:
+        vs_lower = str(vehicle_status).lower() if vehicle_status else ''
+
+        if 'charg' in vs_lower:
+            # Status-based: the API/adapter has already determined this point is charging
+            is_charging = True
+            charging_points += 1
+        elif spd is not None and spd <= 1.0 and s is not None and prev_soc is not None:
             soc_gain = s - prev_soc
-            # Charging if SOC increased by at least 0.5%
+            # SOC-based fallback: stationary AND SOC rising ≥ 0.5%
             if soc_gain >= 0.5:
                 is_charging = True
                 charging_points += 1
@@ -280,22 +285,21 @@ def detect_stoppage_sessions(
         if dt is None:
             continue
 
-        # Detect stoppage: stationary (speed <= 1) AND SOC NOT increasing
+        # Detect stoppage: stationary AND not charging
         is_stopped = False
         soc_change = 0
-        
-        if spd is not None and spd <= 1.0:
-            # Vehicle is stationary
-            # Check if SOC is stable or decreasing (not charging)
+        vs_lower_stop = str(vehicle_status).lower() if vehicle_status else ''
+
+        if spd is not None and spd <= 1.0 and 'charg' not in vs_lower_stop:
+            # Vehicle is stationary and not explicitly charging
             if s is not None and prev_soc is not None:
                 soc_change = s - prev_soc
-                # Stopped if SOC decreased or stayed same (SOC_change < 0.5%)
-                # Don't count as stopped if SOC is increasing (that's charging)
+                # Stopped if SOC stable or decreasing (not charging)
                 if soc_change < 0.5:
                     is_stopped = True
                     stop_points += 1
-            elif prev_soc is None:
-                # First point, assume stopped if stationary
+            else:
+                # No SOC data — treat stationary as stopped
                 is_stopped = True
                 stop_points += 1
 
@@ -377,3 +381,4 @@ def detect_stoppage_sessions(
                 merged_sessions.append(session)
 
     logger.info(f"✅ Stoppage detector result: {len(merged_sessions)} sessions after merge")
+    return merged_sessions

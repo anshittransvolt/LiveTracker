@@ -42,6 +42,7 @@ class NotificationService:
         vehicle_no: Optional[str] = None,
         event_trigger_timestamp: Optional[int] = None,
         additional_data: Optional[Dict[str, Any]] = None,
+        spv: Optional[str] = None,
     ) -> Dict[str, bool]:
         """
         Send alert through all configured notification channels.
@@ -83,7 +84,7 @@ class NotificationService:
         # 1. Send LiveNotif Toast (highest priority - real-time UI)
         if self.livenotif_enabled:
             results["livenotif"] = self._send_livenotif(
-                event_id, alert_text, priority, lat, lon, vehicle_no
+                event_id, alert_text, priority, lat, lon, vehicle_no, spv=spv
             )
         else:
             logger.debug("LiveNotif notifications disabled")
@@ -118,6 +119,7 @@ class NotificationService:
         lat=None,
         lon=None,
         vehicle_no: Optional[str] = None,
+        spv: Optional[str] = None,
     ) -> bool:
         """
         Send toast notification via livenotif system.
@@ -151,11 +153,11 @@ class NotificationService:
             timestamp = datetime.now().isoformat()
             
             if severity == "high":
-                event = livenotif.high(event_id, enriched_text, timestamp, lat, lon)
+                event = livenotif.high(event_id, enriched_text, timestamp, lat, lon, spv=spv)
             elif severity == "low":
-                event = livenotif.low(event_id, enriched_text, timestamp, lat, lon)
+                event = livenotif.low(event_id, enriched_text, timestamp, lat, lon, spv=spv)
             else:  # medium or normal
-                event = livenotif.medium(event_id, enriched_text, timestamp, lat, lon)
+                event = livenotif.medium(event_id, enriched_text, timestamp, lat, lon, spv=spv)
 
             if event:
                 return True
@@ -330,6 +332,7 @@ def send_alert_notification(
     vehicle_no: Optional[str] = None,
     event_trigger_timestamp: Optional[int] = None,
     additional_data: Optional[Dict[str, Any]] = None,
+    spv: Optional[str] = None,
 ) -> Dict[str, bool]:
     """
     Convenience function to send alert through all notification channels.
@@ -342,6 +345,7 @@ def send_alert_notification(
         vehicle_no: Vehicle number
         event_trigger_timestamp: Unix timestamp when alert was triggered
         additional_data: Additional metadata for webhook
+        spv: SPV/project identifier for filtering
 
     Returns:
         Dictionary with success status for each channel
@@ -355,4 +359,5 @@ def send_alert_notification(
         vehicle_no=vehicle_no,
         event_trigger_timestamp=event_trigger_timestamp,
         additional_data=additional_data,
+        spv=spv,
     )
