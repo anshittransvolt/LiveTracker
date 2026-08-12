@@ -37,17 +37,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "import_export",
-    "django_celery_results",
-    "django_celery_beat",
     "csp",
-    "django_recaptcha",
-    "dashboard",
+    "import_export",
     "email_service",
     "livenotif",
     "livetracker",
-    "roster",
-    "mis",  # scheduler only — no models/migrations
 ]
 
 MIDDLEWARE = [
@@ -59,9 +53,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "dashboard.middleware.ProjectURLMiddleware",
-    "dashboard.middleware.UserActionLoggerMiddleware",
-    "dashboard.middleware.ProjectRBACMiddleware",
 ]
 
 if DEBUG:
@@ -80,24 +71,15 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "dashboard.context_processors.project_spv_context",
-                "dashboard.context_processors.rbac_context",
                 "livetracker.context_processors.environment_variables",
                 "livetracker.context_processors.vehicle_mapping",
+                "livetracker.context_processors.selected_project_context",
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = "vehicletracker.wsgi.application"
-
-# Microsoft OAuth (optional)
-MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
-MICROSOFT_CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
-MICROSOFT_TENANT_ID = os.getenv("MICROSOFT_TENANT_ID")
-MICROSOFT_AUTHORITY = f"https://login.microsoftonline.com/{MICROSOFT_TENANT_ID}"
-MICROSOFT_REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
-MICROSOFT_SCOPE = ["User.Read"]
 
 CNS_ACCESS_KEY = os.getenv("CNS_ACCESS_KEY")
 CNS_BASE_URL = os.getenv("CNS_BASE_URL")
@@ -135,7 +117,6 @@ else:
 # Notifications
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-WEBHOOKS_TOKEN = os.getenv("WEBHOOKS_TOKEN")
 
 ENABLE_TOAST_SERVICE = True
 ENABLE_TELEGRAM_SERVICE = True
@@ -147,7 +128,7 @@ CONTENT_SECURITY_POLICY = {
         "default-src": ["'self'"],
         "script-src": [
             "'self'", "'unsafe-inline'", "'unsafe-eval'",
-            "cdn.tailwindcss.com", "cdn.plot.ly", "cdn.jsdelivr.net",
+            "cdn.tailwindcss.com", "cdn.jsdelivr.net",
             "cdnjs.cloudflare.com", "unpkg.com", "code.jquery.com",
             "https://lottie.host", "www.google.com", "www.gstatic.com",
         ],
@@ -176,8 +157,6 @@ CONTENT_SECURITY_POLICY = {
 # Jira / email service
 SMARTFASTAPI_DOMAIN = os.getenv("SMARTFASTAPI_DOMAIN")
 SMARTFASTAPI_ACCESS_KEY = os.getenv("SMARTFASTAPI_ACCESS_KEY")
-PROCESSED_API_TOKEN = os.getenv("PROCESSED_API_TOKEN")
-PROCESSED_API_BASE_URL = os.getenv("PROCESSED_API_BASE_URL")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
 JIRA_DOMAIN = os.getenv("JIRA_DOMAIN")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
@@ -233,16 +212,6 @@ WEBHOOK_RETRY_COUNT = int(os.getenv("WEBHOOK_RETRY_COUNT", "3"))
 WEBHOOK_VENDOR_NAME = os.getenv("WEBHOOK_VENDOR_NAME")
 WEBHOOK_EVENT_PAGE_URL = os.getenv("WEBHOOK_EVENT_PAGE_URL")
 
-# Vehicle master API (used by dashboard)
-VEHICLE_DATABASE_URL = os.environ.get("VEHICLE_DATABASE_URL", "")
-VEHICLE_MASTER_TABLE = os.environ.get("VEHICLE_MASTER_TABLE", "Vehicle_Master2")
-
-# reCAPTCHA
-RECAPTCHA_PUBLIC_KEY = os.getenv("CAPTCHA_SITE_KEY", "")
-RECAPTCHA_PRIVATE_KEY = os.getenv("CAPTCHA_SECRET_KEY", "")
-SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
-RECAPTCHA_TESTING = os.getenv("PROJECT_ENVIRONMENT", "dev") == "dev"
-
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -263,10 +232,6 @@ MEDIA_ROOT = os.getenv("MEDIA_ROOT", str(BASE_DIR / "media"))
 MEDIA_URL = "/media/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/dashboard/"
-LOGOUT_REDIRECT_URL = "/login/"
 
 # Celery
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
@@ -291,28 +256,6 @@ CACHES = {
 
 X_FRAME_OPTIONS = "SAMEORIGIN"
 
-JAZZMIN_SETTINGS = {
-    "site_title": "Tracker Admin",
-    "site_header": "Vehicle Tracker",
-    "site_brand": "Tracker",
-    "welcome_sign": "Welcome to Vehicle Tracker",
-    "copyright": "Transvolt Mobility",
-    "show_ui_builder": False,
-    "related_modal_active": False,
-}
-
-JAZZMIN_UI_TWEAKS = {
-    "navbar_small_text": False,
-    "footer_small_text": False,
-    "body_small_text": False,
-    "brand_small_text": False,
-    "brand_colour": "navbar-primary",
-    "accent": "accent-primary",
-    "navbar": "navbar-white navbar-light",
-    "sidebar": "sidebar-dark-primary",
-    "theme": "default",
-}
-
 # Logging
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -328,27 +271,11 @@ LOGGING = {
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler"},
-        "mis_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": str(LOG_DIR / "mis.log"),
-            "maxBytes": 20 * 1024 * 1024,
-            "backupCount": 5,
-            "formatter": "verbose",
-            "encoding": "utf-8",
-        },
         "livetracker_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "livetracker.log"),
             "maxBytes": 20 * 1024 * 1024,
             "backupCount": 5,
-            "formatter": "verbose",
-            "encoding": "utf-8",
-        },
-        "pipeline_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": str(LOG_DIR / "mis_pipeline.log"),
-            "maxBytes": 50 * 1024 * 1024,
-            "backupCount": 10,
             "formatter": "verbose",
             "encoding": "utf-8",
         },
@@ -378,21 +305,6 @@ LOGGING = {
             "level": os.getenv("DB_LOG_LEVEL", "ERROR"),
             "propagate": False,
         },
-        "mis": {
-            "handlers": ["console", "mis_file"],
-            "level": os.getenv("MIS_LOG_LEVEL", "DEBUG"),
-            "propagate": False,
-        },
-        "mis.services": {
-            "handlers": ["console", "mis_file"],
-            "level": os.getenv("MIS_SERVICES_LOG_LEVEL", "DEBUG"),
-            "propagate": False,
-        },
-        "mis.pipeline": {
-            "handlers": ["console", "mis_file", "pipeline_file"],
-            "level": "INFO",
-            "propagate": False,
-        },
         "livetracker": {
             "handlers": ["console", "livetracker_file"],
             "level": os.getenv("LIVETRACKER_LOG_LEVEL", "DEBUG"),
@@ -401,11 +313,6 @@ LOGGING = {
         "livenotif": {
             "handlers": ["console"],
             "level": os.getenv("LIVENOTIF_LOG_LEVEL", "WARNING"),
-            "propagate": False,
-        },
-        "dashboard": {
-            "handlers": ["console"],
-            "level": os.getenv("DASHBOARD_LOG_LEVEL", "WARNING"),
             "propagate": False,
         },
     },

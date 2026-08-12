@@ -100,22 +100,19 @@ export async function fetchVehicleDayStoppageHeatmap(reg_no, date) {
 // Django backend proxies handle all external API authentication
 // No API keys or credentials exposed to client-side code
 
-// Reads the active project key from the dropdown, or falls back to the URL
-// path slug (/<project>/livetracker/...) so vehicle-specific pages also work.
+// Reads the active project key: from the ?spv= query param (canonical source,
+// works on every page including vehicle detail pages that have no dropdown),
+// falling back to the dropdown (live map) or window.CURRENT_PROJECT (set by
+// base.html from the server-resolved selected_project on every page).
 function getSPVFromContext() {
+  const qs = new URLSearchParams(window.location.search).get('spv');
+  if (qs) return qs.toUpperCase();
+
   const switcher = document.getElementById('projectSwitcher');
   if (switcher && switcher.value) return switcher.value;
 
-  const parts = window.location.pathname.split('/').filter(Boolean);
-  if (parts.length >= 2 && parts[1] === 'livetracker') {
-    const slugMap = {
-      ultratech: 'ULTRATECH', umt: 'UMT', mbmt: 'MBMT',
-      nagpur: 'NAGPUR', vecv: 'VECV',
-      star_cement: 'STAR_CEMENT', 'star-cement': 'STAR_CEMENT',
-      jm_baxi: 'JM_BAXI', 'jm-baxi': 'JM_BAXI', gti: 'GTI',
-    };
-    return slugMap[parts[0].toLowerCase()] || '';
-  }
+  if (window.CURRENT_PROJECT) return window.CURRENT_PROJECT;
+
   return '';
 }
 

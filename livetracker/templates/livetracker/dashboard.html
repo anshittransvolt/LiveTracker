@@ -39,12 +39,6 @@
 {% endblock %}
 
 {% block topbar_geofence_btn %}
-<a href="{% url 'roster:assignment_page' %}"
-  class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150"
-  title="Roster">
-  <i data-lucide="users" class="w-3.5 h-3.5 text-violet-400"></i>
-  <span class="text-[11px] font-semibold hidden sm:inline">Roster</span>
-</a>
 <button id="openGeofencePanel"
   class="lv-nav-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-150"
   title="Manage Geofences">
@@ -353,6 +347,11 @@
   Object.entries(KEY_TO_SLUG).forEach(([k, v]) => { SLUG_TO_KEY[v] = k; SLUG_TO_KEY[v.replace('_','-')] = k; });
 
   function getProjectFromPath() {
+    const qs = new URLSearchParams(window.location.search).get('spv');
+    if (qs) {
+      const key = qs.trim().toUpperCase();
+      return KEY_TO_SLUG[key] ? key : (SLUG_TO_KEY[qs.toLowerCase()] || null);
+    }
     const parts = window.location.pathname.split('/').filter(Boolean);
     if (parts.length >= 2 && parts[1] === 'livetracker') return SLUG_TO_KEY[parts[0].toLowerCase()] || null;
     return null;
@@ -365,10 +364,9 @@
   const detected = getProjectFromPath();
   if (detected) switcher.value = detected;
 
-  // On change: navigate to the project-specific URL
+  // On change: reload the current page with the selected project as ?spv=
   switcher.addEventListener('change', function () {
-    const slug = KEY_TO_SLUG[this.value] || this.value.toLowerCase();
-    window.location.href = '/' + slug + '/livetracker/';
+    window.location.href = '/livetracker/?spv=' + encodeURIComponent(this.value);
   });
 
   // Update dropdown label and active state
@@ -872,18 +870,6 @@
       <!-- Content -->
       <div style="padding:8px 10px;display:flex;flex-direction:column;gap:5px;">
 
-        <!-- Driver row -->
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;gap:6px;">
-          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-            <i data-lucide="user" style="width:11px;height:11px;color:var(--text-muted);"></i>
-            <span style="font-size:10px;color:var(--text-muted);">Driver</span>
-          </div>
-          <div style="text-align:right;min-width:0;">
-            <div id="quickDriverName" style="font-size:10px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">—</div>
-            <div id="quickDriverPhone" style="font-size:9px;color:var(--text-muted);">—</div>
-          </div>
-        </div>
-
         <!-- Status + Odometer row (2 col) -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
           <div style="padding:5px 8px;background:var(--nav-btn-bg);border-radius:6px;">
@@ -1163,77 +1149,6 @@
       <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Saved Geofences</p>
       <div id="geofenceList" class="space-y-1.5">
         <p class="text-xs text-slate-400 text-center py-4">No geofences yet</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Driver Assignment Modal -->
-  <div id="driverAssignmentModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10002] hidden items-center justify-center">
-    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all">
-      <div class="flex items-center justify-between p-4 border-b border-slate-200">
-        <div class="flex items-center gap-2">
-          <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
-          <h3 id="driverModalTitle" class="text-lg font-semibold text-slate-800">Assign Driver</h3>
-        </div>
-        <button id="closeDriverModal" class="p-1 hover:bg-slate-100 rounded-lg transition-colors">
-          <i data-lucide="x" class="w-5 h-5 text-slate-500"></i>
-        </button>
-      </div>
-      <form id="driverAssignmentForm" class="p-6 space-y-4">
-        <input type="hidden" id="assignmentVehicleNumber" />
-        
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-2">Vehicle Number</label>
-          <input type="text" id="displayVehicleNumber" readonly
-            class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-700 font-medium" />
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-2">Select Driver *</label>
-          <select id="driverSelect" required
-            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="">Loading drivers...</option>
-          </select>
-        </div>
-        
-        <div id="driverDetailsPreview" class="hidden p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div class="flex items-center gap-2 text-blue-700 mb-2">
-            <i data-lucide="info" class="w-4 h-4"></i>
-            <span class="text-xs font-semibold">Selected Driver Details</span>
-          </div>
-          <div class="space-y-1 text-xs">
-            <div class="flex justify-between">
-              <span class="text-blue-600">Code:</span>
-              <span id="previewDriverCode" class="font-semibold text-blue-900"></span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-blue-600">Phone:</span>
-              <span id="previewDriverPhone" class="font-semibold text-blue-900"></span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-blue-600">Status:</span>
-              <span id="previewDriverStatus" class="font-semibold"></span>
-            </div>
-          </div>
-        </div>
-        
-        <div id="modalErrorMessage" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div class="flex items-center gap-2 text-red-700">
-            <i data-lucide="alert-circle" class="w-4 h-4"></i>
-            <span class="text-xs font-medium" id="modalErrorText"></span>
-          </div>
-        </div>
-      </form>
-      <div class="flex gap-3 p-4 bg-slate-50 rounded-b-xl border-t border-slate-200">
-        <button id="cancelDriverAssignment" type="button"
-          class="flex-1 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium">
-          Cancel
-        </button>
-        <button id="saveDriverAssignment" type="submit"
-          class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2">
-          <i data-lucide="save" class="w-4 h-4"></i>
-          <span>Save Assignment</span>
-        </button>
       </div>
     </div>
   </div>

@@ -299,6 +299,11 @@ class DataSourceManager:
                 # Get defaults from settings if not provided
                 if not spv:
                     spv = getattr(settings, 'TELEMETRY_SPV', 'ULTRATECH')
+                # Telemetry API's spv filter is case-sensitive and expects the
+                # uppercase project key (e.g. 'ULTRATECH', not 'ultratech') —
+                # _resolve_twins_project() returns lowercase for some projects
+                # since that's what TWINS itself was configured with.
+                spv = spv.upper()
                 if not vendor:
                     vendor = 'intangles'
 

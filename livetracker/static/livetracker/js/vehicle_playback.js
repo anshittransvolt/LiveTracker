@@ -728,30 +728,7 @@ async function createVehicleInfoHeader(registrationNumber, firstPoint) {
   
   const displayNumber = getDisplayVehicleNumber(registrationNumber);
   const vehicleModel = firstPoint?.model || '';
-  
-  // Show loading state initially
-  header.innerHTML = `
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2">
-        
-        <div>
-          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Vehicle</div>
-          <div class="text-sm font-bold text-slate-900">${displayNumber}</div>
-        </div>
-      </div>
-      
-      <div class="h-8 w-px bg-slate-300"></div>
-      
-      <div class="flex items-center gap-2">
-        
-        <div>
-          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Driver</div>
-          <div class="text-sm font-bold text-slate-900">Loading...</div>
-        </div>
-      </div>
-    </div>
-  `;
-  
+
   // Style the header - compact and clean
   header.style.cssText = `
     position: fixed;
@@ -768,71 +745,25 @@ async function createVehicleInfoHeader(registrationNumber, firstPoint) {
     border: 1px solid rgba(226, 232, 240, 0.6);
     transition: all 0.2s ease;
   `;
-  
+
   // Add subtle hover effect
   header.onmouseenter = () => {
     header.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08)';
   };
-  
+
   header.onmouseleave = () => {
     header.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06)';
   };
-  
-  // Fetch driver info from service
-  try {
-    const response = await fetch(`/roster/api/driver/${encodeURIComponent(registrationNumber)}/`);
-    const driverData = await response.json();
-    
-    const driverName = driverData.driver_name || 'Not Assigned';
-    const driverPhone = driverData.driver_phone || '';
 
-    // Populate sidebar rail driver name
-    const railDriverEl = document.getElementById('lv-veh-driver-rail');
-    if (railDriverEl) {
-      railDriverEl.textContent = (driverName && driverName !== 'Not Assigned') ? driverName : 'Unassigned';
-    }
+  header.innerHTML = `
+    <div class="flex items-center gap-2.5 text-base">
+      <div class="flex items-center gap-2">
+        <i data-lucide="truck" class="w-4.5 h-4.5 text-blue-600"></i>
+        <span class="font-bold text-slate-900">${displayNumber}</span>
+      </div>
+    </div>
+  `;
 
-    // Update header with actual driver info
-    header.innerHTML = `
-      <div class="flex items-center gap-2.5 text-base">
-        <div class="flex items-center gap-2">
-          <i data-lucide="truck" class="w-4.5 h-4.5 text-blue-600"></i>
-          <span class="font-bold text-slate-900">${displayNumber}</span>
-        </div>
-        <span class="text-slate-400">•</span>
-        <div class="flex items-center gap-2">
-          <i data-lucide="user" class="w-4.5 h-4.5 text-green-600"></i>
-          <span class="font-semibold text-slate-900">${driverName}</span>
-        </div>
-        ${driverPhone && driverPhone !== 'N/A' ? `
-        <span class="text-slate-400">•</span>
-        <div class="flex items-center gap-2">
-          <i data-lucide="phone" class="w-4.5 h-4.5 text-slate-600"></i>
-          <span class="font-medium text-slate-700">${driverPhone}</span>
-        </div>
-        ` : ''}
-      </div>
-    `;
-  } catch (error) {
-    console.error('Failed to fetch driver info:', error);
-    const railDriverElErr = document.getElementById('lv-veh-driver-rail');
-    if (railDriverElErr) railDriverElErr.textContent = 'Unassigned';
-    // Show error state
-    header.innerHTML = `
-      <div class="flex items-center gap-2.5 text-base">
-        <div class="flex items-center gap-2">
-          <i data-lucide="truck" class="w-4.5 h-4.5 text-blue-600"></i>
-          <span class="font-bold text-slate-900">${displayNumber}</span>
-        </div>
-        <span class="text-slate-400">•</span>
-        <div class="flex items-center gap-2">
-          <i data-lucide="user-x" class="w-4.5 h-4.5 text-slate-400"></i>
-          <span class="font-medium text-slate-500">Not Available</span>
-        </div>
-      </div>
-    `;
-  }
-  
   // Initialize Lucide icons if available
   if (typeof lucide !== 'undefined') {
     setTimeout(() => lucide.createIcons(), 50);

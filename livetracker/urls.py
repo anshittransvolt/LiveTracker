@@ -23,9 +23,6 @@ urlpatterns = [
         "api/corridor/", views.corridor_config_api, name="corridor_config_api"
     ),  # /livetracker/api/corridor/
     path(
-        "api/drivers/bulk/", views.get_drivers_bulk, name="drivers_bulk"
-    ),  # /livetracker/api/drivers/bulk/
-    path(
         "api/alerts/", views.get_recent_alerts, name="get_alerts"
     ),  # /livetracker/api/alerts/
     path(

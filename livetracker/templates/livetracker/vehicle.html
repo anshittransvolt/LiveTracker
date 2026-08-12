@@ -312,22 +312,17 @@ body.dark-theme #corridorToggleBtn {
       <div class="flex items-start justify-between mb-2.5">
         <div>
           <div class="va-plate">{{ registration_number|display_vehicle_number }}</div>
-          <div id="lv-veh-driver-rail" class="va-driver">Loading driver…</div>
         </div>
         <span class="va-live-chip mt-0.5">Live</span>
       </div>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1">
-          <a href="{% url 'dashboard:dashboard' %}" class="va-back-link">
+          <a href="{% url 'livetracker:all' %}" class="va-back-link">
             <i data-lucide="home" class="w-3 h-3"></i><span>Dashboard</span>
           </a>
           <span class="va-back-sep">|</span>
           <a href="{% url 'livetracker:all' %}" class="va-back-link">
             <i data-lucide="map" class="w-3 h-3"></i><span>Fleet</span>
-          </a>
-          <span class="va-back-sep">|</span>
-          <a href="{% url 'roster:assignment_page' %}" class="va-back-link">
-            <i data-lucide="users" class="w-3 h-3"></i><span>Roster</span>
           </a>
         </div>
         <div class="flex items-center gap-1">

@@ -1,6 +1,0 @@
-product,component,summary,priority,severity
-CMS,UI,This is a test bug - please disregard,Low,Issue
-CMS,UI,Database connection timeout after 30 seconds,High,Issue
-CMS,UI,REST endpoint returns 500 error for invalid input,Medium,Issue
-CMS,UI,Button color inconsistent with design system,Low,Issue
-CMS,UI,Unit test coverage below 80% threshold,Medium,Issue

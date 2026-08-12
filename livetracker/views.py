@@ -3,7 +3,6 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.conf import settings
@@ -22,7 +21,6 @@ from .analytics.dashboard_report import download_dashboard_report
 from .timebox import build_timebox_for_vehicle
 from .data_sources import DataSourceManager
 from .services.route_corridor import load_corridor
-@login_required
 @require_http_methods(["GET"])
 def dashboard_report_view(request):
     """
@@ -31,7 +29,6 @@ def dashboard_report_view(request):
     return download_dashboard_report(request)
 from .models import VehicleAlert
 from .alertService.telegram import send_telegram_message
-from dashboard.models import Vehicle
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -58,7 +55,6 @@ def _wait_for_rate_limit():
 
 
 
-@login_required
 def all_view(request):
     # Returns the All Vehicles view (map with tails)
     # Uses TWINS API via Django proxies (/livetracker/api/twins/...)
@@ -66,7 +62,6 @@ def all_view(request):
     return render(request, "livetracker/dashboard.html", context)
 
 
-@login_required
 def vehicle_view(request, registration_number):
     # Returns single-vehicle analytics + playback page
     # Uses TWINS API via Django proxies (/livetracker/api/twins/...)
@@ -79,7 +74,6 @@ def vehicle_view(request, registration_number):
     )
 
 
-@login_required
 def vehicle_history_view(request, registration_number, date):
     """
     Returns historical vehicle analytics + playback page for a specific date.
@@ -96,7 +90,6 @@ def vehicle_history_view(request, registration_number, date):
     )
 
 
-@login_required
 @require_http_methods(["GET"])
 def corridor_config_api(request):
     """
@@ -406,7 +399,6 @@ def api_vehicle_historical_data(request, registration_number):
 
 
 @csrf_exempt
-@login_required
 @require_http_methods(["GET"])
 def get_recent_alerts(request):
     """
@@ -465,7 +457,6 @@ def get_recent_alerts(request):
 
 
 @csrf_exempt
-@login_required
 @require_http_methods(["POST"])
 def mark_alert_seen(request, alert_id):
     """
@@ -483,7 +474,6 @@ def mark_alert_seen(request, alert_id):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-@login_required
 @require_http_methods(["GET"])
 def reverse_geocode(request):
     """
@@ -657,46 +647,6 @@ def reverse_geocode(request):
         )
 
 
-@login_required
-@require_http_methods(["POST"])
-@csrf_exempt
-def get_drivers_bulk(request):
-    """
-    BULK API endpoint to get driver details for multiple vehicles in one call.
-    Replaces slow individual API calls with fast batch lookup.
-    
-    Usage: POST /livetracker/api/drivers/bulk/
-    Body: {"registration_numbers": ["TN01AB1234", "TN01CD5678", ...]}
-    
-    Returns: {
-        "TN01AB1234": {"driver_name": "John Doe", "driver_phone": "9876543210", "has_driver": true},
-        "TN01CD5678": {"driver_name": "N/A", "driver_phone": "N/A", "has_driver": false},
-        ...
-    }
-    """
-    try:
-        import json
-        from roster.services.driverService import get_all_drivers_bulk
-        
-        # Parse request body
-        body = json.loads(request.body)
-        registration_numbers = body.get('registration_numbers', [])
-        
-        if not registration_numbers:
-            return JsonResponse({'error': 'No registration numbers provided'}, status=400)
-        
-        # Use bulk service function (cached and optimized)
-        drivers_data = get_all_drivers_bulk(registration_numbers)
-        
-        return JsonResponse(drivers_data)
-        
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    except Exception as e:
-        logger.error(f"Error in bulk driver fetch: {str(e)}", exc_info=True)
-        return JsonResponse({'error': 'Service error'}, status=500)
-
-
 def process_telemetry_to_timeline(multi_day_data, engine: str | None = 'timebox'):
     """
     Process multi-day telemetry data into timeline format for the UI
@@ -803,7 +753,6 @@ def process_telemetry_to_timeline(multi_day_data, engine: str | None = 'timebox'
 
 
 @csrf_exempt
-@login_required
 @require_http_methods(["POST"])
 def report_deviation_alert(request):
     """
@@ -949,81 +898,6 @@ def fetch_day(vehicle_no, start_date, end_date):
         return []
 
 
-def fetch_all_vehicles_from_api():
-    """Fetch ALL vehicle data from API for the last 2 days"""
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    logger.info(f"Fetching all vehicles data from API for {yesterday} to {today}")
-    
-    # Fetch data for ALL vehicles (don't specify vehicle_no parameter)
-    all_data = fetch_day(None, yesterday, today)  # None means fetch all vehicles
-    
-    if all_data and isinstance(all_data, list):
-        logger.info(f"Successfully fetched {len(all_data)} records from API")
-        return all_data
-    else:
-        logger.warning("No data received from API")
-        return []
-
-
-def auto_sync_vehicles_from_api(api_data):
-    """Automatically sync vehicles from API data to database"""
-    if not api_data:
-        return 0
-    
-    # Extract unique vehicle numbers from API data
-    api_vehicles = set()
-    for record in api_data:
-        vehicle_no = record.get('vehicle_no')
-        if vehicle_no:
-            api_vehicles.add(vehicle_no)
-    
-    logger.info(f"Found {len(api_vehicles)} unique vehicles in API data")
-    
-    # Get existing vehicles from database
-    existing_vehicles = set(Vehicle.objects.values_list('registration_number', flat=True))
-    
-    # Find vehicles that need to be added
-    missing_vehicles = api_vehicles - existing_vehicles
-    
-    if not missing_vehicles:
-        logger.info("All vehicles from API are already in database")
-        return 0
-    
-    logger.info(f"Auto-syncing {len(missing_vehicles)} new vehicles to database")
-    
-    # Get default model type for new vehicles
-    try:
-        from dashboard.models import ModelType
-        default_model_type = ModelType.objects.first()
-        if not default_model_type:
-            logger.error("No ModelType found in database. Cannot create new vehicles.")
-            return 0
-    except Exception as e:
-        logger.error(f"Error getting ModelType: {e}")
-        return 0
-    
-    # Create new vehicle records
-    new_vehicles = []
-    for vehicle_no in missing_vehicles:
-        new_vehicles.append(
-            Vehicle(
-                registration_number=vehicle_no,
-                model=default_model_type
-            )
-        )
-    
-    try:
-        # Bulk create new vehicles
-        created_vehicles = Vehicle.objects.bulk_create(new_vehicles, ignore_conflicts=True)
-        logger.info(f"Successfully auto-synced {len(created_vehicles)} new vehicles: {', '.join(missing_vehicles)}")
-        return len(created_vehicles)
-    except Exception as e:
-        logger.error(f"Error creating new vehicles: {e}")
-        return 0
-
-
 def process_api_data_to_timeline(api_data, vehicle_numbers, engine: str | None = None):
     """
     Process raw API data directly to timeline format
@@ -1104,7 +978,6 @@ def get_multi_day_data(vehicle_numbers, days_back=1):
 
 @require_http_methods(["POST"])
 @csrf_exempt
-@login_required
 def submit_feedback(request):
     """Handle feedback submission from LiveTracker with optional screenshot"""
     import json
@@ -1185,7 +1058,6 @@ def submit_feedback(request):
 
 
 
-@login_required
 @require_http_methods(["GET"])
 def download_charging_report(request, registration_number):
     """
@@ -1254,7 +1126,6 @@ def download_charging_report(request, registration_number):
         logger.error(f"Error generating charging report: {str(e)}", exc_info=True)
         return HttpResponse(f"Error generating report: {str(e)}", status=500)
 
-@login_required
 @require_http_methods(["GET"])
 def download_stoppage_report(request, registration_number):
     """
@@ -1319,7 +1190,6 @@ def download_stoppage_report(request, registration_number):
         return HttpResponse(f"Error generating report: {str(e)}", status=500)
 
 
-@login_required
 @require_http_methods(["GET"])
 def event_page_view(request):
     """
@@ -1342,7 +1212,6 @@ def event_page_view(request):
     return render(request, 'livetracker/event_page.html', context)
 
 
-@login_required
 @require_http_methods(["GET"])
 def smartfastapi_proxy(request):
     """
@@ -1420,7 +1289,6 @@ def _resolve_twins_project(spv_param):
     return mapping.get(key, mapping['ULTRATECH'])
 
 
-@login_required
 @require_http_methods(["GET"])
 def twins_api_proxy(request):
     """
@@ -1578,7 +1446,6 @@ def _telemetry_fallback_24hr(registration_number, vendor, spv):
         return JsonResponse({'points': [], 'registration_number': registration_number}, status=200)
 
 
-@login_required
 @require_http_methods(["GET"])
 def twins_24hr_route_proxy(request):
     """
@@ -1760,7 +1627,6 @@ def twins_24hr_route_proxy(request):
         )
 
 
-@login_required
 @require_http_methods(["GET"])
 def twins_temp_soc_proxy(request):
     """
@@ -1881,8 +1747,6 @@ def twins_temp_soc_proxy(request):
     })
 
 
-@login_required
-@login_required
 @require_http_methods(["GET", "POST"])
 def geofences_list_create(request):
     if request.method == 'GET':
@@ -1935,7 +1799,6 @@ def geofences_list_create(request):
     }, status=201)
 
 
-@login_required
 @require_http_methods(["GET", "PUT", "DELETE"])
 def geofence_detail(request, pk):
     geofence = get_object_or_404(Geofence, pk=pk)
@@ -1979,7 +1842,7 @@ def geofence_detail(request, pk):
 
 def _fetch_soc_discharge_all(spv, vendor, start_date, end_date, vehicle_no=None, cache_ttl=900):
     """Fetch all pages from /analytics/soc-discharge and return flat list of records."""
-    from dashboard.services.dashboard_kpi_services import fetch_voltrack_api
+    from .services.vendor_config import fetch_voltrack_api
     all_records = []
     cursor = None
     for _ in range(30):
@@ -2048,14 +1911,13 @@ def _build_7day_output(daily, today):
     return labels, distances, energies, efficiencies
 
 
-@login_required
 def fleet_trend_api(request):
     """
     Returns 7-day daily averages: distance, energy, efficiency.
     ?vehicle_no=REG — vehicle-specific trend (live API, short cache)
     No param — fleet-wide average, served from DB if precomputed by scheduler
     """
-    from dashboard.vendor_spv_list import VENDOR_SPV_LIST
+    from .services.vendor_config import VENDOR_SPV_LIST
 
     # Accept ?spv= from the URL (baked in by the template at render time) so that
     # project-switching works without relying on session/redirect ordering.

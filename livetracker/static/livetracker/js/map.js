@@ -623,9 +623,11 @@ if (mapEl && !isVehiclePage) {
     const visibleVehicles = new Set();
 
     vehicleCards.forEach(card => {
-      const displayNumber = card.querySelector('h3')?.textContent || '';
+      const displayNumber = card.querySelector('.vehicle-plate')?.textContent || '';
       const actualRegNumber = card.getAttribute('data-vehicle');
-      const matchesSearch = !searchTerm || displayNumber.toUpperCase().includes(searchTerm);
+      const matchesSearch = !searchTerm
+        || displayNumber.toUpperCase().includes(searchTerm)
+        || (actualRegNumber || '').toUpperCase().includes(searchTerm);
 
       // Check status filter
       let matchesStatus = true;
@@ -1023,16 +1025,7 @@ if (mapEl && !isVehiclePage) {
       }
 
       updateVehicleList(payload);
-      
-      // Fetch all driver info in one bulk call (fast and efficient)
-      const registrationNumbers = Array.from(activeRegs);
-      if (registrationNumbers.length > 0) {
-        fetchAllDriverInfo(registrationNumbers).catch(err => {
-          console.error('⚠️ Failed to load driver info:', err);
-          // Non-critical error, continue anyway
-        });
-      }
-      
+
       if (!silent) {
         toggleLoading(false);
       }
@@ -1215,7 +1208,7 @@ if (mapEl && !isVehiclePage) {
 
         <!-- Row 1: plate + status pill -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;
+          <span class="vehicle-plate" style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;
                        letter-spacing:.02em;color:var(--text-primary);line-height:1;">${displayNumber}</span>
           <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:500;
                        padding:2px 6px;border-radius:10px;background:${sc.pill};color:${sc.text};
@@ -1323,94 +1316,6 @@ if (mapEl && !isVehiclePage) {
   };
 
   // =======================
-  // DRIVER INFO FETCHING - BULK OPTIMIZED
-  // =======================
-  const driverInfoCache = new Map(); // In-memory cache for driver info
-  let driversLoaded = false; // Track if bulk fetch completed
-  
-  /**
-   * Bulk fetch all driver info in one API call (fast and efficient)
-   * Called once after vehicles load to populate cache
-   */
-  async function fetchAllDriverInfo(registrationNumbers) {
-    if (!registrationNumbers || registrationNumbers.length === 0) {
-      console.warn('⚠️ No vehicles to fetch driver info for');
-      return;
-    }
-    
-    
-    try {
-      const response = await fetch('/livetracker/api/drivers/bulk/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ registration_numbers: registrationNumbers })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const driversData = await response.json();
-      
-      // Populate cache with all driver info
-      for (const [regNum, driverInfo] of Object.entries(driversData)) {
-        driverInfoCache.set(regNum, driverInfo);
-      }
-      
-      driversLoaded = true;
-      
-    } catch (error) {
-      console.error('❌ Error fetching bulk driver info:', error);
-      // Don't fail the whole page, just mark as loaded
-      driversLoaded = true;
-    }
-  }
-  
-  /**
-   * Get driver info from cache (instant, no API call)
-   * Call this after fetchAllDriverInfo() completes
-   */
-  function getDriverInfo(registrationNumber) {
-    const cached = driverInfoCache.get(registrationNumber);
-    if (cached) {
-      return cached;
-    }
-    
-    // Default fallback if not found
-    return {
-      driver_name: 'Not Assigned',
-      driver_phone: 'N/A',
-      has_driver: false
-    };
-  }
-
-  // Update driver button based on assignment status
-  function updateDriverButton(registrationNumber) {
-    const editDriverBtn = document.getElementById('editDriverBtn');
-    const editDriverBtnText = document.getElementById('editDriverBtnText');
-    const driverNameEl = document.getElementById('quickDriverName');
-    
-    if (!editDriverBtn || !editDriverBtnText || !driverNameEl) return;
-    
-    const driverName = driverNameEl.textContent;
-    const hasDriver = driverName && !['Loading...', 'Not Assigned', 'N/A', 'Error', 'Timeout'].includes(driverName);
-    
-    if (hasDriver) {
-      editDriverBtnText.textContent = 'Edit';
-      editDriverBtn.title = 'Edit driver assignment';
-    } else {
-      editDriverBtnText.textContent = 'Add';
-      editDriverBtn.title = 'Add driver assignment';
-    }
-    
-    editDriverBtn.classList.remove('hidden');
-    editDriverBtn.onclick = () => openDriverAssignmentModal(registrationNumber, hasDriver);
-  }
-
-  // =======================
   // QUICK ANALYTICS PANEL
   // =======================
   function showQuickAnalytics(registrationNumber, latestPoint) {
@@ -1499,12 +1404,6 @@ if (mapEl && !isVehiclePage) {
       }
     }
 
-
-    // Display driver information from cache (instant, no API call)
-    const driverInfo = getDriverInfo(registrationNumber);
-    updateElement('quickDriverName', driverInfo.driver_name);
-    updateElement('quickDriverPhone', driverInfo.driver_phone);
-    updateDriverButton(registrationNumber);
 
     // Normalize status for display
     let displayStatus = latestPoint.vehicle_status || 'Unknown';
@@ -1627,15 +1526,14 @@ if (mapEl && !isVehiclePage) {
       };
     }
 
-    // Preserve project prefix so the vehicle page opens under the correct SPV
-    // (avoids the middleware redirecting to whatever is in session, which may be wrong)
-    const _parts = window.location.pathname.split('/').filter(Boolean);
-    const _projectPrefix = (_parts.length >= 2 && _parts[1] === 'livetracker') ? `/${_parts[0]}` : '';
+    // Preserve the selected project as ?spv= so the vehicle page opens under the correct SPV
+    const _spv = window.CURRENT_PROJECT || '';
+    const _spvQuery = _spv ? `?spv=${encodeURIComponent(_spv)}` : '';
 
     const handlers = {
       closeQuickAnalytics: closeHandler,
-      viewFullAnalytics: () => window.open(`${_projectPrefix}/livetracker/${encodeURIComponent(registrationNumber)}/`, '_blank'),
-      viewHistoricalData: () => openHistoricalDatePicker(registrationNumber, _projectPrefix)
+      viewFullAnalytics: () => window.open(`/livetracker/${encodeURIComponent(registrationNumber)}/${_spvQuery}`, '_blank'),
+      viewHistoricalData: () => openHistoricalDatePicker(registrationNumber, _spv)
     };
 
     Object.entries(handlers).forEach(([id, handler]) => {
@@ -1647,7 +1545,7 @@ if (mapEl && !isVehiclePage) {
   // =======================
   // HISTORICAL DATE PICKER
   // =======================
-  function openHistoricalDatePicker(registrationNumber, projectPrefix = '') {
+  function openHistoricalDatePicker(registrationNumber, spv = '') {
     const modal = document.getElementById('historicalDatePickerModal');
     const dateInput = document.getElementById('historicalDateInput');
     const loadBtn = document.getElementById('loadHistoricalData');
@@ -1678,7 +1576,8 @@ if (mapEl && !isVehiclePage) {
     loadBtn.onclick = () => {
       const selectedDate = dateInput.value;
       if (selectedDate) {
-        window.open(`${projectPrefix}/livetracker/vehicle/${encodeURIComponent(registrationNumber)}/history/${selectedDate}/`, '_blank');
+        const spvQuery = spv ? `?spv=${encodeURIComponent(spv)}` : '';
+        window.open(`/livetracker/vehicle/${encodeURIComponent(registrationNumber)}/history/${selectedDate}/${spvQuery}`, '_blank');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
       } else {
@@ -1761,343 +1660,6 @@ if (mapEl && !isVehiclePage) {
       autoRefreshInterval = null;
     }
   }
-
-  // =======================
-  // DRIVER ASSIGNMENT MODAL
-  // =======================
-  let availableDrivers = [];
-  let currentAssignmentVehicle = null;
-  
-  async function loadAvailableDrivers() {
-    try {
-      const response = await fetch('/roster/api/drivers/');
-      const data = await response.json();
-      
-      if (data.success && Array.isArray(data.drivers)) {
-        availableDrivers = data.drivers;
-        return availableDrivers;
-      } else {
-        console.error('Invalid driver data received');
-        return [];
-      }
-    } catch (error) {
-      console.error('Error loading drivers:', error);
-      return [];
-    }
-  }
-  
-  function populateDriverSelect(drivers) {
-    const select = document.getElementById('driverSelect');
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">-- Select a driver --</option>';
-    
-    drivers.forEach(driver => {
-      const option = document.createElement('option');
-      option.value = driver.employee_code;
-      option.textContent = `${driver.employee_name} (${driver.employee_code})`;
-      option.dataset.phone = driver.phone || 'N/A';
-      option.dataset.active = driver.is_active;
-      
-      if (!driver.is_active) {
-        option.textContent += ' - Inactive';
-        option.disabled = true;
-      }
-      
-      select.appendChild(option);
-    });
-  }
-  
-  async function openDriverAssignmentModal(vehicleNumber, hasExistingDriver) {
-    const modal = document.getElementById('driverAssignmentModal');
-    const modalTitle = document.getElementById('driverModalTitle');
-    const assignmentVehicleNumber = document.getElementById('assignmentVehicleNumber');
-    const displayVehicleNumber = document.getElementById('displayVehicleNumber');
-    const driverSelect = document.getElementById('driverSelect');
-    const errorMessage = document.getElementById('modalErrorMessage');
-    
-    if (!modal) return;
-    
-    currentAssignmentVehicle = vehicleNumber;
-    
-    // Update modal title
-    modalTitle.textContent = hasExistingDriver ? 'Edit Driver Assignment' : 'Assign Driver';
-    
-    // Set vehicle number
-    assignmentVehicleNumber.value = vehicleNumber;
-    displayVehicleNumber.value = getDisplayVehicleNumber(vehicleNumber);
-    
-    // Hide error message
-    errorMessage.classList.add('hidden');
-    
-    // Load drivers if not already loaded
-    if (availableDrivers.length === 0) {
-      driverSelect.innerHTML = '<option value="">Loading drivers...</option>';
-      availableDrivers = await loadAvailableDrivers();
-    }
-    
-    populateDriverSelect(availableDrivers);
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    lucide.createIcons();
-  }
-  
-  function closeDriverAssignmentModal() {
-    const modal = document.getElementById('driverAssignmentModal');
-    const driverDetailsPreview = document.getElementById('driverDetailsPreview');
-    const errorMessage = document.getElementById('modalErrorMessage');
-    const driverSelect = document.getElementById('driverSelect');
-    
-    if (modal) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-    
-    if (driverDetailsPreview) {
-      driverDetailsPreview.classList.add('hidden');
-    }
-    
-    if (errorMessage) {
-      errorMessage.classList.add('hidden');
-    }
-    
-    if (driverSelect) {
-      driverSelect.value = '';
-    }
-    
-    currentAssignmentVehicle = null;
-  }
-  
-  function showDriverPreview() {
-    const driverSelect = document.getElementById('driverSelect');
-    const preview = document.getElementById('driverDetailsPreview');
-    const codeEl = document.getElementById('previewDriverCode');
-    const phoneEl = document.getElementById('previewDriverPhone');
-    const statusEl = document.getElementById('previewDriverStatus');
-    
-    if (!driverSelect || !preview) return;
-    
-    const selectedOption = driverSelect.options[driverSelect.selectedIndex];
-    
-    if (!selectedOption || !selectedOption.value) {
-      preview.classList.add('hidden');
-      return;
-    }
-    
-    codeEl.textContent = selectedOption.value;
-    phoneEl.textContent = selectedOption.dataset.phone || 'N/A';
-    
-    const isActive = selectedOption.dataset.active === 'true';
-    statusEl.textContent = isActive ? 'Active' : 'Inactive';
-    statusEl.className = isActive ? 'font-semibold text-green-700' : 'font-semibold text-red-700';
-    
-    preview.classList.remove('hidden');
-    lucide.createIcons();
-  }
-  
-  async function saveDriverAssignment() {
-    const vehicleNumber = document.getElementById('assignmentVehicleNumber').value;
-    const driverCode = document.getElementById('driverSelect').value;
-    const errorMessage = document.getElementById('modalErrorMessage');
-    const errorText = document.getElementById('modalErrorText');
-    const saveBtn = document.getElementById('saveDriverAssignment');
-    
-    if (!driverCode) {
-      errorText.textContent = 'Please select a driver';
-      errorMessage.classList.remove('hidden');
-      lucide.createIcons();
-      return;
-    }
-    
-    // Disable button and show loading
-    const originalHTML = saveBtn.innerHTML;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Saving...</span>';
-    lucide.createIcons();
-    
-    try {
-      const response = await fetch('/roster/api/assign-driver/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-          horse_number: vehicleNumber,
-          driver_code: driverCode
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Clear cache for this vehicle
-        driverInfoCache.delete(vehicleNumber);
-        
-        // Get driver details from selection
-        const driverSelect = document.getElementById('driverSelect');
-        const selectedOption = driverSelect.options[driverSelect.selectedIndex];
-        const driverName = selectedOption.text.split(' (')[0]; // Extract name before employee code
-        const driverPhone = selectedOption.dataset.phone || 'N/A';
-        
-        // Close modal first
-        closeDriverAssignmentModal();
-        
-        // Immediately update Quick Analytics panel if it's visible
-        const quickAnalytics = document.getElementById('quickAnalytics');
-        const isQuickAnalyticsOpen = quickAnalytics && !quickAnalytics.classList.contains('hidden');
-        
-        if (isQuickAnalyticsOpen) {
-          const driverNameEl = document.getElementById('quickDriverName');
-          const driverPhoneEl = document.getElementById('quickDriverPhone');
-          
-          // Immediate visual update with animation
-          if (driverNameEl) {
-            driverNameEl.style.transition = 'all 0.3s ease';
-            driverNameEl.style.transform = 'scale(1.1)';
-            driverNameEl.style.color = '#16a34a'; // green
-            driverNameEl.textContent = driverName;
-            
-            setTimeout(() => {
-              driverNameEl.style.transform = 'scale(1)';
-              driverNameEl.style.color = '';
-            }, 300);
-          }
-          
-          if (driverPhoneEl) {
-            driverPhoneEl.style.transition = 'all 0.3s ease';
-            driverPhoneEl.style.transform = 'scale(1.1)';
-            driverPhoneEl.style.color = '#16a34a'; // green
-            driverPhoneEl.textContent = driverPhone;
-            
-            setTimeout(() => {
-              driverPhoneEl.style.transform = 'scale(1)';
-              driverPhoneEl.style.color = '';
-            }, 300);
-          }
-          
-          // Update cache with new data
-          driverInfoCache.set(vehicleNumber, {
-            driver_name: driverName,
-            driver_phone: driverPhone,
-            timestamp: Date.now(),
-            hasDriver: true
-          });
-          
-          // Update button text from "Add" to "Edit"
-          updateDriverButton(vehicleNumber);
-        }
-        
-        // Show success notification with better UX
-        showSuccessNotification(`Driver ${driverName} assigned successfully!`);
-        
-      } else {
-        errorText.textContent = data.message || 'Failed to update assignment';
-        errorMessage.classList.remove('hidden');
-        lucide.createIcons();
-      }
-    } catch (error) {
-      console.error('Error saving driver assignment:', error);
-      errorText.textContent = 'An error occurred. Please try again.';
-      errorMessage.classList.remove('hidden');
-      lucide.createIcons();
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = originalHTML;
-      lucide.createIcons();
-    }
-  }
-  
-  // Helper function to get CSRF token
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
-  
-  // Success notification function
-  function showSuccessNotification(message) {
-    // Remove any existing notifications
-    const existingNotif = document.getElementById('successNotification');
-    if (existingNotif) existingNotif.remove();
-    
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.id = 'successNotification';
-    notification.className = 'fixed top-20 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] flex items-center gap-3 animate-slide-in-right';
-    notification.innerHTML = `
-      <i data-lucide="check-circle" class="w-5 h-5"></i>
-      <span class="font-medium">${message}</span>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Initialize lucide icons
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-      notification.style.transition = 'all 0.3s ease-out';
-      notification.style.opacity = '0';
-      notification.style.transform = 'translateX(100%)';
-      setTimeout(() => notification.remove(), 300);
-    }, 3000);
-  }
-  
-  // Set up modal event listeners
-  const closeDriverModalBtn = document.getElementById('closeDriverModal');
-  const cancelDriverAssignmentBtn = document.getElementById('cancelDriverAssignment');
-  const saveDriverAssignmentBtn = document.getElementById('saveDriverAssignment');
-  const driverSelectEl = document.getElementById('driverSelect');
-  
-  if (closeDriverModalBtn) {
-    closeDriverModalBtn.addEventListener('click', closeDriverAssignmentModal);
-  }
-  
-  if (cancelDriverAssignmentBtn) {
-    cancelDriverAssignmentBtn.addEventListener('click', closeDriverAssignmentModal);
-  }
-  
-  if (saveDriverAssignmentBtn) {
-    saveDriverAssignmentBtn.addEventListener('click', saveDriverAssignment);
-  }
-  
-  if (driverSelectEl) {
-    driverSelectEl.addEventListener('change', showDriverPreview);
-  }
-
-  // =======================
-  // ADD NOTIFICATION ANIMATION STYLES
-  // =======================
-  const notificationStyles = document.createElement('style');
-  notificationStyles.textContent = `
-    @keyframes slide-in-right {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-    
-    .animate-slide-in-right {
-      animation: slide-in-right 0.3s ease-out;
-    }
-  `;
-  document.head.appendChild(notificationStyles);
 
   // =======================
   // INITIAL LOAD & EXPORTS

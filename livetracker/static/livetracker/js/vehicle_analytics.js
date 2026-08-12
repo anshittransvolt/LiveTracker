@@ -69,15 +69,12 @@ export async function loadVehicleAnalytics(registrationNumber, historicalDate = 
     
     // Build API URL with optional date and project parameters
     let apiUrl = `/livetracker/api/analytics/${encodeURIComponent(registrationNumber)}/`;
-    // Read SPV from dropdown; fall back to URL path (/<project>/livetracker/...)
-    let spv = document.getElementById('projectSwitcher')?.value || '';
-    if (!spv) {
-      const parts = window.location.pathname.split('/').filter(Boolean);
-      if (parts.length >= 2 && parts[1] === 'livetracker') {
-        const slugMap = { ultratech:'ULTRATECH', umt:'UMT', mbmt:'MBMT', nagpur:'NAGPUR', vecv:'VECV', star_cement:'STAR_CEMENT', 'star-cement':'STAR_CEMENT', jm_baxi:'JM_BAXI', 'jm-baxi':'JM_BAXI', gti:'GTI' };
-        spv = slugMap[parts[0].toLowerCase()] || '';
-      }
-    }
+    // Read SPV from the ?spv= query param (canonical), then the project-switcher
+    // dropdown (live map only), then window.CURRENT_PROJECT (set on every page).
+    let spv = new URLSearchParams(window.location.search).get('spv')
+      || document.getElementById('projectSwitcher')?.value
+      || window.CURRENT_PROJECT
+      || '';
     const params = new URLSearchParams();
     if (historicalDate) params.set('date', historicalDate);
     if (spv) params.set('spv', spv);

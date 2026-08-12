@@ -1,14 +1,16 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.contrib.auth.decorators import login_required
 import json
 import re
 from .models import Event
-from roster.models import HorseTrolleyAssignment
 from livetracker.models import LiveTrackerAlertAction
 
+try:
+    from roster.models import HorseTrolleyAssignment
+except ImportError:
+    HorseTrolleyAssignment = None
 
-@login_required
+
 @require_http_methods(["GET"])
 def get_active_toasts(request):
     """Get all active events for toast display"""
@@ -29,7 +31,7 @@ def get_active_toasts(request):
 
     # Map vehicle -> assigned driver details
     driver_by_vehicle = {}
-    if vehicle_numbers:
+    if vehicle_numbers and HorseTrolleyAssignment is not None:
         assignments = (
             HorseTrolleyAssignment.objects
             .select_related("horse", "driver")
@@ -74,7 +76,6 @@ def get_active_toasts(request):
     return JsonResponse(data)
 
 
-@login_required
 @require_http_methods(["GET"])
 def get_latest_alerts(request):
     """Get latest active alerts for notification sidebar"""
@@ -124,7 +125,6 @@ def extract_vehicle_number(description):
     return match.group(0) if match else None
 
 
-@login_required
 @require_http_methods(["POST"])
 def log_toast_action(request):
     """Log user action on alert and save to LiveTrackerAlertAction model"""
