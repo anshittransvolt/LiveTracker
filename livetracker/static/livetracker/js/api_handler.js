@@ -668,9 +668,17 @@ export async function fetchVehicleOneDay(reg_no, date = null) {
 
   // Use historical endpoint if date is provided, otherwise use live endpoint
   const url = date ? API.HISTORICAL(date, reg_no) : API.ONE_DAY(reg_no);
-  
+
   // Django backend handles all API authentication - no client-side keys needed
   const opts = {};
+
+  // The historical endpoint paginates through the Telemetry API 1000 records
+  // at a time server-side (sequential, ~10s/page) — a full busy day can take
+  // 60-80s+. Give it a much longer timeout and fewer retries so a slow-but-
+  // successful request isn't aborted and then retried 3x (which would turn a
+  // 74s wait into 4+ minutes). The live endpoint stays on the fast default.
+  const timeout = date ? 180000 : DEFAULT_TIMEOUT;
+  const retries = date ? 1 : MAX_RETRIES;
   
   console.log('🌐 fetchVehicleOneDay called with:');
   console.log('  - reg_no:', reg_no);
@@ -683,7 +691,7 @@ export async function fetchVehicleOneDay(reg_no, date = null) {
   
   try {
     console.log('🔄 Starting fetch request...');
-    let response = await fetchWithTimeout(url, opts);
+    let response = await fetchWithTimeout(url, opts, timeout, retries);
     console.log('✅ Fetch completed, received:', response ? (Array.isArray(response) ? `${response.length} rows` : typeof response) : 'null/undefined');
 
     // Handle two response formats:

@@ -94,8 +94,9 @@ export async function loadVehicleAnalytics(registrationNumber, historicalDate = 
       if (analyticsResponse.status === 404) {
         errorMessage = errorData?.error || 'No analytics data available for this vehicle today.';
         
-        // Show modal for 404 errors
-        showAnalyticsLoading(false);
+        // Show modal for 404 errors (the catch block below hides loading
+        // uniformly on every throw path — hiding here too would double-
+        // decrement the shared loading counter)
         if (window.showNoDataModal) {
           window.showNoDataModal(errorMessage, registrationNumber);
         }
@@ -107,7 +108,6 @@ export async function loadVehicleAnalytics(registrationNumber, historicalDate = 
     
     // Check if data is empty
     if (!analyticsData || Object.keys(analyticsData).length === 0) {
-      showAnalyticsLoading(false);
       if (window.showNoDataModal) {
         window.showNoDataModal(
           `No analytics data available for vehicle ${registrationNumber} today.`,

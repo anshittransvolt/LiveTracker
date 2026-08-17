@@ -649,7 +649,8 @@ export async function initializeVehiclePlayback(registrationNumber, historicalDa
     const data = await fetchVehicleOneDay(registrationNumber, historicalDate);
 
     if (!Array.isArray(data) || data.length === 0) {
-      showSpinner(false);
+      // Don't hide here — the outer catch below hides on every throw path,
+      // and double-hiding would over-decrement the shared loading counter.
       console.error('❌ No playback data returned. Vehicle:', registrationNumber, 'Date:', historicalDate);
       if (window.showNoDataModal) {
         window.showNoDataModal(
@@ -979,17 +980,12 @@ function setupPlaybackControls() {
     slider.addEventListener('mouseleave', () => updateScrubberReadout(currentIndex));
   }
 
-  // Document-flow bar: reset any floating styles, keep width/transform explicit
-  controlsContainer.style.position  = 'static';
-  controlsContainer.style.bottom    = 'auto';
-  controlsContainer.style.left      = 'auto';
-  controlsContainer.style.right     = 'auto';
-  controlsContainer.style.transform = 'none';
-  controlsContainer.style.maxWidth  = 'none';
-  controlsContainer.style.width     = '100%';
-  controlsContainer.style.display   = 'block';
-  controlsContainer.style.backdropFilter = 'none';
-  controlsContainer.style.WebkitBackdropFilter = 'none';
+  // NOTE: layout (fixed floating bar vs. full-width document-flow bar) is
+  // deliberately left to each page's own CSS for #playbackControls — this
+  // file is shared between vehicle.html (full-width in-flow bar, see its
+  // #playbackControls rule) and vehicle_history.html (floating fixed
+  // bottom-center bar via Tailwind classes). Forcing inline styles here
+  // used to stomp on vehicle_history.html's layout.
 
   // Button handlers
   document.getElementById('playBtn')?.addEventListener('click',  playPlayback);

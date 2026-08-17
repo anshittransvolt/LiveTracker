@@ -791,7 +791,16 @@
   <script>
     window.CURRENT_PROJECT = "{{ selected_project }}";
 
+    // Reference-counted: multiple independent scripts (map.js's live vehicle
+    // list, vehicle_playback.js's historical fetch, vehicle_analytics.js)
+    // can all be loading at once and share this one overlay. Without a
+    // counter, whichever finishes first hides it for everyone else still
+    // in flight — e.g. the fast live-vehicle-list fetch would hide the
+    // overlay while a much slower historical data fetch was still running.
+    window._loadingCount = 0;
+
     window.showLoading = function (message = 'Please wait') {
+      window._loadingCount++;
       const overlay = document.getElementById('loadingOverlay');
       const messageEl = document.getElementById('loadingMessage');
       if (overlay) {
@@ -801,6 +810,8 @@
     };
 
     window.hideLoading = function () {
+      window._loadingCount = Math.max(0, window._loadingCount - 1);
+      if (window._loadingCount > 0) return;
       const overlay = document.getElementById('loadingOverlay');
       if (overlay) overlay.classList.add('hidden');
     };
