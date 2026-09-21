@@ -193,17 +193,17 @@ if (mapEl && !isVehiclePage) {
   // =======================
   // 3️⃣ MAP SETUP
   // =======================
+  // Both entries point at the same OSM raster tiles; the "dark" look comes
+  // from a CSS filter on .leaflet-tile-pane (see base.html) since OSM has no dark style.
+  const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const OSM_TILE_OPTS = {
+    maxZoom: 19,
+    subdomains: 'abc',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  };
   const TILE_LAYERS = {
-    day: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-    }),
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-    }),
+    day: L.tileLayer(OSM_TILE_URL, OSM_TILE_OPTS),
+    dark: L.tileLayer(OSM_TILE_URL, OSM_TILE_OPTS),
   };
 
   let currentMapStyle = localStorage.getItem('mapStyle') || 'dark'; // dark is default
@@ -992,8 +992,8 @@ if (mapEl && !isVehiclePage) {
           polylines[registration_number]._shadowLine.setLatLngs(latlngs);
           polylines[registration_number]._routeLine.setLatLngs(latlngs);
         } else {
-          const shadowLine = L.polyline(latlngs, { color: 'rgba(34,197,94,0.10)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false });
-          const routeLine  = L.polyline(latlngs, { color: '#22c55e', weight: 3, lineCap: 'round', lineJoin: 'round', opacity: 0.92, className: 'trail-route-line' });
+          const shadowLine = L.polyline(latlngs, { color: 'rgba(37,99,235,0.12)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false });
+          const routeLine  = L.polyline(latlngs, { color: '#2563eb', weight: 3, lineCap: 'round', lineJoin: 'round', opacity: 0.92, className: 'trail-route-line' });
           const trailGroup = L.layerGroup([shadowLine, routeLine]).addTo(map);
           trailGroup._shadowLine = shadowLine;
           trailGroup._routeLine  = routeLine;

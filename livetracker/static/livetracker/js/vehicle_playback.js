@@ -25,10 +25,10 @@ let heatmapVisible = true; // Default to ON
 // ===================================================
 let _vehicleTileLayer = null;
 
+// OSM has no dark tile style; the dark look comes from a CSS filter on
+// .leaflet-tile-pane (see base.html) driven by the body's dark-theme class.
 function _getVehicleTileUrl() {
-  return document.body.classList.contains('dark-theme')
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 }
 
 function switchVehicleTiles() {
@@ -38,8 +38,8 @@ function switchVehicleTiles() {
   }
   _vehicleTileLayer = L.tileLayer(_getVehicleTileUrl(), {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    subdomains: 'abcd'
+    attribution: '&copy; OpenStreetMap contributors',
+    subdomains: 'abc'
   }).addTo(playbackMap);
 }
 window.switchVehicleTiles = switchVehicleTiles;
@@ -334,6 +334,9 @@ function getStoppagePointsWithMeta() {
     if ((event.type === 'stopped' || event.type === 'unplanned_stop') && event.points && event.points.length > 0) {
       // Duration in minutes
       const duration = event.duration ? Math.round(event.duration / 60) : null;
+      // Only surface stops longer than 2 minutes — brief halts (traffic lights,
+      // junctions) aren't meaningful "stoppages" and just clutter the heatmap.
+      if (duration === null || duration <= 2) return;
       // Use the first point as the marker location
       const pt = event.points[0];
       if (pt.latitude && pt.longitude) {
@@ -1423,13 +1426,13 @@ function drawPlaybackPath() {
 
   // 1 — Shadow glow underlay
   const glowLine = L.polyline(latlngs, {
-    color: 'rgba(34,197,94,0.10)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false
+    color: 'rgba(21,128,61,0.18)', weight: 14, lineCap: 'round', lineJoin: 'round', interactive: false
   }).addTo(playbackMap);
   playbackPolylineSegments.push({ polyline: glowLine });
 
   // 2 — Main route path
   playbackPolyline = L.polyline(latlngs, {
-    color: '#22c55e', weight: 3, lineCap: 'round', lineJoin: 'round', opacity: 0.92
+    color: '#15803d', weight: 4, lineCap: 'round', lineJoin: 'round', opacity: 0.95
   }).addTo(playbackMap);
 
   // No path dots — heatmap (toggleStoppageHeatmap) handles stoppage visualization

@@ -21,6 +21,7 @@ from .analytics.dashboard_report import download_dashboard_report
 from .timebox import build_timebox_for_vehicle
 from .data_sources import DataSourceManager
 from .services.route_corridor import load_corridor
+from .services.route_master import build_route_master, get_cached_route_master, fetch_vehicle_day_points, haversine_m, _parse_gps_time
 @require_http_methods(["GET"])
 def dashboard_report_view(request):
     """
@@ -111,6 +112,38 @@ def corridor_config_api(request):
     except Exception as e:
         logger.exception("Failed to load corridor config")
         return JsonResponse({"segments": {"M_J": {"polyline": [], "buffer_m": 3000}, "J_D": {"polyline": [], "buffer_m": 3000}, "D_M": {"polyline": [], "buffer_m": 3000}}})
+
+@require_http_methods(["GET"])
+def frequent_routes_api(request):
+    """
+    Return precomputed frequent-route clusters for a project (Route Master panel).
+
+    Query Parameters:
+    - spv: project key, e.g. NAGPUR (default: NAGPUR)
+    - days: trailing days analyzed, 1-30 (default: 7)
+    - refresh=1: recompute synchronously instead of serving the cache
+      (can take several minutes for a large fleet — used by the "Recompute" button)
+    """
+    spv = (request.GET.get("spv") or "NAGPUR").strip().upper()
+    try:
+        days = int(request.GET.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(days, 30))
+    refresh = request.GET.get("refresh") == "1"
+
+    if not refresh:
+        cached = get_cached_route_master(spv, days)
+        if cached:
+            return JsonResponse(cached)
+
+    try:
+        result = build_route_master(spv=spv, days=days, force_reingest_latest=refresh)
+        return JsonResponse(result)
+    except Exception as e:
+        logger.exception(f"Frequent routes computation failed for {spv}")
+        return JsonResponse({"error": str(e), "routes": []}, status=500)
+
 
 def send_message_telegram(request):
     """
@@ -333,6 +366,69 @@ def vehicle_analytics_api(request, registration_number):
         }, status=500)
 
 
+def _fetch_geo_historical_fallback(registration_number, start_date, end_date, vendor, spv):
+    """
+    Fallback for api_vehicle_historical_data when the Telemetry API has no history
+    for this vendor (confirmed empty for 'eka'/Nagpur regardless of date — it simply
+    isn't wired into that pipeline). Pulls the same TWINS fetch_geo GPS history that
+    already powers Route Master and the live 24hr-route view, for an arbitrary date
+    range, and derives speed/status from consecutive points since fetch_geo carries
+    neither.
+    """
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return []
+
+    raw_points = []
+    d = start
+    while d <= end:
+        raw_points.extend(fetch_vehicle_day_points(registration_number, d.isoformat(), vendor, spv))
+        d += timedelta(days=1)
+
+    cleaned = []
+    for p in raw_points:
+        try:
+            lat = float(p.get("latitude"))
+            lon = float(p.get("longitude"))
+        except (TypeError, ValueError):
+            continue
+        if lat == 0 and lon == 0:
+            continue
+        ts = _parse_gps_time(p.get("gps_time"), p.get("event_datetime"))
+        if ts is None:
+            continue
+        cleaned.append({"lat": lat, "lon": lon, "ts": ts, "ignition": p.get("ignition_status"), "heading": p.get("head")})
+    cleaned.sort(key=lambda x: x["ts"])
+
+    points = []
+    prev = None
+    for c in cleaned:
+        speed = None
+        if prev is not None:
+            dt_s = (c["ts"] - prev["ts"]).total_seconds()
+            if dt_s > 0:
+                speed = round((haversine_m(prev["lat"], prev["lon"], c["lat"], c["lon"]) / dt_s) * 3.6, 1)
+        status = "Moving" if (speed or 0) > 2 else ("Idling" if c.get("ignition") == 1 else "Stopped")
+        points.append({
+            "vehicle_no": registration_number,
+            "registration_number": registration_number,
+            "latitude": c["lat"],
+            "longitude": c["lon"],
+            "gps_time": c["ts"].isoformat(),
+            "last_connected": c["ts"].isoformat(),
+            "speed": speed,
+            "gps_speed": speed,
+            "heading": c.get("heading"),
+            "gps_heading": c.get("heading"),
+            "vehicle_status": status,
+        })
+        prev = c
+
+    return points
+
+
 @require_http_methods(["GET"])
 def api_vehicle_historical_data(request, registration_number):
     """
@@ -370,8 +466,18 @@ def api_vehicle_historical_data(request, registration_number):
             vendor=vendor
         )
         
-        if isinstance(result, dict) and 'points' in result:
-            points = result.get('points', [])
+        points = result.get('points', []) if isinstance(result, dict) else []
+
+        if not points:
+            # Telemetry API has no history at all for some vendors (e.g. 'eka'/Nagpur —
+            # confirmed empty regardless of date). Fall back to the TWINS fetch_geo
+            # history that Route Master and the live view already rely on.
+            logger.info(f"Telemetry API returned nothing for {registration_number} — trying TWINS fetch_geo fallback")
+            points = _fetch_geo_historical_fallback(registration_number, start_date, end_date, vendor, spv)
+            if points:
+                logger.info(f"TWINS fetch_geo fallback returned {len(points)} points for {registration_number}")
+
+        if points:
             logger.info(f"Returned {len(points)} points for {registration_number}")
             return JsonResponse({
                 'registration_number': registration_number,

@@ -746,10 +746,17 @@ document.addEventListener("DOMContentLoaded", function () {
     appearance: slider-horizontal;
 }
 
-/* Ensure playback controls don't interfere with map when not needed */
+/* Ensure playback controls don't interfere with map when not needed.
+   Explicit width is required here: the timeline scrubber column is
+   `flex:1` but every element inside it is position:absolute, so it has
+   zero intrinsic content width — without a definite width on this fixed-
+   position container, flexbox has no free space to give that column and
+   the slider collapses to a couple of pixels. */
 #playbackControls {
     pointer-events: auto;
     touch-action: auto;
+    width: min(900px, 92vw);
+    z-index: 100 !important;
 }
 
 #playbackControls * {
@@ -759,10 +766,6 @@ document.addEventListener("DOMContentLoaded", function () {
 /* Allow map interaction above the controls */
 #map {
     z-index: 1;
-}
-
-#playbackControls {
-    z-index: 100 !important;
 }
 
 /* Fix dragging cursor on map */

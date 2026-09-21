@@ -170,10 +170,10 @@ function setupPlaybackUI() {
 
   // Initialize playback map
   playbackMap = L.map(mapDiv).setView([20.59, 78.96], 5);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    subdomains: 'abc'
   }).addTo(playbackMap);
 
   // ✅ Add geofences overlay
@@ -199,9 +199,10 @@ function drawPlaybackPath() {
 
   if (playbackPolyline) playbackMap.removeLayer(playbackPolyline);
   playbackPolyline = L.polyline(latlngs, {
-    color: INDUSTRY_COLORS.MOVING,  // Green for general route path
+    color: '#15803d',  // Darker green than INDUSTRY_COLORS.MOVING — that lighter green
+                        // is tuned for the status legend/scrubber, not a map line against OSM tiles
     weight: 4,
-    opacity: 0.7,
+    opacity: 0.95,
   }).addTo(playbackMap);
 
   playbackMap.fitBounds(playbackPolyline.getBounds(), { padding: [30, 30] });

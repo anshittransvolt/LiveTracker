@@ -23,6 +23,9 @@ urlpatterns = [
         "api/corridor/", views.corridor_config_api, name="corridor_config_api"
     ),  # /livetracker/api/corridor/
     path(
+        "api/routes/frequent/", views.frequent_routes_api, name="frequent_routes_api"
+    ),  # /livetracker/api/routes/frequent/?spv=NAGPUR&days=7&refresh=1
+    path(
         "api/alerts/", views.get_recent_alerts, name="get_alerts"
     ),  # /livetracker/api/alerts/
     path(

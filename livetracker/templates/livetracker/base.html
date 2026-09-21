@@ -132,6 +132,12 @@
       overflow: visible !important;
     }
 
+    /* OpenStreetMap only ships light tiles — invert them for a dark map look.
+       Only the tile pane is filtered, so markers/polylines/popups keep their own colors. */
+    body.dark-theme .leaflet-tile-pane {
+      filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+    }
+
     /* Geofence icon styling - ensure proper alignment */
     .geofence-charging-icon,
     .geofence-unloading-icon,
@@ -225,7 +231,7 @@
     .trail-route-line {
       stroke-dasharray: 2 10;
       stroke-linecap: round;
-      animation: trail-march 0.55s linear infinite;
+      animation: trail-march 2.5s linear infinite;
     }
 
     /* ── Dark map theme ─────────────────────────────────────────── */
@@ -359,6 +365,35 @@
       background: #1a2035 !important;
       border-color: #1e2433 !important;
       color: #e2e8f0 !important;
+    }
+
+    /* Route Master modal */
+    body.dark-theme #routeMasterModal .bg-white,
+    body.dark-theme #routeMasterModal [class*="bg-gradient"] {
+      background: #131929 !important;
+    }
+    body.dark-theme #routeMasterModal .border-slate-200,
+    body.dark-theme #routeMasterModal .border-slate-100 {
+      border-color: #1e2433 !important;
+    }
+    body.dark-theme #routeMasterModal .text-slate-800 {
+      color: #e2e8f0 !important;
+    }
+    body.dark-theme #routeMasterModal .text-slate-600,
+    body.dark-theme #routeMasterModal .text-slate-500,
+    body.dark-theme #routeMasterModal .text-slate-400 {
+      color: #94a3b8 !important;
+    }
+    body.dark-theme #routeMasterModal .hover\:bg-slate-50:hover,
+    body.dark-theme #routeMasterModal .bg-slate-50 {
+      background: #1a2035 !important;
+    }
+    body.dark-theme .rm-route-card {
+      background: #1a2035 !important;
+      border-color: #1e2433 !important;
+    }
+    body.dark-theme .rm-trip-row:hover {
+      background: #202844 !important;
     }
 
     /* Leaflet controls on dark map */
